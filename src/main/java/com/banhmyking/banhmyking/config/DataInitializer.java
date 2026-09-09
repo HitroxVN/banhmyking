@@ -142,7 +142,7 @@ public class DataInitializer implements ApplicationRunner {
             promotionRepository.save(promo2);
 
             log.info("Khởi tạo khuyến mãi mẫu: BANHMYKING10, GIAM10K");
-        }
+          }
 
         if (userRepository.findByEmail("staff@banhmyking.vn").isEmpty()) {
             User staff = new User();
