@@ -131,7 +131,7 @@ class OrderControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/v1/orders - Xem danh sách đơn hàng của user")
+    @DisplayName("GET /api/v1/orders - Xem danh sách đơn hàng của user (phân trang)")
     void getUserOrders_shouldReturnOrderList() throws Exception {
         OrderResponse response = OrderResponse.builder()
                 .id(1L)
@@ -139,14 +139,22 @@ class OrderControllerTest {
                 .total(BigDecimal.valueOf(95000))
                 .build();
 
-        when(orderService.getUserOrders(1L)).thenReturn(List.of(response));
+        com.banhmyking.banhmyking.dto.common.PageResponse<OrderResponse> pageResponse =
+                new com.banhmyking.banhmyking.dto.common.PageResponse<>(
+                        List.of(response), 0, 10, 1L, 1, true
+                );
+
+        when(orderService.getUserOrders(1L, 0, 10)).thenReturn(pageResponse);
 
         mockMvc.perform(get("/api/v1/orders")
-                        .header("X-User-Id", 1L))
+                        .header("X-User-Id", 1L)
+                        .param("page", "0")
+                        .param("size", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].orderCode").value("BMK-20260908-ABC12"));
+                .andExpect(jsonPath("$.data.content").isArray())
+                .andExpect(jsonPath("$.data.content[0].orderCode").value("BMK-20260908-ABC12"))
+                .andExpect(jsonPath("$.data.totalElements").value(1));
     }
 
     @Test
