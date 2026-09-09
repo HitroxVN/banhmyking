@@ -67,6 +67,11 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Email hoặc mật khẩu không đúng");
         }
 
+        // Check sau password match
+        if (user.isBanned()) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Tài khoản đã bị khoá");
+        }
+
         return issueTokens(user);
     }
 

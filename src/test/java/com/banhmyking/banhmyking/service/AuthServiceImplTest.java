@@ -106,6 +106,21 @@ class AuthServiceImplTest {
                 .isEqualTo(ErrorCode.UNAUTHORIZED);
     }
 
+    @Test
+    void login_bannedUser_throwsUnauthorized() {
+        setRefreshExpiry(7);
+        User user = buildUser(1L, "locked@y.com", "hashed", false);
+        user.setBanned(true);
+        when(userRepository.findByEmailAndDeletedFalse("locked@y.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("pw", "hashed")).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.login(new LoginRequest("locked@y.com", "pw")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Tài khoản đã bị khoá")
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.UNAUTHORIZED);
+    }
+
     // ─── refresh ────────────────────────────────────────────────────────────
 
     @Test
