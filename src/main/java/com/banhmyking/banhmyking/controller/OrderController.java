@@ -16,6 +16,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -63,6 +64,44 @@ public class OrderController {
         Long userId = resolveUserId(headerUserId);
         List<OrderResponse> orders = orderService.getUserOrders(userId);
         return ResponseEntity.ok(ApiResponse.ok("Lấy lịch sử đơn hàng thành công", orders));
+    }
+
+    @PutMapping("/{orderCode}/cancel")
+    @Operation(summary = "Hủy đơn hàng", description = "Hủy đơn hàng tuân thủ phân quyền: Customer chỉ hủy khi PENDING/CONFIRMED và check ownership; Staff/Admin hủy tới READY_FOR_PICKUP và bắt buộc có lý do.")
+    public ResponseEntity<ApiResponse<OrderResponse>> cancelOrder(
+            @Parameter(description = "ID người dùng thao tác (mặc định: 1 khi test Swagger)", example = "1")
+            @RequestHeader(value = "X-User-Id", required = false, defaultValue = "1") Long headerUserId,
+            @Parameter(description = "Mã đơn hàng", example = "BMK-20260908-A1B2C")
+            @PathVariable String orderCode,
+            @Valid @RequestBody(required = false) com.banhmyking.banhmyking.dto.order.CancelOrderRequest request) {
+        Long userId = resolveUserId(headerUserId);
+        OrderResponse orderResponse = orderService.cancelOrder(userId, orderCode, request);
+        return ResponseEntity.ok(ApiResponse.ok("Hủy đơn hàng thành công", orderResponse));
+    }
+
+    @PutMapping("/{orderCode}/status")
+    @Operation(summary = "Cập nhật trạng thái đơn hàng", description = "Cập nhật trạng thái đơn hàng theo State Machine (Staff/Admin/Shipper). Chặn nhảy cóc trạng thái, FAILED chỉ được chuyển từ DELIVERING.")
+    public ResponseEntity<ApiResponse<OrderResponse>> updateOrderStatus(
+            @Parameter(description = "ID người dùng thao tác (Staff/Admin/Shipper)", example = "1")
+            @RequestHeader(value = "X-User-Id", required = false, defaultValue = "1") Long headerUserId,
+            @Parameter(description = "Mã đơn hàng", example = "BMK-20260908-A1B2C")
+            @PathVariable String orderCode,
+            @Valid @RequestBody com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest request) {
+        Long userId = resolveUserId(headerUserId);
+        OrderResponse orderResponse = orderService.updateOrderStatus(userId, orderCode, request);
+        return ResponseEntity.ok(ApiResponse.ok("Cập nhật trạng thái đơn hàng thành công", orderResponse));
+    }
+
+    @GetMapping("/{orderCode}/history")
+    @Operation(summary = "Lịch sử trạng thái đơn hàng", description = "Lấy danh sách các lần chuyển đổi trạng thái (ai đổi, từ gì sang gì, ghi chú, thời gian).")
+    public ResponseEntity<ApiResponse<List<com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse>>> getOrderStatusHistory(
+            @Parameter(description = "ID người dùng (mặc định: 1 khi test Swagger)", example = "1")
+            @RequestHeader(value = "X-User-Id", required = false, defaultValue = "1") Long headerUserId,
+            @Parameter(description = "Mã đơn hàng", example = "BMK-20260908-A1B2C")
+            @PathVariable String orderCode) {
+        Long userId = resolveUserId(headerUserId);
+        List<com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse> history = orderService.getOrderStatusHistory(userId, orderCode);
+        return ResponseEntity.ok(ApiResponse.ok("Lấy lịch sử trạng thái đơn hàng thành công", history));
     }
 
     private Long resolveUserId(Long headerUserId) {

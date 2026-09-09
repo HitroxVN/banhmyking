@@ -68,6 +68,12 @@ public class OrderResponse {
     @Schema(description = "Thời điểm tạo đơn", example = "2026-09-08T22:30:00")
     private LocalDateTime createdAt;
 
+    @Schema(description = "Lý do hủy đơn hàng (nếu có)", example = "Khách hàng đổi ý không muốn mua nữa")
+    private String cancelReason;
+
+    @Schema(description = "Thời điểm giao hàng thành công", example = "2026-09-08T23:00:00")
+    private LocalDateTime deliveredAt;
+
     @Schema(description = "Danh sách snapshot các món ăn và topping đã đặt")
     @Builder.Default
     private List<OrderItemResponse> items = new ArrayList<>();

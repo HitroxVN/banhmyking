@@ -143,5 +143,16 @@ public class DataInitializer implements ApplicationRunner {
 
             log.info("Khởi tạo khuyến mãi mẫu: BANHMYKING10, GIAM10K");
         }
+
+        if (userRepository.findByEmail("staff@banhmyking.vn").isEmpty()) {
+            User staff = new User();
+            staff.setEmail("staff@banhmyking.vn");
+            staff.setPassword("123456");
+            staff.setFullName("Nhân Viên Quán");
+            staff.setPhone("0908889999");
+            staff.setRole(RoleName.STAFF);
+            userRepository.save(staff);
+            log.info("Khởi tạo tài khoản Staff demo ID: {}, Email: staff@banhmyking.vn", staff.getId());
+        }
     }
 }
