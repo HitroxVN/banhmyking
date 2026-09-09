@@ -1,10 +1,13 @@
 package com.banhmyking.banhmyking.service.impl;
 
+import com.banhmyking.banhmyking.dto.order.CancelOrderRequest;
 import com.banhmyking.banhmyking.dto.order.CreateOrderRequest;
 import com.banhmyking.banhmyking.dto.order.OrderItemOptionResponse;
 import com.banhmyking.banhmyking.dto.order.OrderItemResponse;
 import com.banhmyking.banhmyking.dto.order.OrderResponse;
+import com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse;
 import com.banhmyking.banhmyking.dto.order.PriceBreakdown;
+import com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest;
 import com.banhmyking.banhmyking.entity.Address;
 import com.banhmyking.banhmyking.entity.Cart;
 import com.banhmyking.banhmyking.entity.CartItem;
@@ -12,6 +15,7 @@ import com.banhmyking.banhmyking.entity.CartItemOption;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.OrderItem;
 import com.banhmyking.banhmyking.entity.OrderItemOption;
+import com.banhmyking.banhmyking.entity.OrderStatusHistory;
 import com.banhmyking.banhmyking.entity.Payment;
 import com.banhmyking.banhmyking.entity.Product;
 import com.banhmyking.banhmyking.entity.Promotion;
@@ -20,6 +24,7 @@ import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.enums.PaymentMethod;
 import com.banhmyking.banhmyking.enums.PaymentStatus;
+import com.banhmyking.banhmyking.enums.RoleName;
 import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
@@ -27,6 +32,7 @@ import com.banhmyking.banhmyking.repository.AddressRepository;
 import com.banhmyking.banhmyking.repository.CartRepository;
 import com.banhmyking.banhmyking.repository.OrderItemRepository;
 import com.banhmyking.banhmyking.repository.OrderRepository;
+import com.banhmyking.banhmyking.repository.OrderStatusHistoryRepository;
 import com.banhmyking.banhmyking.repository.PaymentRepository;
 import com.banhmyking.banhmyking.repository.PromotionRepository;
 import com.banhmyking.banhmyking.repository.PromotionUsageRepository;
@@ -35,6 +41,7 @@ import com.banhmyking.banhmyking.service.CartService;
 import com.banhmyking.banhmyking.service.OrderService;
 import com.banhmyking.banhmyking.service.PriceCalculator;
 import com.banhmyking.banhmyking.util.OrderCodeGenerator;
+import com.banhmyking.banhmyking.validator.OrderStatusValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -42,6 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -61,6 +69,8 @@ public class OrderServiceImpl implements OrderService {
     private final PaymentRepository paymentRepository;
     private final PriceCalculator priceCalculator;
     private final OrderCodeGenerator orderCodeGenerator;
+    private final OrderStatusValidator orderStatusValidator;
+    private final OrderStatusHistoryRepository orderStatusHistoryRepository;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -221,7 +231,10 @@ public class OrderServiceImpl implements OrderService {
         Order order = orderRepository.findByOrderCodeWithDetails(orderCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode));
 
-        if (!order.getUser().getId().equals(userId)) {
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+
+        if (actor.getRole() == RoleName.CUSTOMER && !order.getUser().getId().equals(userId)) {
             throw new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode);
         }
 
@@ -233,6 +246,131 @@ public class OrderServiceImpl implements OrderService {
     public List<OrderResponse> getUserOrders(Long userId) {
         List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return orders.stream().map(this::toOrderResponse).toList();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderResponse cancelOrder(Long userId, String orderCode, CancelOrderRequest request) {
+        log.info("Cancelling order {} by user {}", orderCode, userId);
+
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+
+        Order order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode));
+
+        String reason = (request != null && request.getCancelReason() != null) ? request.getCancelReason().trim() : null;
+
+        // AC 3: Validate quyền hủy và điều kiện trạng thái qua OrderStatusValidator
+        orderStatusValidator.validateCancel(order, actor, reason);
+
+        OrderStatus fromStatus = order.getStatus();
+        order.setStatus(OrderStatus.CANCELLED);
+        order.setCancelReason(reason);
+        Order updatedOrder = orderRepository.save(order);
+
+        // AC 2: Tự động ghi 1 dòng vào order_status_history
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrder(updatedOrder);
+        history.setFromStatus(fromStatus);
+        history.setToStatus(OrderStatus.CANCELLED);
+        history.setChangedBy(actor);
+        history.setNote(reason);
+        orderStatusHistoryRepository.save(history);
+
+        log.info("Order {} cancelled successfully from {} by user {} (role: {}). Reason: {}",
+                orderCode, fromStatus, userId, actor.getRole(), reason);
+
+        return toOrderResponse(updatedOrder);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderResponse updateOrderStatus(Long userId, String orderCode, UpdateOrderStatusRequest request) {
+        log.info("Updating status for order {} to {} by user {}", orderCode, request.getNewStatus(), userId);
+
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+
+        Order order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode));
+
+        OrderStatus fromStatus = order.getStatus();
+        OrderStatus toStatus = request.getNewStatus();
+
+        // AC 1: Validate state machine (chặn nhảy cóc, FAILED chỉ từ DELIVERING, phân quyền vận hành)
+        orderStatusValidator.validateTransition(order, toStatus, actor);
+
+        // Gán thông tin shipper nếu chuyển sang DELIVERING
+        if (toStatus == OrderStatus.DELIVERING) {
+            if (request.getShipperId() != null) {
+                User shipper = userRepository.findById(request.getShipperId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper với ID: " + request.getShipperId()));
+                if (shipper.getRole() != RoleName.SHIPPER) {
+                    throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                            "Người dùng ID " + request.getShipperId() + " không có vai trò SHIPPER");
+                }
+                order.setShipper(shipper);
+            } else if (actor.getRole() == RoleName.SHIPPER && order.getShipper() == null) {
+                order.setShipper(actor);
+            }
+        }
+
+        // Đóng dấu thời gian giao hàng thành công
+        if (toStatus == OrderStatus.DELIVERED) {
+            order.setDeliveredAt(LocalDateTime.now());
+        }
+
+        order.setStatus(toStatus);
+        Order updatedOrder = orderRepository.save(order);
+
+        // AC 2: Tự động ghi 1 dòng vào order_status_history
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrder(updatedOrder);
+        history.setFromStatus(fromStatus);
+        history.setToStatus(toStatus);
+        history.setChangedBy(actor);
+        history.setNote(request.getNote());
+        orderStatusHistoryRepository.save(history);
+
+        log.info("Order {} transitioned from {} to {} by user {} (role: {})",
+                orderCode, fromStatus, toStatus, userId, actor.getRole());
+
+        return toOrderResponse(updatedOrder);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrderStatusHistoryResponse> getOrderStatusHistory(Long userId, String orderCode) {
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+
+        Order order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode));
+
+        // Customer chỉ được xem lịch sử đơn hàng của chính mình
+        if (actor.getRole() == RoleName.CUSTOMER && (order.getUser() == null || !order.getUser().getId().equals(actor.getId()))) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không có quyền xem lịch sử đơn hàng của người khác");
+        }
+
+        List<OrderStatusHistory> histories = orderStatusHistoryRepository.findByOrderOrderCodeOrderByCreatedAtAsc(orderCode);
+
+        List<OrderStatusHistoryResponse> responses = new ArrayList<>();
+        for (OrderStatusHistory h : histories) {
+            responses.add(OrderStatusHistoryResponse.builder()
+                    .id(h.getId())
+                    .orderCode(orderCode)
+                    .fromStatus(h.getFromStatus())
+                    .toStatus(h.getToStatus())
+                    .changedById(h.getChangedBy() != null ? h.getChangedBy().getId() : null)
+                    .changedByName(h.getChangedBy() != null ? h.getChangedBy().getFullName() : null)
+                    .changedByRole(h.getChangedBy() != null ? h.getChangedBy().getRole() : null)
+                    .note(h.getNote())
+                    .createdAt(h.getCreatedAt())
+                    .build());
+        }
+
+        return responses;
     }
 
     private OrderResponse toOrderResponse(Order order) {
@@ -280,6 +418,8 @@ public class OrderServiceImpl implements OrderService {
                 .paymentStatus(payment != null ? payment.getStatus() : PaymentStatus.PENDING)
                 .note(order.getNote())
                 .createdAt(order.getCreatedAt())
+                .cancelReason(order.getCancelReason())
+                .deliveredAt(order.getDeliveredAt())
                 .items(itemResponses)
                 .build();
     }
