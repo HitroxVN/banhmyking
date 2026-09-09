@@ -5,6 +5,7 @@ import com.banhmyking.banhmyking.dto.cart.CartResponse;
 import com.banhmyking.banhmyking.dto.cart.UpdateCartItemRequest;
 import com.banhmyking.banhmyking.dto.common.ApiResponse;
 import com.banhmyking.banhmyking.service.CartService;
+import com.banhmyking.banhmyking.security.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -12,8 +13,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,7 +36,7 @@ public class CartController {
     public ResponseEntity<ApiResponse<CartResponse>> getCart(
             @Parameter(description = "ID người dùng (mặc định: 1 khi test Swagger)", example = "1")
             @RequestHeader(value = "X-User-Id", required = false, defaultValue = "1") Long headerUserId) {
-        Long userId = resolveUserId(headerUserId);
+        Long userId = SecurityUtils.resolveUserId(headerUserId);
         CartResponse cartResponse = cartService.getCart(userId);
         return ResponseEntity.ok(ApiResponse.ok("Lấy giỏ hàng thành công", cartResponse));
     }
@@ -48,7 +47,7 @@ public class CartController {
             @Parameter(description = "ID người dùng (mặc định: 1 khi test Swagger)", example = "1")
             @RequestHeader(value = "X-User-Id", required = false, defaultValue = "1") Long headerUserId,
             @Valid @RequestBody AddToCartRequest request) {
-        Long userId = resolveUserId(headerUserId);
+        Long userId = SecurityUtils.resolveUserId(headerUserId);
         CartResponse cartResponse = cartService.addToCart(userId, request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok("Thêm món vào giỏ hàng thành công", cartResponse));
@@ -62,7 +61,7 @@ public class CartController {
             @Parameter(description = "ID dòng món trong giỏ (cart_items.id)", example = "1")
             @PathVariable Long itemId,
             @Valid @RequestBody UpdateCartItemRequest request) {
-        Long userId = resolveUserId(headerUserId);
+        Long userId = SecurityUtils.resolveUserId(headerUserId);
         CartResponse cartResponse = cartService.updateItemQuantity(userId, itemId, request);
         return ResponseEntity.ok(ApiResponse.ok("Cập nhật số lượng thành công", cartResponse));
     }
@@ -74,7 +73,7 @@ public class CartController {
             @RequestHeader(value = "X-User-Id", required = false, defaultValue = "1") Long headerUserId,
             @Parameter(description = "ID dòng món trong giỏ (cart_items.id)", example = "1")
             @PathVariable Long itemId) {
-        Long userId = resolveUserId(headerUserId);
+        Long userId = SecurityUtils.resolveUserId(headerUserId);
         CartResponse cartResponse = cartService.removeItem(userId, itemId);
         return ResponseEntity.ok(ApiResponse.ok("Xóa món khỏi giỏ hàng thành công", cartResponse));
     }
@@ -84,17 +83,8 @@ public class CartController {
     public ResponseEntity<ApiResponse<CartResponse>> clearCart(
             @Parameter(description = "ID người dùng (mặc định: 1 khi test Swagger)", example = "1")
             @RequestHeader(value = "X-User-Id", required = false, defaultValue = "1") Long headerUserId) {
-        Long userId = resolveUserId(headerUserId);
+        Long userId = SecurityUtils.resolveUserId(headerUserId);
         CartResponse cartResponse = cartService.clearCart(userId);
         return ResponseEntity.ok(ApiResponse.ok("Xóa sạch giỏ hàng thành công", cartResponse));
-    }
-
-    private Long resolveUserId(Long headerUserId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated()
-                && !"anonymousUser".equals(authentication.getPrincipal())) {
-            // Sẵn sàng tích hợp khi Auth Filter hoàn tất
-        }
-        return headerUserId != null ? headerUserId : 1L;
     }
 }

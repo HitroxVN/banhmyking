@@ -1,6 +1,9 @@
 package com.banhmyking.banhmyking.service.impl;
 
+import com.banhmyking.banhmyking.dto.common.PageResponse;
+import com.banhmyking.banhmyking.dto.order.AssignShipperRequest;
 import com.banhmyking.banhmyking.dto.order.CancelOrderRequest;
+import com.banhmyking.banhmyking.dto.order.ConfirmDeliveryRequest;
 import com.banhmyking.banhmyking.dto.order.CreateOrderRequest;
 import com.banhmyking.banhmyking.dto.order.OrderItemOptionResponse;
 import com.banhmyking.banhmyking.dto.order.OrderItemResponse;
@@ -8,6 +11,15 @@ import com.banhmyking.banhmyking.dto.order.OrderResponse;
 import com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse;
 import com.banhmyking.banhmyking.dto.order.PriceBreakdown;
 import com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest;
+import com.banhmyking.banhmyking.repository.specification.OrderSpecifications;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
 import com.banhmyking.banhmyking.entity.Address;
 import com.banhmyking.banhmyking.entity.Cart;
 import com.banhmyking.banhmyking.entity.CartItem;
@@ -238,6 +250,11 @@ public class OrderServiceImpl implements OrderService {
             throw new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode);
         }
 
+        if (actor.getRole() == RoleName.SHIPPER
+                && (order.getShipper() == null || !order.getShipper().getId().equals(userId))) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không được phân công giao đơn hàng này");
+        }
+
         return toOrderResponse(order);
     }
 
@@ -246,6 +263,183 @@ public class OrderServiceImpl implements OrderService {
     public List<OrderResponse> getUserOrders(Long userId) {
         List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return orders.stream().map(this::toOrderResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<OrderResponse> getUserOrders(Long userId, int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size));
+        Page<Order> orderPage = orderRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+        return PageResponse.from(orderPage.map(this::toOrderResponse));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<OrderResponse> getAllOrdersForAdmin(Long userId, OrderStatus status, String fromDateStr, String toDateStr, int page, int size) {
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+
+        if (actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ nhân viên hoặc quản trị viên mới có quyền xem toàn bộ đơn hàng");
+        }
+
+        LocalDateTime fromDate = parseDateTime(fromDateStr, false);
+        LocalDateTime toDate = parseDateTime(toDateStr, true);
+
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size), Sort.by(Sort.Direction.DESC, "createdAt"));
+        Specification<Order> spec = OrderSpecifications.withFilters(status, fromDate, toDate);
+        Page<Order> orderPage = orderRepository.findAll(spec, pageable);
+
+        return PageResponse.from(orderPage.map(this::toOrderResponse));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderResponse assignShipper(Long userId, String orderCode, AssignShipperRequest request) {
+        log.info("Assigning shipper {} to order {} by user {}", request.getShipperId(), orderCode, userId);
+
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+
+        if (actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ nhân viên hoặc quản trị viên mới có quyền gán shipper");
+        }
+
+        Order order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode));
+
+        OrderStatus currentStatus = order.getStatus();
+        if (currentStatus == OrderStatus.DELIVERED || currentStatus == OrderStatus.CANCELLED || currentStatus == OrderStatus.FAILED) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Không thể gán shipper cho đơn hàng ở trạng thái kết thúc: " + currentStatus);
+        }
+
+        User shipper = userRepository.findById(request.getShipperId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper với ID: " + request.getShipperId()));
+
+        if (shipper.getRole() != RoleName.SHIPPER) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Người dùng ID " + request.getShipperId() + " không có vai trò SHIPPER");
+        }
+
+        order.setShipper(shipper);
+        Order updatedOrder = orderRepository.save(order);
+
+        // Ghi lịch sử gán shipper
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrder(updatedOrder);
+        history.setFromStatus(currentStatus);
+        history.setToStatus(currentStatus);
+        history.setChangedBy(actor);
+        String historyNote = "Gán shipper: " + shipper.getFullName() + " (" + shipper.getPhone() + ")";
+        if (request.getNote() != null && !request.getNote().trim().isEmpty()) {
+            historyNote += " - Ghi chú: " + request.getNote().trim();
+        }
+        history.setNote(historyNote);
+        orderStatusHistoryRepository.save(history);
+
+        log.info("Order {} assigned to shipper {} by {} ({})",
+                orderCode, shipper.getFullName(), actor.getFullName(), actor.getRole());
+
+        return toOrderResponse(updatedOrder);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<OrderResponse> getOrdersForShipper(Long userId, OrderStatus status, int page, int size) {
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+
+        if (actor.getRole() != RoleName.SHIPPER && actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ nhân viên giao hàng mới có quyền truy cập danh sách đơn giao");
+        }
+
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size));
+        Page<Order> orderPage;
+        if (status != null) {
+            orderPage = orderRepository.findByShipperIdAndStatusOrderByCreatedAtDesc(userId, status, pageable);
+        } else {
+            orderPage = orderRepository.findByShipperIdOrderByCreatedAtDesc(userId, pageable);
+        }
+
+        return PageResponse.from(orderPage.map(this::toOrderResponse));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderResponse confirmDelivery(Long userId, String orderCode, ConfirmDeliveryRequest request) {
+        log.info("Confirming delivery for order {} by user {}", orderCode, userId);
+
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+
+        if (actor.getRole() != RoleName.SHIPPER && actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ shipper được phân công mới có quyền xác nhận giao hàng");
+        }
+
+        Order order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode));
+
+        if (actor.getRole() == RoleName.SHIPPER) {
+            if (order.getShipper() == null || !order.getShipper().getId().equals(actor.getId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không phải là shipper được phân công giao đơn hàng này");
+            }
+        }
+
+        OrderStatus fromStatus = order.getStatus();
+        OrderStatus toStatus = OrderStatus.DELIVERED;
+
+        // Validate chuyển trạng thái sang DELIVERED (từ DELIVERING)
+        orderStatusValidator.validateTransition(order, toStatus, actor);
+
+        order.setStatus(toStatus);
+        order.setDeliveredAt(LocalDateTime.now());
+
+        // Cập nhật trạng thái thanh toán nếu là COD
+        Payment payment = order.getPayment();
+        if (payment != null && payment.getMethod() == PaymentMethod.COD && payment.getStatus() == PaymentStatus.PENDING) {
+            payment.setStatus(PaymentStatus.PAID);
+            payment.setPaidAt(LocalDateTime.now());
+        }
+
+        Order updatedOrder = orderRepository.save(order);
+
+        // Ghi lịch sử
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrder(updatedOrder);
+        history.setFromStatus(fromStatus);
+        history.setToStatus(toStatus);
+        history.setChangedBy(actor);
+        String note = "Shipper xác nhận giao hàng thành công";
+        if (request != null && request.getNote() != null && !request.getNote().trim().isEmpty()) {
+            note += ": " + request.getNote().trim();
+        }
+        history.setNote(note);
+        orderStatusHistoryRepository.save(history);
+
+        log.info("Order {} delivered successfully by user {} ({})", orderCode, userId, actor.getRole());
+
+        return toOrderResponse(updatedOrder);
+    }
+
+    private LocalDateTime parseDateTime(String input, boolean isEndOfDay) {
+        if (input == null || input.trim().isEmpty()) {
+            return null;
+        }
+        String str = input.trim();
+        try {
+            if (str.length() == 10) {
+                LocalDate date = LocalDate.parse(str);
+                return isEndOfDay ? date.atTime(LocalTime.MAX) : date.atStartOfDay();
+            }
+            if (str.contains(" ")) {
+                str = str.replace(" ", "T");
+            }
+            return LocalDateTime.parse(str);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Định dạng ngày không hợp lệ (hỗ trợ yyyy-MM-dd hoặc ISO-8601): " + input);
+        }
     }
 
     @Override
@@ -420,6 +614,9 @@ public class OrderServiceImpl implements OrderService {
                 .createdAt(order.getCreatedAt())
                 .cancelReason(order.getCancelReason())
                 .deliveredAt(order.getDeliveredAt())
+                .shipperId(order.getShipper() != null ? order.getShipper().getId() : null)
+                .shipperName(order.getShipper() != null ? order.getShipper().getFullName() : null)
+                .shipperPhone(order.getShipper() != null ? order.getShipper().getPhone() : null)
                 .items(itemResponses)
                 .build();
     }
