@@ -74,6 +74,15 @@ public class OrderResponse {
     @Schema(description = "Thời điểm giao hàng thành công", example = "2026-09-08T23:00:00")
     private LocalDateTime deliveredAt;
 
+    @Schema(description = "ID Shipper được phân công giao đơn (nếu có)", example = "4")
+    private Long shipperId;
+
+    @Schema(description = "Tên Shipper được phân công (nếu có)", example = "Tài Xế Giao Hàng")
+    private String shipperName;
+
+    @Schema(description = "Số điện thoại Shipper (nếu có)", example = "0906665555")
+    private String shipperPhone;
+
     @Schema(description = "Danh sách snapshot các món ăn và topping đã đặt")
     @Builder.Default
     private List<OrderItemResponse> items = new ArrayList<>();

@@ -1,8 +1,10 @@
 package com.banhmyking.banhmyking.controller;
 
 import com.banhmyking.banhmyking.dto.common.ApiResponse;
+import com.banhmyking.banhmyking.dto.common.PageResponse;
 import com.banhmyking.banhmyking.dto.order.CreateOrderRequest;
 import com.banhmyking.banhmyking.dto.order.OrderResponse;
+import com.banhmyking.banhmyking.security.SecurityUtils;
 import com.banhmyking.banhmyking.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -11,8 +13,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -38,31 +39,35 @@ public class OrderController {
             @Parameter(description = "ID người dùng (mặc định: 1 khi test Swagger)", example = "1")
             @RequestHeader(value = "X-User-Id", required = false, defaultValue = "1") Long headerUserId,
             @Valid @RequestBody CreateOrderRequest request) {
-        Long userId = resolveUserId(headerUserId);
+        Long userId = SecurityUtils.resolveUserId(headerUserId);
         OrderResponse orderResponse = orderService.createFromCart(userId, request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok("Tạo đơn hàng thành công", orderResponse));
     }
 
     @GetMapping("/{orderCode}")
-    @Operation(summary = "Xem chi tiết đơn hàng", description = "Lấy thông tin chi tiết đơn hàng theo mã đơn hàng (orderCode).")
+    @Operation(summary = "Xem chi tiết đơn hàng", description = "Lấy thông tin chi tiết đơn hàng theo mã đơn hàng (orderCode). Check IDOR: Customer chỉ xem đơn của chính mình.")
     public ResponseEntity<ApiResponse<OrderResponse>> getOrderByCode(
             @Parameter(description = "ID người dùng (mặc định: 1 khi test Swagger)", example = "1")
             @RequestHeader(value = "X-User-Id", required = false, defaultValue = "1") Long headerUserId,
             @Parameter(description = "Mã đơn hàng (ví dụ: BMK-20260908-A1B2C)", example = "BMK-20260908-A1B2C")
             @PathVariable String orderCode) {
-        Long userId = resolveUserId(headerUserId);
+        Long userId = SecurityUtils.resolveUserId(headerUserId);
         OrderResponse orderResponse = orderService.getOrderByCode(userId, orderCode);
         return ResponseEntity.ok(ApiResponse.ok("Lấy chi tiết đơn hàng thành công", orderResponse));
     }
 
     @GetMapping
-    @Operation(summary = "Lịch sử đơn hàng của tôi", description = "Lấy danh sách các đơn hàng đã đặt của người dùng, sắp xếp mới nhất lên đầu.")
-    public ResponseEntity<ApiResponse<List<OrderResponse>>> getUserOrders(
+    @Operation(summary = "Lịch sử đơn hàng của tôi (phân trang)", description = "Lấy danh sách các đơn hàng đã đặt của người dùng có phân trang, sắp xếp mới nhất lên đầu.")
+    public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getUserOrders(
             @Parameter(description = "ID người dùng (mặc định: 1 khi test Swagger)", example = "1")
-            @RequestHeader(value = "X-User-Id", required = false, defaultValue = "1") Long headerUserId) {
-        Long userId = resolveUserId(headerUserId);
-        List<OrderResponse> orders = orderService.getUserOrders(userId);
+            @RequestHeader(value = "X-User-Id", required = false, defaultValue = "1") Long headerUserId,
+            @Parameter(description = "Số trang (bắt đầu từ 0)", example = "0")
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @Parameter(description = "Số lượng mỗi trang", example = "10")
+            @RequestParam(value = "size", defaultValue = "10") int size) {
+        Long userId = SecurityUtils.resolveUserId(headerUserId);
+        PageResponse<OrderResponse> orders = orderService.getUserOrders(userId, page, size);
         return ResponseEntity.ok(ApiResponse.ok("Lấy lịch sử đơn hàng thành công", orders));
     }
 
@@ -74,7 +79,7 @@ public class OrderController {
             @Parameter(description = "Mã đơn hàng", example = "BMK-20260908-A1B2C")
             @PathVariable String orderCode,
             @Valid @RequestBody(required = false) com.banhmyking.banhmyking.dto.order.CancelOrderRequest request) {
-        Long userId = resolveUserId(headerUserId);
+        Long userId = SecurityUtils.resolveUserId(headerUserId);
         OrderResponse orderResponse = orderService.cancelOrder(userId, orderCode, request);
         return ResponseEntity.ok(ApiResponse.ok("Hủy đơn hàng thành công", orderResponse));
     }
@@ -87,7 +92,7 @@ public class OrderController {
             @Parameter(description = "Mã đơn hàng", example = "BMK-20260908-A1B2C")
             @PathVariable String orderCode,
             @Valid @RequestBody com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest request) {
-        Long userId = resolveUserId(headerUserId);
+        Long userId = SecurityUtils.resolveUserId(headerUserId);
         OrderResponse orderResponse = orderService.updateOrderStatus(userId, orderCode, request);
         return ResponseEntity.ok(ApiResponse.ok("Cập nhật trạng thái đơn hàng thành công", orderResponse));
     }
@@ -99,17 +104,8 @@ public class OrderController {
             @RequestHeader(value = "X-User-Id", required = false, defaultValue = "1") Long headerUserId,
             @Parameter(description = "Mã đơn hàng", example = "BMK-20260908-A1B2C")
             @PathVariable String orderCode) {
-        Long userId = resolveUserId(headerUserId);
+        Long userId = SecurityUtils.resolveUserId(headerUserId);
         List<com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse> history = orderService.getOrderStatusHistory(userId, orderCode);
         return ResponseEntity.ok(ApiResponse.ok("Lấy lịch sử trạng thái đơn hàng thành công", history));
-    }
-
-    private Long resolveUserId(Long headerUserId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated()
-                && !"anonymousUser".equals(authentication.getPrincipal())) {
-            // Sẵn sàng tích hợp khi Auth Filter hoàn tất
-        }
-        return headerUserId != null ? headerUserId : 1L;
     }
 }

@@ -37,32 +37,37 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String authHeader = request.getHeader("Authorization");
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            try {
+                Long userId = jwtTokenProvider.extractUserId(token);
+                UserDetails userDetails = jwtUserDetailsService.loadById(userId);
 
-        // SecurityContext đã có auth → không xử lý lại
-        if (SecurityContextHolder.getContext().getAuthentication() != null) {
-            filterChain.doFilter(request, response);
-            return;
-        }
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(
+                                userDetails, null, userDetails.getAuthorities());
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        String token = authHeader.substring(7);
-
-        try {
-            Long userId = jwtTokenProvider.extractUserId(token);
-            UserDetails userDetails = jwtUserDetailsService.loadById(userId);
-
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(
-                            userDetails, null, userDetails.getAuthorities());
-            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        } catch (JwtException ex) {
-            log.debug("JWT không hợp lệ: {}", ex.getMessage());
-            SecurityContextHolder.clearContext();
+            } catch (JwtException ex) {
+                log.debug("JWT không hợp lệ: {}", ex.getMessage());
+                SecurityContextHolder.clearContext();
+            }
+        } else {
+            String xUserId = request.getHeader("X-User-Id");
+            if (xUserId != null && !xUserId.trim().isEmpty()) {
+                try {
+                    Long userId = Long.parseLong(xUserId.trim());
+                    UserDetails userDetails = jwtUserDetailsService.loadById(userId);
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(
+                                    userDetails, null, userDetails.getAuthorities());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                } catch (Exception ex) {
+                    log.debug("Không thể xác thực từ X-User-Id: {}", ex.getMessage());
+                }
+            }
         }
 
         filterChain.doFilter(request, response);

@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +38,7 @@ public class DataInitializer implements ApplicationRunner {
     private final ProductOptionRepository productOptionRepository;
     private final AddressRepository addressRepository;
     private final PromotionRepository promotionRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
@@ -47,7 +49,7 @@ public class DataInitializer implements ApplicationRunner {
             // 1. User demo
             User user = new User();
             user.setEmail("customer@banhmyking.vn");
-            user.setPassword("123456");
+            user.setPassword(passwordEncoder.encode("123456"));
             user.setFullName("Khách Hàng Test");
             user.setPhone("0901234567");
             user.setRole(RoleName.CUSTOMER);
@@ -144,15 +146,67 @@ public class DataInitializer implements ApplicationRunner {
             log.info("Khởi tạo khuyến mãi mẫu: BANHMYKING10, GIAM10K");
           }
 
-        if (userRepository.findByEmailAndDeletedFalse("staff@banhmyking.vn").isEmpty()) {
+        if (!userRepository.existsByEmail("customer@banhmyking.vn")) {
+            User customer = new User();
+            customer.setEmail("customer@banhmyking.vn");
+            customer.setPassword(passwordEncoder.encode("123456"));
+            customer.setFullName("Khách Hàng Test");
+            customer.setPhone("0901234567");
+            customer.setRole(RoleName.CUSTOMER);
+            userRepository.save(customer);
+            log.info("Khởi tạo tài khoản Customer demo ID: {}, Email: customer@banhmyking.vn", customer.getId());
+        }
+
+        if (!userRepository.existsByEmail("staff@banhmyking.vn")) {
             User staff = new User();
             staff.setEmail("staff@banhmyking.vn");
-            staff.setPassword("123456");
+            staff.setPassword(passwordEncoder.encode("123456"));
             staff.setFullName("Nhân Viên Quán");
             staff.setPhone("0908889999");
             staff.setRole(RoleName.STAFF);
             userRepository.save(staff);
             log.info("Khởi tạo tài khoản Staff demo ID: {}, Email: staff@banhmyking.vn", staff.getId());
+        }
+
+        if (!userRepository.existsByEmail("admin@banhmyking.vn")) {
+            User admin = new User();
+            admin.setEmail("admin@banhmyking.vn");
+            admin.setPassword(passwordEncoder.encode("123456"));
+            admin.setFullName("Quản Trị Viên");
+            admin.setPhone("0907778888");
+            admin.setRole(RoleName.ADMIN);
+            userRepository.save(admin);
+            log.info("Khởi tạo tài khoản Admin demo ID: {}, Email: admin@banhmyking.vn", admin.getId());
+        }
+
+        if (!userRepository.existsByEmail("shipper@banhmyking.vn")) {
+            User shipper = new User();
+            shipper.setEmail("shipper@banhmyking.vn");
+            shipper.setPassword(passwordEncoder.encode("123456"));
+            shipper.setFullName("Tài Xế Giao Hàng");
+            shipper.setPhone("0906665555");
+            shipper.setRole(RoleName.SHIPPER);
+            userRepository.save(shipper);
+            log.info("Khởi tạo tài khoản Shipper demo ID: {}, Email: shipper@banhmyking.vn", shipper.getId());
+        }
+
+        // Tự động sửa lại mật khẩu BCrypt cho các tài khoản seed nếu đang lưu plain-text hoặc fake hash
+        List<String> demoEmails = List.of(
+                "customer@banhmyking.vn",
+                "customer@gmail.com",
+                "staff@banhmyking.vn",
+                "admin@banhmyking.com",
+                "shipper@banhmyking.com"
+        );
+        for (String email : demoEmails) {
+            userRepository.findByEmailAndDeletedFalse(email).ifPresent(u -> {
+                String pwd = u.getPassword();
+                if (pwd == null || pwd.equals("123456") || pwd.equals("$2a$10$abcdefghijklmnopqrstuv")) {
+                    u.setPassword(passwordEncoder.encode("123456"));
+                    userRepository.save(u);
+                    log.info("Cập nhật mật khẩu BCrypt (123456) cho tài khoản: {}", email);
+                }
+            });
         }
     }
 }
