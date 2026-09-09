@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +38,7 @@ public class DataInitializer implements ApplicationRunner {
     private final ProductOptionRepository productOptionRepository;
     private final AddressRepository addressRepository;
     private final PromotionRepository promotionRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
@@ -44,14 +46,11 @@ public class DataInitializer implements ApplicationRunner {
         if (userRepository.count() == 0) {
             log.info("Khởi tạo dữ liệu mẫu cho kiểm thử...");
 
-            // 1. User demo
-            User user = new User();
-            user.setEmail("customer@banhmyking.vn");
-            user.setPassword("123456");
-            user.setFullName("Khách Hàng Test");
-            user.setPhone("0901234567");
-            user.setRole(RoleName.CUSTOMER);
-            userRepository.save(user);
+            // 1. User demo — đủ 4 role, password BCrypt-encoded
+            seedUser("customer@gmail.com", "12345678", "Khách Hàng Test", "0901234567", RoleName.CUSTOMER);
+            seedUser("admin@gmail.com", "12345678", "Quản Trị Viên", "0900000001", RoleName.ADMIN);
+            seedUser("staff@gmail.com", "12345678", "Nhân Viên Test", "0900000002", RoleName.STAFF);
+            seedUser("shipper@gmail.com", "12345678", "Shipper Test", "0900000003", RoleName.SHIPPER);
 
             // 2. Category demo
             Category category = new Category();
@@ -103,7 +102,8 @@ public class DataInitializer implements ApplicationRunner {
         }
 
         if (addressRepository.count() == 0) {
-            userRepository.findAll().stream().findFirst().ifPresent(u -> {
+            // Gán chắc chắn cho customer demo — findAll().findFirst() không đảm bảo thứ tự
+            userRepository.findByEmailAndDeletedFalse("customer@gmail.com").ifPresent(u -> {
                 Address addr = new Address();
                 addr.setUser(u);
                 addr.setReceiverName("Khách Hàng Test");
@@ -143,5 +143,17 @@ public class DataInitializer implements ApplicationRunner {
 
             log.info("Khởi tạo khuyến mãi mẫu: BANHMYKING10, GIAM10K");
         }
+    }
+
+    /** Seed 1 user demo — encode BCrypt */
+    private void seedUser(String email, String rawPassword, String fullName, String phone, RoleName role) {
+        User u = new User();
+        u.setEmail(email);
+        u.setPassword(passwordEncoder.encode(rawPassword));
+        u.setFullName(fullName);
+        u.setPhone(phone);
+        u.setRole(role);
+        userRepository.save(u);
+        log.info("Seed user: {} (role {})", email, role);
     }
 }
