@@ -30,6 +30,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -130,7 +131,7 @@ class OrderControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/v1/orders - Xem danh sách đơn hàng của user")
+    @DisplayName("GET /api/v1/orders - Xem danh sách đơn hàng của user (phân trang)")
     void getUserOrders_shouldReturnOrderList() throws Exception {
         OrderResponse response = OrderResponse.builder()
                 .id(1L)
@@ -138,13 +139,99 @@ class OrderControllerTest {
                 .total(BigDecimal.valueOf(95000))
                 .build();
 
-        when(orderService.getUserOrders(1L)).thenReturn(List.of(response));
+        com.banhmyking.banhmyking.dto.common.PageResponse<OrderResponse> pageResponse =
+                new com.banhmyking.banhmyking.dto.common.PageResponse<>(
+                        List.of(response), 0, 10, 1L, 1, true
+                );
+
+        when(orderService.getUserOrders(1L, 0, 10)).thenReturn(pageResponse);
 
         mockMvc.perform(get("/api/v1/orders")
+                        .header("X-User-Id", 1L)
+                        .param("page", "0")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content").isArray())
+                .andExpect(jsonPath("$.data.content[0].orderCode").value("BMK-20260908-ABC12"))
+                .andExpect(jsonPath("$.data.totalElements").value(1));
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/orders/{orderCode}/cancel - Hủy đơn hàng thành công")
+    void cancelOrder_shouldReturnCancelled() throws Exception {
+        OrderResponse response = OrderResponse.builder()
+                .id(1L)
+                .orderCode("BMK-20260908-ABC12")
+                .status(OrderStatus.CANCELLED)
+                .cancelReason("Đổi ý không ăn nữa")
+                .build();
+
+        when(orderService.cancelOrder(eq(1L), eq("BMK-20260908-ABC12"), any())).thenReturn(response);
+
+        com.banhmyking.banhmyking.dto.order.CancelOrderRequest request =
+                com.banhmyking.banhmyking.dto.order.CancelOrderRequest.builder()
+                        .cancelReason("Đổi ý không ăn nữa")
+                        .build();
+
+        mockMvc.perform(put("/api/v1/orders/BMK-20260908-ABC12/cancel")
+                        .header("X-User-Id", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Hủy đơn hàng thành công"))
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.cancelReason").value("Đổi ý không ăn nữa"));
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/orders/{orderCode}/status - Cập nhật trạng thái đơn thành công")
+    void updateOrderStatus_shouldReturnUpdated() throws Exception {
+        OrderResponse response = OrderResponse.builder()
+                .id(1L)
+                .orderCode("BMK-20260908-ABC12")
+                .status(OrderStatus.CONFIRMED)
+                .build();
+
+        when(orderService.updateOrderStatus(eq(1L), eq("BMK-20260908-ABC12"), any())).thenReturn(response);
+
+        com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest request =
+                com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest.builder()
+                        .newStatus(OrderStatus.CONFIRMED)
+                        .note("Bếp xác nhận")
+                        .build();
+
+        mockMvc.perform(put("/api/v1/orders/BMK-20260908-ABC12/status")
+                        .header("X-User-Id", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Cập nhật trạng thái đơn hàng thành công"))
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/orders/{orderCode}/history - Xem lịch sử trạng thái đơn hàng")
+    void getOrderStatusHistory_shouldReturnList() throws Exception {
+        com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse history =
+                com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse.builder()
+                        .id(1L)
+                        .orderCode("BMK-20260908-ABC12")
+                        .fromStatus(OrderStatus.PENDING)
+                        .toStatus(OrderStatus.CONFIRMED)
+                        .changedByName("Admin User")
+                        .build();
+
+        when(orderService.getOrderStatusHistory(1L, "BMK-20260908-ABC12")).thenReturn(List.of(history));
+
+        mockMvc.perform(get("/api/v1/orders/BMK-20260908-ABC12/history")
                         .header("X-User-Id", 1L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].orderCode").value("BMK-20260908-ABC12"));
+                .andExpect(jsonPath("$.data[0].fromStatus").value("PENDING"))
+                .andExpect(jsonPath("$.data[0].toStatus").value("CONFIRMED"));
     }
 }

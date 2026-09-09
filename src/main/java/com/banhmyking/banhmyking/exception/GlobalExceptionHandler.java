@@ -38,6 +38,14 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of("Dữ liệu không hợp lệ", ErrorCode.VALIDATION_ERROR, errors));
     }
 
+    /** JSON parse error, cú pháp sai hoặc thiếu body. */
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleMessageNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        log.warn("Malformed JSON request: {}", ex.getMessage());
+        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
+                .body(ErrorResponse.of("Định dạng dữ liệu JSON không hợp lệ hoặc sai cú pháp (vui lòng kiểm tra dấu phẩy thừa)", ErrorCode.VALIDATION_ERROR));
+    }
+
     /** Lỗi khác — log đầy đủ, trả message chung (không lộ stack trace ra ngoài). */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex) {
