@@ -22,7 +22,16 @@ public class JwtTokenProvider {
     private final long accessTokenExpiryMs;
 
     public JwtTokenProvider(JwtProperties props) {
-        this.key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(props.secret()));
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(props.secret());
+            if (keyBytes.length < 32) {
+                keyBytes = props.secret().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
+        } catch (Exception e) {
+            keyBytes = props.secret().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        }
+        this.key = Keys.hmacShaKeyFor(keyBytes);
         this.accessTokenExpiryMs = props.accessTokenExpiryMs();
     }
 

@@ -204,11 +204,12 @@ public class OrderServiceImpl implements OrderService {
         paymentRepository.save(payment);
         order.setPayment(payment);
 
-        // Ghi nhận lượt dùng khuyến mãi (nếu có)
+        // Ghi nhận lượt dùng khuyến mãi (nếu có) bằng atomic update
         if (promotion != null) {
-            int used = promotion.getUsedCount() != null ? promotion.getUsedCount() : 0;
-            promotion.setUsedCount(used + 1);
-            promotionRepository.save(promotion);
+            int affectedRows = promotionRepository.incrementUsedCountAtomic(promotion.getId());
+            if (affectedRows == 0) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Mã khuyến mãi đã hết lượt sử dụng");
+            }
 
             PromotionUsage usage = new PromotionUsage();
             usage.setPromotion(promotion);
