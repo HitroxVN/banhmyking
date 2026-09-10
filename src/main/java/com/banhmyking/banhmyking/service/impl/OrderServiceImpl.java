@@ -495,9 +495,18 @@ public class OrderServiceImpl implements OrderService {
         // AC 1: Validate state machine (chặn nhảy cóc, FAILED chỉ từ DELIVERING, phân quyền vận hành)
         orderStatusValidator.validateTransition(order, toStatus, actor);
 
-        // Gán thông tin shipper nếu chuyển sang DELIVERING
+        // Shipper chỉ được thao tác trên đơn được phân công cho mình (khác confirmDelivery đã check ở trên)
+        if (actor.getRole() == RoleName.SHIPPER
+                && (order.getShipper() == null || !order.getShipper().getId().equals(actor.getId()))) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không phải là shipper được phân công giao đơn hàng này");
+        }
+
+        // Gán shipper nếu chuyển sang DELIVERING — việc phân công là của STAFF/ADMIN
         if (toStatus == OrderStatus.DELIVERING) {
             if (request.getShipperId() != null) {
+                if (actor.getRole() == RoleName.SHIPPER) {
+                    throw new BusinessException(ErrorCode.FORBIDDEN, "Shipper không có quyền phân công đơn hàng cho người khác");
+                }
                 User shipper = userRepository.findById(request.getShipperId())
                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper với ID: " + request.getShipperId()));
                 if (shipper.getRole() != RoleName.SHIPPER) {
@@ -505,8 +514,10 @@ public class OrderServiceImpl implements OrderService {
                             "Người dùng ID " + request.getShipperId() + " không có vai trò SHIPPER");
                 }
                 order.setShipper(shipper);
-            } else if (actor.getRole() == RoleName.SHIPPER && order.getShipper() == null) {
-                order.setShipper(actor);
+            } else if (order.getShipper() == null) {
+                // Không có shipperId và đơn chưa được gán → chặn, tránh đơn DELIVERING không có shipper
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        "Cần chỉ định shipperId khi chuyển sang DELIVERING (đơn chưa được phân công)");
             }
         }
 
@@ -545,6 +556,11 @@ public class OrderServiceImpl implements OrderService {
         // Customer chỉ được xem lịch sử đơn hàng của chính mình
         if (actor.getRole() == RoleName.CUSTOMER && (order.getUser() == null || !order.getUser().getId().equals(actor.getId()))) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không có quyền xem lịch sử đơn hàng của người khác");
+        }
+
+        // Shipper chỉ được xem lịch sử đơn hàng được phân công cho mình
+        if (actor.getRole() == RoleName.SHIPPER && (order.getShipper() == null || !order.getShipper().getId().equals(actor.getId()))) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không phải là shipper được phân công giao đơn hàng này");
         }
 
         List<OrderStatusHistory> histories = orderStatusHistoryRepository.findByOrderOrderCodeOrderByCreatedAtAsc(orderCode);

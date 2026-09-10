@@ -1,25 +1,25 @@
 package com.banhmyking.banhmyking.security;
 
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import com.banhmyking.banhmyking.exception.BusinessException;
+import com.banhmyking.banhmyking.exception.ErrorCode;
+import org.springframework.security.core.userdetails.UserDetails;
 
 public class SecurityUtils {
 
     private SecurityUtils() {}
 
     /**
-     * Lấy ID người dùng hiện tại từ SecurityContext (được trích xuất từ JWT token hoặc X-User-Id).
-     * Nếu không có xác thực hợp lệ, fallback về headerUserId hoặc mặc định 1L (dành cho test Swagger).
+     * Lấy userId từ JWT principal (subject = userId). Fail-closed:
+     * không có authentication hợp lệ → 401, không bao giờ fallback về id khác.
      */
-    public static Long resolveUserId(Long headerUserId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated()
-                && !"anonymousUser".equals(authentication.getPrincipal())) {
-            try {
-                return Long.parseLong(authentication.getName());
-            } catch (NumberFormatException ignored) {
-            }
+    public static Long requireUserId(UserDetails principal) {
+        if (principal == null) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Chưa xác thực: thiếu token hợp lệ");
         }
-        return headerUserId != null ? headerUserId : 1L;
+        try {
+            return Long.valueOf(principal.getUsername());
+        } catch (NumberFormatException ex) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Token không chứa userId hợp lệ");
+        }
     }
 }
