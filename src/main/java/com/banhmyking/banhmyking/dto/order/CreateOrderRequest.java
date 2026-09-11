@@ -35,6 +35,9 @@ public class CreateOrderRequest {
     @Builder.Default
     private PaymentMethod paymentMethod = PaymentMethod.COD;
 
+    @Schema(description = "Khoảng cách giao hàng tính bằng km (tùy chọn)", example = "3.5")
+    private java.math.BigDecimal distanceKm;
+
     @Schema(description = "Ghi chú cho quán hoặc shipper", example = "Giao trước 12h trưa, không ớt")
     private String note;
 }
