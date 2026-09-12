@@ -28,7 +28,7 @@ import java.util.List;
 
 @Slf4j
 @Component
-@Profile("!test")
+@Profile({"dev", "demo"})
 @RequiredArgsConstructor
 public class DataInitializer implements ApplicationRunner {
 
@@ -187,25 +187,18 @@ public class DataInitializer implements ApplicationRunner {
             userRepository.save(shipper);
             log.info("Khởi tạo tài khoản Shipper demo ID: {}, Email: shipper@banhmyking.vn", shipper.getId());
         }
+    }
 
-        // Tự động sửa lại mật khẩu BCrypt cho các tài khoản seed nếu đang lưu plain-text hoặc fake hash
-        List<String> demoEmails = List.of(
-                "customer@banhmyking.vn",
-                "customer@gmail.com",
-                "staff@banhmyking.vn",
-                "admin@banhmyking.com",
-                "shipper@banhmyking.com"
-        );
-        for (String email : demoEmails) {
-            userRepository.findByEmailAndDeletedFalse(email).ifPresent(u -> {
-                String pwd = u.getPassword();
-                if (pwd == null || pwd.equals("123456") || pwd.equals("$2a$10$abcdefghijklmnopqrstuv")) {
-                    u.setPassword(passwordEncoder.encode("123456"));
-                    userRepository.save(u);
-                    log.info("Cập nhật mật khẩu BCrypt (123456) cho tài khoản: {}", email);
-                }
-            });
-        }
+    /** Seed 1 user demo — encode BCrypt */
+    private void seedUser(String email, String rawPassword, String fullName, String phone, RoleName role) {
+        User u = new User();
+        u.setEmail(email);
+        u.setPassword(passwordEncoder.encode(rawPassword));
+        u.setFullName(fullName);
+        u.setPhone(phone);
+        u.setRole(role);
+        userRepository.save(u);
+        log.info("Seed user: {} (role {})", email, role);
     }
 
     /** Seed 1 user demo — encode BCrypt */

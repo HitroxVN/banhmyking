@@ -11,6 +11,7 @@ import com.banhmyking.banhmyking.enums.RoleName;
 import com.banhmyking.banhmyking.exception.GlobalExceptionHandler;
 import com.banhmyking.banhmyking.service.OrderService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -47,15 +50,31 @@ class AdminOrderControllerTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /** Principal giả — username là userId (JWT subject), user 2 (staff). */
+    private static final org.springframework.security.core.userdetails.UserDetails PRINCIPAL =
+            org.springframework.security.core.userdetails.User
+                    .withUsername("2")
+                    .password("x")
+                    .authorities("ROLE_STAFF")
+                    .build();
+
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(adminOrderController)
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver())
                 .build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(PRINCIPAL, null, PRINCIPAL.getAuthorities()));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
-    @DisplayName("GET /admin/orders - Lấy danh sách toàn bộ đơn hàng có filter và phân trang thành công")
+    @DisplayName("GET /api/v1/admin/orders - Lấy danh sách toàn bộ đơn hàng có filter và phân trang thành công")
     void getAllOrders_shouldReturnPageResponse() throws Exception {
         OrderResponse response = OrderResponse.builder()
                 .id(1L)
@@ -71,8 +90,7 @@ class AdminOrderControllerTest {
         when(orderService.getAllOrdersForAdmin(eq(2L), eq(OrderStatus.PENDING), eq("2026-09-01"), eq("2026-09-30"), eq(0), eq(10)))
                 .thenReturn(pageResponse);
 
-        mockMvc.perform(get("/admin/orders")
-                        .header("X-User-Id", 2L)
+        mockMvc.perform(get("/api/v1/admin/orders")
                         .param("status", "PENDING")
                         .param("fromDate", "2026-09-01")
                         .param("toDate", "2026-09-30")
@@ -85,7 +103,7 @@ class AdminOrderControllerTest {
     }
 
     @Test
-    @DisplayName("GET /admin/orders/{orderCode} - Xem chi tiết đơn hàng thành công")
+    @DisplayName("GET /api/v1/admin/orders/{orderCode} - Xem chi tiết đơn hàng thành công")
     void getOrderByCode_shouldReturnOrder() throws Exception {
         OrderResponse response = OrderResponse.builder()
                 .id(1L)
@@ -96,15 +114,14 @@ class AdminOrderControllerTest {
 
         when(orderService.getOrderByCode(2L, "BMK-20260908-ABC12")).thenReturn(response);
 
-        mockMvc.perform(get("/admin/orders/BMK-20260908-ABC12")
-                        .header("X-User-Id", 2L))
+        mockMvc.perform(get("/api/v1/admin/orders/BMK-20260908-ABC12"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.orderCode").value("BMK-20260908-ABC12"));
     }
 
     @Test
-    @DisplayName("PUT /admin/orders/{orderCode}/status - Staff/Admin cập nhật trạng thái đơn thành công")
+    @DisplayName("PUT /api/v1/admin/orders/{orderCode}/status - Staff/Admin cập nhật trạng thái đơn thành công")
     void updateOrderStatus_shouldReturnUpdated() throws Exception {
         OrderResponse response = OrderResponse.builder()
                 .id(1L)
@@ -119,8 +136,7 @@ class AdminOrderControllerTest {
                 .note("Bếp xác nhận đơn")
                 .build();
 
-        mockMvc.perform(put("/admin/orders/BMK-20260908-ABC12/status")
-                        .header("X-User-Id", 2L)
+        mockMvc.perform(put("/api/v1/admin/orders/BMK-20260908-ABC12/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -129,7 +145,7 @@ class AdminOrderControllerTest {
     }
 
     @Test
-    @DisplayName("PUT /admin/orders/{orderCode}/assign-shipper - Gán shipper cho đơn hàng thành công")
+    @DisplayName("PUT /api/v1/admin/orders/{orderCode}/assign-shipper - Gán shipper cho đơn hàng thành công")
     void assignShipper_shouldReturnAssignedOrder() throws Exception {
         OrderResponse response = OrderResponse.builder()
                 .id(1L)
@@ -147,8 +163,7 @@ class AdminOrderControllerTest {
                 .note("Giao nhanh trong giờ trưa")
                 .build();
 
-        mockMvc.perform(put("/admin/orders/BMK-20260908-ABC12/assign-shipper")
-                        .header("X-User-Id", 2L)
+        mockMvc.perform(put("/api/v1/admin/orders/BMK-20260908-ABC12/assign-shipper")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -158,7 +173,7 @@ class AdminOrderControllerTest {
     }
 
     @Test
-    @DisplayName("PUT /admin/orders/{orderCode}/cancel - Staff/Admin hủy đơn thành công")
+    @DisplayName("PUT /api/v1/admin/orders/{orderCode}/cancel - Staff/Admin hủy đơn thành công")
     void cancelOrder_shouldReturnCancelled() throws Exception {
         OrderResponse response = OrderResponse.builder()
                 .id(1L)
@@ -173,8 +188,7 @@ class AdminOrderControllerTest {
                 .cancelReason("Khách gọi điện báo đổi món")
                 .build();
 
-        mockMvc.perform(put("/admin/orders/BMK-20260908-ABC12/cancel")
-                        .header("X-User-Id", 2L)
+        mockMvc.perform(put("/api/v1/admin/orders/BMK-20260908-ABC12/cancel")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -184,7 +198,7 @@ class AdminOrderControllerTest {
     }
 
     @Test
-    @DisplayName("GET /admin/orders/{orderCode}/history - Lấy lịch sử trạng thái đơn hàng thành công")
+    @DisplayName("GET /api/v1/admin/orders/{orderCode}/history - Lấy lịch sử trạng thái đơn hàng thành công")
     void getOrderStatusHistory_shouldReturnList() throws Exception {
         OrderStatusHistoryResponse history = OrderStatusHistoryResponse.builder()
                 .id(1L)
@@ -199,8 +213,7 @@ class AdminOrderControllerTest {
 
         when(orderService.getOrderStatusHistory(2L, "BMK-20260908-ABC12")).thenReturn(List.of(history));
 
-        mockMvc.perform(get("/admin/orders/BMK-20260908-ABC12/history")
-                        .header("X-User-Id", 2L))
+        mockMvc.perform(get("/api/v1/admin/orders/BMK-20260908-ABC12/history"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").isArray())

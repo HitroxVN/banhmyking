@@ -46,6 +46,30 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of("Định dạng dữ liệu JSON không hợp lệ hoặc sai cú pháp (vui lòng kiểm tra dấu phẩy thừa)", ErrorCode.VALIDATION_ERROR));
     }
 
+    /** @PreAuthorize từ chối — 403, không phải 500. Bắt cả AuthorizationDeniedException (subclass). */
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex) {
+        log.warn("Access denied: {}", ex.getMessage());
+        return ResponseEntity.status(ErrorCode.FORBIDDEN.getHttpStatus())
+                .body(ErrorResponse.of("Bạn không có quyền thực hiện thao tác này", ErrorCode.FORBIDDEN));
+    }
+
+    /** Tham số request sai kiểu (enum không tồn tại, id không phải số) — 400. */
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+        log.warn("Type mismatch on param '{}': {}", ex.getName(), ex.getMessage());
+        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
+                .body(ErrorResponse.of("Tham số '" + ex.getName() + "' không hợp lệ", ErrorCode.VALIDATION_ERROR));
+    }
+
+    /** Vi phạm ràng buộc DB (unique email, FK...) — 409, không lộ chi tiết schema. */
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(org.springframework.dao.DataIntegrityViolationException ex) {
+        log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
+        return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
+                .body(ErrorResponse.of("Dữ liệu xung đột (có thể đã tồn tại hoặc vi phạm ràng buộc)", ErrorCode.CONFLICT));
+    }
+
     /** Lỗi khác — log đầy đủ, trả message chung (không lộ stack trace ra ngoài). */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex) {

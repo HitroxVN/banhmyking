@@ -50,9 +50,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        } catch (JwtException | UsernameNotFoundException ex) {
-            log.debug("JWT auth thất bại: {}", ex.getMessage());
-            SecurityContextHolder.clearContext();
+            } catch (JwtException | UsernameNotFoundException ex) {
+                log.debug("JWT auth thất bại: {}", ex.getMessage());
+                SecurityContextHolder.clearContext();
+            }
         }
     }
 

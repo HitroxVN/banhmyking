@@ -11,6 +11,7 @@ import com.banhmyking.banhmyking.enums.RoleName;
 import com.banhmyking.banhmyking.exception.GlobalExceptionHandler;
 import com.banhmyking.banhmyking.service.OrderService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -47,15 +50,31 @@ class ShipperOrderControllerTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /** Principal giả — username là userId (JWT subject), user 4 (shipper). */
+    private static final org.springframework.security.core.userdetails.UserDetails PRINCIPAL =
+            org.springframework.security.core.userdetails.User
+                    .withUsername("4")
+                    .password("x")
+                    .authorities("ROLE_SHIPPER")
+                    .build();
+
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(shipperOrderController)
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver())
                 .build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(PRINCIPAL, null, PRINCIPAL.getAuthorities()));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
-    @DisplayName("GET /shipper/orders - Lấy danh sách đơn hàng được gán cho Shipper thành công")
+    @DisplayName("GET /api/v1/shipper/orders - Lấy danh sách đơn hàng được gán cho Shipper thành công")
     void getAssignedOrders_shouldReturnPageResponse() throws Exception {
         OrderResponse response = OrderResponse.builder()
                 .id(1L)
@@ -73,8 +92,7 @@ class ShipperOrderControllerTest {
         when(orderService.getOrdersForShipper(eq(4L), eq(OrderStatus.DELIVERING), eq(0), eq(10)))
                 .thenReturn(pageResponse);
 
-        mockMvc.perform(get("/shipper/orders")
-                        .header("X-User-Id", 4L)
+        mockMvc.perform(get("/api/v1/shipper/orders")
                         .param("status", "DELIVERING")
                         .param("page", "0")
                         .param("size", "10"))
@@ -86,7 +104,7 @@ class ShipperOrderControllerTest {
     }
 
     @Test
-    @DisplayName("GET /shipper/orders/{orderCode} - Xem chi tiết đơn hàng được gán thành công")
+    @DisplayName("GET /api/v1/shipper/orders/{orderCode} - Xem chi tiết đơn hàng được gán thành công")
     void getOrderByCode_shouldReturnOrder() throws Exception {
         OrderResponse response = OrderResponse.builder()
                 .id(1L)
@@ -98,15 +116,14 @@ class ShipperOrderControllerTest {
 
         when(orderService.getOrderByCode(4L, "BMK-20260908-ABC12")).thenReturn(response);
 
-        mockMvc.perform(get("/shipper/orders/BMK-20260908-ABC12")
-                        .header("X-User-Id", 4L))
+        mockMvc.perform(get("/api/v1/shipper/orders/BMK-20260908-ABC12"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.orderCode").value("BMK-20260908-ABC12"));
     }
 
     @Test
-    @DisplayName("PUT /shipper/orders/{orderCode}/deliver - Xác nhận giao hàng thành công (DELIVERING -> DELIVERED)")
+    @DisplayName("PUT /api/v1/shipper/orders/{orderCode}/deliver - Xác nhận giao hàng thành công (DELIVERING -> DELIVERED)")
     void confirmDelivery_shouldReturnDelivered() throws Exception {
         OrderResponse response = OrderResponse.builder()
                 .id(1L)
@@ -122,8 +139,7 @@ class ShipperOrderControllerTest {
                 .note("Đã giao tận tay khách hàng")
                 .build();
 
-        mockMvc.perform(put("/shipper/orders/BMK-20260908-ABC12/deliver")
-                        .header("X-User-Id", 4L)
+        mockMvc.perform(put("/api/v1/shipper/orders/BMK-20260908-ABC12/deliver")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -133,7 +149,7 @@ class ShipperOrderControllerTest {
     }
 
     @Test
-    @DisplayName("GET /shipper/orders/{orderCode}/history - Xem lịch sử đơn hàng của Shipper thành công")
+    @DisplayName("GET /api/v1/shipper/orders/{orderCode}/history - Xem lịch sử đơn hàng của Shipper thành công")
     void getOrderStatusHistory_shouldReturnList() throws Exception {
         OrderStatusHistoryResponse history = OrderStatusHistoryResponse.builder()
                 .id(1L)
@@ -148,8 +164,7 @@ class ShipperOrderControllerTest {
 
         when(orderService.getOrderStatusHistory(4L, "BMK-20260908-ABC12")).thenReturn(List.of(history));
 
-        mockMvc.perform(get("/shipper/orders/BMK-20260908-ABC12/history")
-                        .header("X-User-Id", 4L))
+        mockMvc.perform(get("/api/v1/shipper/orders/BMK-20260908-ABC12/history"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").isArray())

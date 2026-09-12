@@ -89,10 +89,12 @@ public class SecurityConfig {
                         // Admin user API: STAFF chỉ đọc, ADMIN toàn quyền
                         .requestMatchers(HttpMethod.GET, "/api/v1/admin/users").hasAnyRole("STAFF", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/admin/users/**").hasAnyRole("STAFF", "ADMIN")
+                        // Admin orders: STAFF đọc, ADMIN toàn quyền (ghi)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/admin/orders/**").hasAnyRole("STAFF", "ADMIN")
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        // Shipper chỉ được đụng tới đơn được gán cho mình (service check ownership)
+                        .requestMatchers("/api/v1/shipper/**").hasAnyRole("SHIPPER", "STAFF", "ADMIN")
                         .requestMatchers("/api/v1/**").authenticated()
-                        .requestMatchers("/admin/**").authenticated()
-                        .requestMatchers("/shipper/**").authenticated()
                         .anyRequest().denyAll())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .exceptionHandling(ex -> ex
