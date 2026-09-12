@@ -54,6 +54,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             log.debug("JWT auth thất bại: {}", ex.getMessage());
             SecurityContextHolder.clearContext();
         }
+    }
 
         filterChain.doFilter(request, response);
     }
