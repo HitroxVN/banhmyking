@@ -22,6 +22,8 @@ class BanhmykingApplicationTests {
 
     @Test
     void testFullCartFlow() {
+        cartService.clearCart(1L);
+
         // Full flow integration test: Add -> Get -> Update -> Remove
         AddToCartRequest addRequest = AddToCartRequest.builder()
                 .productId(1L)
