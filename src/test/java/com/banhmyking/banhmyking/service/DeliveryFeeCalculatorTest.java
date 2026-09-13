@@ -294,6 +294,8 @@ class DeliveryFeeCalculatorTest {
             assertThat(result.isFreeship()).isFalse();
             assertThat(result.getShippingFee()).isEqualByComparingTo(BigDecimal.valueOf(15000));
         }
+    }
+
     @Test
     @DisplayName("AC 1: Khoảng cách <= 2km trong nội thành -> Phí cố định 15.000đ")
     void calculateFee_withinBaseDistance_shouldReturnBaseFee() {

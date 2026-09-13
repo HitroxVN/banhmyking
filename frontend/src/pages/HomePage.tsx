@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
+import { useCart } from '../hooks/useCart';
+import { formatCurrency } from '../utils/formatters';
 import { tokenStorage } from '../utils/tokenStorage';
 import { authApi } from '../api/authApi';
 
 export const HomePage: React.FC = () => {
   const { user, logout, refreshUserProfile } = useAuth();
+  const { totalQuantity, subtotal } = useCart();
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [apiTestResult, setApiTestResult] = useState<string | null>(null);
@@ -53,6 +56,19 @@ export const HomePage: React.FC = () => {
         </div>
 
         <div className="navbar-user-actions">
+          {/* Cart Shortcut Button with Badge */}
+          <button
+            id="btn-nav-cart"
+            type="button"
+            className="btn-nav-cart"
+            onClick={() => navigate('/cart')}
+            title="Xem giỏ hàng"
+          >
+            <span>🛒</span>
+            <span>Giỏ hàng</span>
+            {totalQuantity > 0 && <span className="cart-badge-count">{totalQuantity}</span>}
+          </button>
+
           <div className="user-profile-badge">
             <div className="user-avatar">
               {user?.fullName?.charAt(0)?.toUpperCase() || 'U'}
@@ -105,6 +121,28 @@ export const HomePage: React.FC = () => {
                 <div className="info-item-label">Mã định danh User ID</div>
                 <div className="info-item-value">#{user?.id || '---'}</div>
               </div>
+            </div>
+
+            {/* Cart Overview Banner */}
+            <div className="home-cart-banner">
+              <div className="cart-banner-icon">🛒</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--stone-900)' }}>
+                  Giỏ hàng của bạn: <span style={{ color: 'var(--primary-600)' }}>{totalQuantity} món</span>
+                </div>
+                <div style={{ fontSize: '0.875rem', color: 'var(--stone-600)', marginTop: '2px' }}>
+                  Tổng tiền tạm tính: <strong style={{ color: 'var(--amber-700)' }}>{formatCurrency(subtotal)}</strong>
+                </div>
+              </div>
+              <button
+                id="btn-goto-cart"
+                type="button"
+                className="btn-primary"
+                style={{ width: 'auto', padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}
+                onClick={() => navigate('/cart')}
+              >
+                Mở giỏ hàng →
+              </button>
             </div>
 
             {/* Token Status & Axios Interceptor Verification Box */}
