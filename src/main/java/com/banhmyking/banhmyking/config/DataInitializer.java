@@ -200,4 +200,16 @@ public class DataInitializer implements ApplicationRunner {
         userRepository.save(u);
         log.info("Seed user: {} (role {})", email, role);
     }
+
+    /** Seed 1 user demo — encode BCrypt */
+    private void seedUser(String email, String rawPassword, String fullName, String phone, RoleName role) {
+        User u = new User();
+        u.setEmail(email);
+        u.setPassword(passwordEncoder.encode(rawPassword));
+        u.setFullName(fullName);
+        u.setPhone(phone);
+        u.setRole(role);
+        userRepository.save(u);
+        log.info("Seed user: {} (role {})", email, role);
+    }
 }
