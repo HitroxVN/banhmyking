@@ -187,6 +187,20 @@ public class DataInitializer implements ApplicationRunner {
             userRepository.save(shipper);
             log.info("Khởi tạo tài khoản Shipper demo ID: {}, Email: shipper@banhmyking.vn", shipper.getId());
         }
+
+        // Đảm bảo Product 1 có đủ 3 tùy chọn: Chả Lụa, Pate, Trứng Ốp La
+        productRepository.findById(1L).ifPresent(p1 -> {
+            boolean hasEgg = productOptionRepository.findByProductId(1L).stream()
+                    .anyMatch(opt -> opt.getName().toLowerCase().contains("trứng"));
+            if (!hasEgg) {
+                ProductOption optEgg = new ProductOption();
+                optEgg.setProduct(p1);
+                optEgg.setName("Thêm Trứng Ốp La");
+                optEgg.setExtraPrice(BigDecimal.valueOf(7000));
+                productOptionRepository.save(optEgg);
+                log.info("Khởi tạo tùy chọn 'Thêm Trứng Ốp La' cho Product 1");
+            }
+        });
     }
 
     /** Seed 1 user demo — encode BCrypt */
