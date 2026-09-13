@@ -79,7 +79,7 @@ class UserServiceImplTest {
     void changeRole_lastActiveAdminRejected() {
         User target = buildUser(TARGET_ID, RoleName.ADMIN, false);
         when(userRepository.findByIdAndDeletedFalse(TARGET_ID)).thenReturn(Optional.of(target));
-        when(userRepository.countByRoleAndDeletedFalseAndBannedFalse(RoleName.ADMIN)).thenReturn(1L);
+        when(userRepository.countByRoleAndDeletedFalse(RoleName.ADMIN)).thenReturn(1L);
 
         assertThatThrownBy(() -> userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.STAFF)))
                 .isInstanceOf(BusinessException.class)
@@ -87,14 +87,26 @@ class UserServiceImplTest {
     }
 
     @Test
-    void changeRole_bannedAdminCanBeDemoted() {
-        User target = buildUser(TARGET_ID, RoleName.ADMIN, true); // đã khoá → không tính active
+    void changeRole_bannedAdminCanBeDemoted_whenAnotherAdminExists() {
+        User target = buildUser(TARGET_ID, RoleName.ADMIN, true); // admin đã khoá
         when(userRepository.findByIdAndDeletedFalse(TARGET_ID)).thenReturn(Optional.of(target));
+        when(userRepository.countByRoleAndDeletedFalse(RoleName.ADMIN)).thenReturn(2L); // còn admin khác chưa xoá
         when(refreshTokenRepository.findByUserIdAndRevokedAtIsNull(TARGET_ID)).thenReturn(List.of());
 
         UserDetailResponse res = userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.CUSTOMER));
 
         assertThat(res.role()).isEqualTo(RoleName.CUSTOMER);
+    }
+
+    @Test
+    void changeRole_lastBannedAdminCannotBeDemoted() {
+        User target = buildUser(TARGET_ID, RoleName.ADMIN, true);
+        when(userRepository.findByIdAndDeletedFalse(TARGET_ID)).thenReturn(Optional.of(target));
+        when(userRepository.countByRoleAndDeletedFalse(RoleName.ADMIN)).thenReturn(1L);
+
+        assertThatThrownBy(() -> userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.CUSTOMER)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("ADMIN cuối cùng");
     }
 
     @Test
@@ -176,7 +188,18 @@ class UserServiceImplTest {
     void deleteUser_lastAdminRejected() {
         User target = buildUser(TARGET_ID, RoleName.ADMIN, false);
         when(userRepository.findByIdAndDeletedFalse(TARGET_ID)).thenReturn(Optional.of(target));
-        when(userRepository.countByRoleAndDeletedFalseAndBannedFalse(RoleName.ADMIN)).thenReturn(1L);
+        when(userRepository.countByRoleAndDeletedFalse(RoleName.ADMIN)).thenReturn(1L);
+
+        assertThatThrownBy(() -> userService.deleteUser(ACTOR_ID, TARGET_ID))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Không thể xoá ADMIN cuối cùng");
+    }
+
+    @Test
+    void deleteUser_bannedLastAdminRejected() {
+        User target = buildUser(TARGET_ID, RoleName.ADMIN, true);
+        when(userRepository.findByIdAndDeletedFalse(TARGET_ID)).thenReturn(Optional.of(target));
+        when(userRepository.countByRoleAndDeletedFalse(RoleName.ADMIN)).thenReturn(1L);
 
         assertThatThrownBy(() -> userService.deleteUser(ACTOR_ID, TARGET_ID))
                 .isInstanceOf(BusinessException.class)

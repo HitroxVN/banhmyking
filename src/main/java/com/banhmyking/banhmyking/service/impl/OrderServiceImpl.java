@@ -12,6 +12,7 @@ import com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse;
 import com.banhmyking.banhmyking.dto.order.PriceBreakdown;
 import com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest;
 import com.banhmyking.banhmyking.repository.specification.OrderSpecifications;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -258,18 +259,26 @@ public class OrderServiceImpl implements OrderService {
             order.setPayment(payment);
         }
 
-        // Ghi nhận lượt dùng khuyến mãi (nếu có)
+        // Ghi nhận lượt dùng khuyến mãi (nếu có) — SAU khi order đã save để FK order_id hợp lệ.
+        // Increment atomic trong UPDATE (điều kiện maxUsage) → không race hai đơn cùng vượt quota.
         if (promotion != null) {
-            int used = promotion.getUsedCount() != null ? promotion.getUsedCount() : 0;
-            promotion.setUsedCount(used + 1);
-            promotionRepository.save(promotion);
-
+            if (promotionRepository.incrementUsedCount(promotion.getId()) == 0) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                        "Mã khuyến mãi '" + promotion.getCode() + "' vừa hết lượt sử dụng, vui lòng thử lại");
+            }
             PromotionUsage usage = new PromotionUsage();
             usage.setPromotion(promotion);
             usage.setUser(user);
             usage.setOrder(order);
             usage.setDiscountApplied(priceBreakdown.getDiscountAmount());
-            promotionUsageRepository.save(usage);
+            try {
+                // saveAndFlush: vi phạm uk_promotion_user phải nổ ngay tại đây (không đợi commit) để dịch được thành lỗi nghiệp vụ
+                promotionUsageRepository.saveAndFlush(usage);
+            } catch (DataIntegrityViolationException e) {
+                // uk_promotion_user: 2 đơn cùng user + cùng code cùng lúc — đổi 500 thô thành lỗi nghiệp vụ
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                        "Bạn đã sử dụng mã khuyến mãi '" + promotion.getCode() + "' trước đó");
+            }
         }
 
         // 8. Tự động xóa sạch giỏ hàng sau khi tạo đơn thành công (AC 6)

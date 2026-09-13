@@ -22,8 +22,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByIdAndDeletedFalse(Long id);
 
-    /** Đếm ADMIN đang hoạt động (chưa xoá, chưa khoá) — cho guard ADMIN cuối cùng. */
     long countByRoleAndDeletedFalseAndBannedFalse(RoleName role);
+
+    long countByRoleAndDeletedFalse(RoleName role);
 
     /** Tìm user còn hoạt động theo filter tuỳ ý (null = bỏ qua filter). */
     @Query("""

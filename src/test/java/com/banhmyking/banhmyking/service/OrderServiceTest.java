@@ -288,4 +288,85 @@ class OrderServiceTest {
         verify(orderRepository, never()).save(any());
         verify(cartService, never()).clearCart(any());
     }
+
+    @Test
+    @DisplayName("hai đơn cùng vượt quota — atomic increment trả 0 row -> đơn fail, không ghi Usage")
+    void createFromCart_whenPromotionQuotaExhaustedAtSave_shouldThrowAndNotRecordUsage() {
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .addressId(200L)
+                .promotionCode("SALE10")
+                .build();
+
+        Promotion promo = new Promotion();
+        promo.setId(10L);
+        promo.setCode("SALE10");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
+        when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
+        when(promotionRepository.findByCodeAndActiveTrue("SALE10")).thenReturn(Optional.of(promo));
+        when(promotionUsageRepository.findByPromotionIdAndUserId(10L, 1L)).thenReturn(Optional.empty());
+        when(priceCalculator.calculate(eq(testCart), any())).thenReturn(PriceBreakdown.builder()
+                .subtotal(BigDecimal.valueOf(80000))
+                .shippingFee(BigDecimal.valueOf(15000))
+                .discountAmount(BigDecimal.valueOf(8000))
+                .total(BigDecimal.valueOf(87000))
+                .build());
+        when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260908-RACE1");
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
+            Order o = inv.getArgument(0);
+            o.setId(1L);
+            return o;
+        });
+        // UPDATE điều kiện không match = đơn khác vừa dành lượt cuối
+        when(promotionRepository.incrementUsedCount(10L)).thenReturn(0);
+
+        assertThatThrownBy(() -> orderService.createFromCart(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("vừa hết lượt");
+
+        verify(promotionUsageRepository, never()).saveAndFlush(any());
+        verify(cartService, never()).clearCart(any());
+    }
+
+    @Test
+    @DisplayName("tạo đơn thành công với promotion -> incrementUsedCount được gọi đúng 1 lần")
+    void createFromCart_withPromotion_usesAtomicIncrementNotReadModifyWrite() {
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .addressId(200L)
+                .promotionCode("SALE10")
+                .build();
+
+        Promotion promo = new Promotion();
+        promo.setId(10L);
+        promo.setCode("SALE10");
+        promo.setMaxUsage(100);
+        promo.setUsedCount(5);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
+        when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
+        when(promotionRepository.findByCodeAndActiveTrue("SALE10")).thenReturn(Optional.of(promo));
+        when(promotionUsageRepository.findByPromotionIdAndUserId(10L, 1L)).thenReturn(Optional.empty());
+        when(priceCalculator.calculate(eq(testCart), any())).thenReturn(PriceBreakdown.builder()
+                .subtotal(BigDecimal.valueOf(80000))
+                .shippingFee(BigDecimal.valueOf(15000))
+                .discountAmount(BigDecimal.valueOf(8000))
+                .total(BigDecimal.valueOf(87000))
+                .build());
+        when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260908-OKP10");
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
+            Order o = inv.getArgument(0);
+            o.setId(1L);
+            return o;
+        });
+        when(promotionRepository.incrementUsedCount(10L)).thenReturn(1);
+
+        orderService.createFromCart(1L, request);
+
+        verify(promotionRepository).incrementUsedCount(10L);
+        // Không còn read-modify-write thủ công trên entity
+        verify(promotionRepository, never()).save(any(Promotion.class));
+        assertThat(promo.getUsedCount()).isEqualTo(5); // entity in-memory không bị tự sửa
+    }
 }

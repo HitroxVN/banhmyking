@@ -89,11 +89,11 @@ public class UserServiceImpl implements UserService {
 
         User target = findActiveTarget(targetId);
 
-        // Guard ADMIN cuối cùng: chỉ chặn nếu target là ADMIN đang hoạt động và bị demote
-        if (target.getRole() == RoleName.ADMIN && !target.isBanned()
-                && request.role() != RoleName.ADMIN
-                && countActiveAdmins() <= 1) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Không thể thay đổi vai trò của ADMIN cuối cùng");
+        // nên không cho demote nếu đó là người cuối cùng còn giữ role — đếm theo "admin chưa xóa"
+        if (target.getRole() == RoleName.ADMIN && request.role() != RoleName.ADMIN
+                && userRepository.countByRoleAndDeletedFalse(RoleName.ADMIN) <= 1) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Không thể thay đổi vai trò của ADMIN cuối cùng");
         }
 
         target.setRole(request.role());
@@ -139,7 +139,7 @@ public class UserServiceImpl implements UserService {
 
         User target = findActiveTarget(targetId);
 
-        if (target.getRole() == RoleName.ADMIN && !target.isBanned() && countActiveAdmins() <= 1) {
+        if (target.getRole() == RoleName.ADMIN && userRepository.countByRoleAndDeletedFalse(RoleName.ADMIN) <= 1) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Không thể xoá ADMIN cuối cùng");
         }
 
