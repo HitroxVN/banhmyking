@@ -3,6 +3,7 @@ package com.banhmyking.banhmyking.controller;
 import com.banhmyking.banhmyking.dto.common.ApiResponse;
 import com.banhmyking.banhmyking.dto.user.UpdateProfileRequest;
 import com.banhmyking.banhmyking.dto.user.UserDetailResponse;
+import com.banhmyking.banhmyking.security.SecurityUtils;
 import com.banhmyking.banhmyking.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -41,6 +42,6 @@ public class UserController {
 
     /** JWT subject = userId → username chính là userId. */
     private Long userId(UserDetails principal) {
-        return Long.valueOf(principal.getUsername());
+        return SecurityUtils.requireUserId(principal);
     }
 }

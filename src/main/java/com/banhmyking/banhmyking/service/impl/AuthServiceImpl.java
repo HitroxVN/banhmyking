@@ -86,10 +86,17 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, "Refresh token không hợp lệ"));
 
         if (stored.isRevoked()) {
+            // Thu hồi TOÀN BỘ token đang sống của user này, ép đăng nhập lại từ đầu.
+            if (stored.getUser() != null) {
+                revokeAllActiveTokens(stored.getUser().getId());
+            }
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Refresh token đã bị thu hồi");
         }
         if (stored.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Refresh token đã hết hạn");
+        }
+        if (stored.getUser() == null || stored.getUser().isBanned() || stored.getUser().isDeleted()) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Refresh token không còn hợp lệ");
         }
 
         // Revoke token cũ
@@ -100,6 +107,15 @@ public class AuthServiceImpl implements AuthService {
     }
 
     // ─── Logout ─────────────────────────────────────────────────────────────
+
+    /** Thu hồi mọi refresh token đang sống của user (dùng cho reuse-detection). */
+    private void revokeAllActiveTokens(Long userId) {
+        LocalDateTime now = LocalDateTime.now();
+        refreshTokenRepository.findByUserIdAndRevokedAtIsNull(userId).forEach(rt -> {
+            rt.setRevokedAt(now);
+            refreshTokenRepository.save(rt);
+        });
+    }
 
     @Override
     @Transactional

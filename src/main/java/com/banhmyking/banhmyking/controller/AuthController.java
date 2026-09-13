@@ -7,6 +7,7 @@ import com.banhmyking.banhmyking.dto.auth.RegisterRequest;
 import com.banhmyking.banhmyking.dto.auth.TokenResponse;
 import com.banhmyking.banhmyking.dto.auth.UserInfoResponse;
 import com.banhmyking.banhmyking.dto.common.ApiResponse;
+import com.banhmyking.banhmyking.security.SecurityUtils;
 import com.banhmyking.banhmyking.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -55,14 +56,12 @@ public class AuthController {
             @AuthenticationPrincipal UserDetails principal,
             @Valid @RequestBody ChangePasswordRequest request
     ) {
-        Long userId = Long.valueOf(principal.getUsername());
-        authService.changePassword(userId, request);
+        authService.changePassword(SecurityUtils.requireUserId(principal), request);
         return ApiResponse.ok("Đổi mật khẩu thành công");
     }
 
     @GetMapping("/me")
     public ApiResponse<UserInfoResponse> me(@AuthenticationPrincipal UserDetails principal) {
-        Long userId = Long.valueOf(principal.getUsername());
-        return ApiResponse.ok(authService.getMe(userId));
+        return ApiResponse.ok(authService.getMe(SecurityUtils.requireUserId(principal)));
     }
 }

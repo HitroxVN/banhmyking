@@ -346,5 +346,29 @@ class OrderOwnershipTest {
                     .isInstanceOf(ResourceNotFoundException.class)
                     .hasMessageContaining("Không tìm thấy thông tin thanh toán");
         }
+
+        @Test
+        @DisplayName("Shipper không được gán xem thanh toán qua paymentId -> Bị chặn 403 Forbidden")
+        void getPaymentById_asUnassignedShipper_shouldThrowForbidden() {
+            when(paymentRepository.findById(500L)).thenReturn(Optional.of(paymentA));
+            when(userRepository.findById(60L)).thenReturn(Optional.of(otherShipper));
+
+            assertThatThrownBy(() -> internalPaymentService.getPaymentById(60L, 500L))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN))
+                    .hasMessageContaining("Bạn không được phân công giao đơn hàng này");
+        }
+
+        @Test
+        @DisplayName("Shipper được gán xem thanh toán qua paymentId -> Thành công")
+        void getPaymentById_asAssignedShipper_success() {
+            when(paymentRepository.findById(500L)).thenReturn(Optional.of(paymentA));
+            when(userRepository.findById(50L)).thenReturn(Optional.of(assignedShipper));
+
+            PaymentResponse response = internalPaymentService.getPaymentById(50L, 500L);
+
+            assertThat(response).isNotNull();
+            assertThat(response.getOrderCode()).isEqualTo("BMK-20260912-ORD_A");
+        }
     }
 }

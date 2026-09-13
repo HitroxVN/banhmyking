@@ -6,6 +6,7 @@ import com.banhmyking.banhmyking.dto.user.UpdateRoleRequest;
 import com.banhmyking.banhmyking.dto.user.UpdateStatusRequest;
 import com.banhmyking.banhmyking.dto.user.UserDetailResponse;
 import com.banhmyking.banhmyking.enums.RoleName;
+import com.banhmyking.banhmyking.security.SecurityUtils;
 import com.banhmyking.banhmyking.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -82,6 +83,6 @@ public class AdminUserController {
 
     /** JWT subject = userId → username chính là userId. */
     private Long actorId(UserDetails principal) {
-        return Long.valueOf(principal.getUsername());
+        return SecurityUtils.requireUserId(principal);
     }
 }

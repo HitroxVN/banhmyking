@@ -40,15 +40,7 @@ public class PaymentServiceImpl implements PaymentService {
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
 
-        // Kiểm tra phân quyền truy cập
-        if (actor.getRole() == RoleName.CUSTOMER && (order.getUser() == null || !order.getUser().getId().equals(userId))) {
-            throw new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode);
-        }
-
-        if (actor.getRole() == RoleName.SHIPPER
-                && (order.getShipper() == null || !order.getShipper().getId().equals(userId))) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không được phân công giao đơn hàng này");
-        }
+        assertCanViewOrderPayment(order, actor, userId, "Không tìm thấy đơn hàng với mã: " + orderCode);
 
         Payment payment = paymentRepository.findByOrderId(order.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin thanh toán cho đơn hàng: " + orderCode));
@@ -65,12 +57,26 @@ public class PaymentServiceImpl implements PaymentService {
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
 
-        Order order = payment.getOrder();
-        if (actor.getRole() == RoleName.CUSTOMER && (order == null || order.getUser() == null || !order.getUser().getId().equals(userId))) {
-            throw new ResourceNotFoundException("Không tìm thấy thông tin thanh toán với ID: " + paymentId);
-        }
+        assertCanViewOrderPayment(payment.getOrder(), actor, userId,
+                "Không tìm thấy thông tin thanh toán với ID: " + paymentId);
 
         return toPaymentResponse(payment);
+    }
+
+    /**
+     * Chặn đọc payment của đơn không liên quan:
+     * CUSTOMER chỉ xem đơn của mình (mask NOT_FOUND), SHIPPER chỉ xem đơn được phân công (403).
+     * STAFF/ADMIN xem tự do.
+     */
+    private void assertCanViewOrderPayment(Order order, User actor, Long userId, String notFoundMessage) {
+        if (actor.getRole() == RoleName.CUSTOMER
+                && (order == null || order.getUser() == null || !order.getUser().getId().equals(userId))) {
+            throw new ResourceNotFoundException(notFoundMessage);
+        }
+        if (actor.getRole() == RoleName.SHIPPER
+                && (order == null || order.getShipper() == null || !order.getShipper().getId().equals(userId))) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không được phân công giao đơn hàng này");
+        }
     }
 
     @Override

@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.banhmyking.banhmyking.dto.address.AddressRequest;
 import com.banhmyking.banhmyking.dto.address.AddressResponse;
 import com.banhmyking.banhmyking.dto.common.ApiResponse;
+import com.banhmyking.banhmyking.security.SecurityUtils;
 import com.banhmyking.banhmyking.service.AddressService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -92,6 +93,6 @@ public class AddressController {
 
 	/** JWT subject. */
 	private Long userId(UserDetails principal) {
-		return Long.valueOf(principal.getUsername());
+		return SecurityUtils.requireUserId(principal);
 	}
 }
