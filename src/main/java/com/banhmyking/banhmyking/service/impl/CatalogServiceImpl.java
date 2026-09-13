@@ -2,6 +2,7 @@ package com.banhmyking.banhmyking.service.impl;
 
 import java.util.List;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +40,7 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     @Override
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
     @Transactional
     public CategoryResponse createCategory(CategoryRequest request) {
         Category category = new Category();
@@ -47,6 +49,7 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     @Override
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
     @Transactional
     public CategoryResponse updateCategory(Long categoryId, CategoryRequest request) {
         Category category = findCategory(categoryId);
@@ -55,6 +58,7 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     @Override
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
     @Transactional
     public void deleteCategory(Long categoryId) {
         Category category = findCategory(categoryId);
@@ -86,6 +90,7 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     @Override
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
     @Transactional
     public ProductResponse createProduct(ProductRequest request) {
         Product product = new Product();
@@ -94,6 +99,7 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     @Override
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
     @Transactional
     public ProductResponse updateProduct(Long productId, ProductRequest request) {
         Product product = productRepository.findByIdAndDeletedFalse(productId)
@@ -103,6 +109,7 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     @Override
+    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
     @Transactional
     public void deleteProduct(Long productId) {
         Product product = productRepository.findByIdAndDeletedFalse(productId)
