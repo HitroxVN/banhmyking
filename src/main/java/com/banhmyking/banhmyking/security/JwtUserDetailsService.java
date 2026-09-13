@@ -21,7 +21,7 @@ public class JwtUserDetailsService {
 
     public UserDetails loadById(Long userId) {
         User user = userRepository.findById(userId)
-                .filter(u -> !u.isDeleted())
+                .filter(u -> !u.isDeleted() && !u.isBanned())
                 .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user id: " + userId));
 
         return new org.springframework.security.core.userdetails.User(

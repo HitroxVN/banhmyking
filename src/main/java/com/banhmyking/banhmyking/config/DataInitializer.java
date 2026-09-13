@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,7 +28,7 @@ import java.util.List;
 
 @Slf4j
 @Component
-@Profile("!test")
+@Profile({"dev", "demo"})
 @RequiredArgsConstructor
 public class DataInitializer implements ApplicationRunner {
 
@@ -37,6 +38,7 @@ public class DataInitializer implements ApplicationRunner {
     private final ProductOptionRepository productOptionRepository;
     private final AddressRepository addressRepository;
     private final PromotionRepository promotionRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
@@ -44,14 +46,11 @@ public class DataInitializer implements ApplicationRunner {
         if (userRepository.count() == 0) {
             log.info("Khởi tạo dữ liệu mẫu cho kiểm thử...");
 
-            // 1. User demo
-            User user = new User();
-            user.setEmail("customer@banhmyking.vn");
-            user.setPassword("123456");
-            user.setFullName("Khách Hàng Test");
-            user.setPhone("0901234567");
-            user.setRole(RoleName.CUSTOMER);
-            userRepository.save(user);
+            // 1. User demo — đủ 4 role, password BCrypt-encoded
+            seedUser("customer@gmail.com", "12345678", "Khách Hàng Test", "0901234567", RoleName.CUSTOMER);
+            seedUser("admin@gmail.com", "12345678", "Quản Trị Viên", "0900000001", RoleName.ADMIN);
+            seedUser("staff@gmail.com", "12345678", "Nhân Viên Test", "0900000002", RoleName.STAFF);
+            seedUser("shipper@gmail.com", "12345678", "Shipper Test", "0900000003", RoleName.SHIPPER);
 
             // 2. Category demo
             Category category = new Category();
@@ -103,7 +102,8 @@ public class DataInitializer implements ApplicationRunner {
         }
 
         if (addressRepository.count() == 0) {
-            userRepository.findAll().stream().findFirst().ifPresent(u -> {
+            // Gán chắc chắn cho customer demo — findAll().findFirst() không đảm bảo thứ tự
+            userRepository.findByEmailAndDeletedFalse("customer@gmail.com").ifPresent(u -> {
                 Address addr = new Address();
                 addr.setUser(u);
                 addr.setReceiverName("Khách Hàng Test");
@@ -144,15 +144,72 @@ public class DataInitializer implements ApplicationRunner {
             log.info("Khởi tạo khuyến mãi mẫu: BANHMYKING10, GIAM10K");
           }
 
-        if (userRepository.findByEmailAndDeletedFalse("staff@banhmyking.vn").isEmpty()) {
+        if (!userRepository.existsByEmail("customer@banhmyking.vn")) {
+            User customer = new User();
+            customer.setEmail("customer@banhmyking.vn");
+            customer.setPassword(passwordEncoder.encode("123456"));
+            customer.setFullName("Khách Hàng Test");
+            customer.setPhone("0901234567");
+            customer.setRole(RoleName.CUSTOMER);
+            userRepository.save(customer);
+            log.info("Khởi tạo tài khoản Customer demo ID: {}, Email: customer@banhmyking.vn", customer.getId());
+        }
+
+        if (!userRepository.existsByEmail("staff@banhmyking.vn")) {
             User staff = new User();
             staff.setEmail("staff@banhmyking.vn");
-            staff.setPassword("123456");
+            staff.setPassword(passwordEncoder.encode("123456"));
             staff.setFullName("Nhân Viên Quán");
             staff.setPhone("0908889999");
             staff.setRole(RoleName.STAFF);
             userRepository.save(staff);
             log.info("Khởi tạo tài khoản Staff demo ID: {}, Email: staff@banhmyking.vn", staff.getId());
         }
+
+        if (!userRepository.existsByEmail("admin@banhmyking.vn")) {
+            User admin = new User();
+            admin.setEmail("admin@banhmyking.vn");
+            admin.setPassword(passwordEncoder.encode("123456"));
+            admin.setFullName("Quản Trị Viên");
+            admin.setPhone("0907778888");
+            admin.setRole(RoleName.ADMIN);
+            userRepository.save(admin);
+            log.info("Khởi tạo tài khoản Admin demo ID: {}, Email: admin@banhmyking.vn", admin.getId());
+        }
+
+        if (!userRepository.existsByEmail("shipper@banhmyking.vn")) {
+            User shipper = new User();
+            shipper.setEmail("shipper@banhmyking.vn");
+            shipper.setPassword(passwordEncoder.encode("123456"));
+            shipper.setFullName("Tài Xế Giao Hàng");
+            shipper.setPhone("0906665555");
+            shipper.setRole(RoleName.SHIPPER);
+            userRepository.save(shipper);
+            log.info("Khởi tạo tài khoản Shipper demo ID: {}, Email: shipper@banhmyking.vn", shipper.getId());
+        }
+    }
+
+    /** Seed 1 user demo — encode BCrypt */
+    private void seedUser(String email, String rawPassword, String fullName, String phone, RoleName role) {
+        User u = new User();
+        u.setEmail(email);
+        u.setPassword(passwordEncoder.encode(rawPassword));
+        u.setFullName(fullName);
+        u.setPhone(phone);
+        u.setRole(role);
+        userRepository.save(u);
+        log.info("Seed user: {} (role {})", email, role);
+    }
+
+    /** Seed 1 user demo — encode BCrypt */
+    private void seedUser(String email, String rawPassword, String fullName, String phone, RoleName role) {
+        User u = new User();
+        u.setEmail(email);
+        u.setPassword(passwordEncoder.encode(rawPassword));
+        u.setFullName(fullName);
+        u.setPhone(phone);
+        u.setRole(role);
+        userRepository.save(u);
+        log.info("Seed user: {} (role {})", email, role);
     }
 }

@@ -1,6 +1,9 @@
 package com.banhmyking.banhmyking.service.impl;
 
+import com.banhmyking.banhmyking.dto.common.PageResponse;
+import com.banhmyking.banhmyking.dto.order.AssignShipperRequest;
 import com.banhmyking.banhmyking.dto.order.CancelOrderRequest;
+import com.banhmyking.banhmyking.dto.order.ConfirmDeliveryRequest;
 import com.banhmyking.banhmyking.dto.order.CreateOrderRequest;
 import com.banhmyking.banhmyking.dto.order.OrderItemOptionResponse;
 import com.banhmyking.banhmyking.dto.order.OrderItemResponse;
@@ -8,6 +11,15 @@ import com.banhmyking.banhmyking.dto.order.OrderResponse;
 import com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse;
 import com.banhmyking.banhmyking.dto.order.PriceBreakdown;
 import com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest;
+import com.banhmyking.banhmyking.repository.specification.OrderSpecifications;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
 import com.banhmyking.banhmyking.entity.Address;
 import com.banhmyking.banhmyking.entity.Cart;
 import com.banhmyking.banhmyking.entity.CartItem;
@@ -35,10 +47,13 @@ import com.banhmyking.banhmyking.repository.OrderRepository;
 import com.banhmyking.banhmyking.repository.OrderStatusHistoryRepository;
 import com.banhmyking.banhmyking.repository.PaymentRepository;
 import com.banhmyking.banhmyking.repository.PromotionRepository;
+import com.banhmyking.banhmyking.dto.delivery.DeliveryFeeResult;
 import com.banhmyking.banhmyking.repository.PromotionUsageRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
 import com.banhmyking.banhmyking.service.CartService;
+import com.banhmyking.banhmyking.service.DeliveryFeeCalculator;
 import com.banhmyking.banhmyking.service.OrderService;
+import com.banhmyking.banhmyking.service.PaymentService;
 import com.banhmyking.banhmyking.service.PriceCalculator;
 import com.banhmyking.banhmyking.util.OrderCodeGenerator;
 import com.banhmyking.banhmyking.validator.OrderStatusValidator;
@@ -68,6 +83,8 @@ public class OrderServiceImpl implements OrderService {
     private final PromotionUsageRepository promotionUsageRepository;
     private final PaymentRepository paymentRepository;
     private final PriceCalculator priceCalculator;
+    private final DeliveryFeeCalculator deliveryFeeCalculator;
+    private final PaymentService paymentService;
     private final OrderCodeGenerator orderCodeGenerator;
     private final OrderStatusValidator orderStatusValidator;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
@@ -138,8 +155,37 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // 5. Tính tiền qua PriceCalculator (AC 5)
-        PriceBreakdown priceBreakdown = priceCalculator.calculate(cart, promotion);
+        // 5. Tính tiền qua DeliveryFeeCalculator & PriceCalculator (AC 1, AC 5)
+        BigDecimal cartSubtotal = BigDecimal.ZERO;
+        if (cart.getItems() != null) {
+            for (CartItem item : cart.getItems()) {
+                BigDecimal basePrice = item.getProduct() != null && item.getProduct().getPrice() != null
+                        ? item.getProduct().getPrice() : BigDecimal.ZERO;
+                BigDecimal optionsExtra = BigDecimal.ZERO;
+                if (item.getSelectedOptions() != null) {
+                    for (CartItemOption cio : item.getSelectedOptions()) {
+                        if (cio.getProductOption() != null && cio.getProductOption().getExtraPrice() != null) {
+                            optionsExtra = optionsExtra.add(cio.getProductOption().getExtraPrice());
+                        }
+                    }
+                }
+                int qty = item.getQuantity() != null ? item.getQuantity() : 1;
+                cartSubtotal = cartSubtotal.add(basePrice.add(optionsExtra).multiply(BigDecimal.valueOf(qty)));
+            }
+        }
+        cartSubtotal = cartSubtotal.setScale(2, RoundingMode.HALF_UP);
+
+        PriceBreakdown priceBreakdown;
+        if (deliveryFeeCalculator != null) {
+            DeliveryFeeResult deliveryResult = deliveryFeeCalculator.calculateFee(
+                    request.getDistanceKm(), shippingAddress, cartSubtotal);
+            BigDecimal shippingFee = (deliveryResult != null && deliveryResult.getShippingFee() != null)
+                    ? deliveryResult.getShippingFee()
+                    : PriceCalculator.DEFAULT_SHIPPING_FEE;
+            priceBreakdown = priceCalculator.calculate(cart, promotion, shippingFee);
+        } else {
+            priceBreakdown = priceCalculator.calculate(cart, promotion);
+        }
 
         // 6. Sinh mã đơn hàng qua OrderCodeGenerator có retry 2–3 lần (AC 1)
         String orderCode = orderCodeGenerator.generateUniqueCode(orderRepository::existsByOrderCode, 3);
@@ -195,14 +241,22 @@ public class OrderServiceImpl implements OrderService {
         // Lưu Order (cascade lưu order_items và order_item_options)
         order = orderRepository.save(order);
 
-        // Khởi tạo Payment
-        Payment payment = new Payment();
-        payment.setOrder(order);
-        payment.setMethod(request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.COD);
-        payment.setStatus(PaymentStatus.PENDING);
-        payment.setAmount(order.getTotal());
-        paymentRepository.save(payment);
-        order.setPayment(payment);
+        // Khởi tạo Payment với trạng thái PENDING khi chốt đơn (AC 2)
+        PaymentMethod method = request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.COD;
+        Payment payment;
+        if (paymentService != null) {
+            payment = paymentService.createPendingPayment(order, method, order.getTotal());
+        } else {
+            payment = new Payment();
+            payment.setOrder(order);
+            payment.setMethod(method);
+            payment.setStatus(PaymentStatus.PENDING);
+            payment.setAmount(order.getTotal());
+            payment = paymentRepository.save(payment);
+        }
+        if (payment != null) {
+            order.setPayment(payment);
+        }
 
         // Ghi nhận lượt dùng khuyến mãi (nếu có)
         if (promotion != null) {
@@ -238,6 +292,11 @@ public class OrderServiceImpl implements OrderService {
             throw new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode);
         }
 
+        if (actor.getRole() == RoleName.SHIPPER
+                && (order.getShipper() == null || !order.getShipper().getId().equals(userId))) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không được phân công giao đơn hàng này");
+        }
+
         return toOrderResponse(order);
     }
 
@@ -246,6 +305,189 @@ public class OrderServiceImpl implements OrderService {
     public List<OrderResponse> getUserOrders(Long userId) {
         List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return orders.stream().map(this::toOrderResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<OrderResponse> getUserOrders(Long userId, int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size));
+        Page<Order> orderPage = orderRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+        return PageResponse.from(orderPage.map(this::toOrderResponse));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<OrderResponse> getAllOrdersForAdmin(Long userId, OrderStatus status, String fromDateStr, String toDateStr, int page, int size) {
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+
+        if (actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ nhân viên hoặc quản trị viên mới có quyền xem toàn bộ đơn hàng");
+        }
+
+        LocalDateTime fromDate = parseDateTime(fromDateStr, false);
+        LocalDateTime toDate = parseDateTime(toDateStr, true);
+
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size), Sort.by(Sort.Direction.DESC, "createdAt"));
+        Specification<Order> spec = OrderSpecifications.withFilters(status, fromDate, toDate);
+        Page<Order> orderPage = orderRepository.findAll(spec, pageable);
+
+        return PageResponse.from(orderPage.map(this::toOrderResponse));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderResponse assignShipper(Long userId, String orderCode, AssignShipperRequest request) {
+        log.info("Assigning shipper {} to order {} by user {}", request.getShipperId(), orderCode, userId);
+
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+
+        if (actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ nhân viên hoặc quản trị viên mới có quyền gán shipper");
+        }
+
+        Order order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode));
+
+        OrderStatus currentStatus = order.getStatus();
+        if (currentStatus == OrderStatus.DELIVERED || currentStatus == OrderStatus.CANCELLED || currentStatus == OrderStatus.FAILED) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Không thể gán shipper cho đơn hàng ở trạng thái kết thúc: " + currentStatus);
+        }
+
+        User shipper = userRepository.findById(request.getShipperId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper với ID: " + request.getShipperId()));
+
+        if (shipper.getRole() != RoleName.SHIPPER) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Người dùng ID " + request.getShipperId() + " không có vai trò SHIPPER");
+        }
+
+        order.setShipper(shipper);
+        Order updatedOrder = orderRepository.save(order);
+
+        // Ghi lịch sử gán shipper
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrder(updatedOrder);
+        history.setFromStatus(currentStatus);
+        history.setToStatus(currentStatus);
+        history.setChangedBy(actor);
+        String historyNote = "Gán shipper: " + shipper.getFullName() + " (" + shipper.getPhone() + ")";
+        if (request.getNote() != null && !request.getNote().trim().isEmpty()) {
+            historyNote += " - Ghi chú: " + request.getNote().trim();
+        }
+        history.setNote(historyNote);
+        orderStatusHistoryRepository.save(history);
+
+        log.info("Order {} assigned to shipper {} by {} ({})",
+                orderCode, shipper.getFullName(), actor.getFullName(), actor.getRole());
+
+        return toOrderResponse(updatedOrder);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<OrderResponse> getOrdersForShipper(Long userId, OrderStatus status, int page, int size) {
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+
+        if (actor.getRole() != RoleName.SHIPPER && actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ nhân viên giao hàng mới có quyền truy cập danh sách đơn giao");
+        }
+
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size));
+        Page<Order> orderPage;
+        if (status != null) {
+            orderPage = orderRepository.findByShipperIdAndStatusOrderByCreatedAtDesc(userId, status, pageable);
+        } else {
+            orderPage = orderRepository.findByShipperIdOrderByCreatedAtDesc(userId, pageable);
+        }
+
+        return PageResponse.from(orderPage.map(this::toOrderResponse));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderResponse confirmDelivery(Long userId, String orderCode, ConfirmDeliveryRequest request) {
+        log.info("Confirming delivery for order {} by user {}", orderCode, userId);
+
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+
+        if (actor.getRole() != RoleName.SHIPPER && actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ shipper được phân công mới có quyền xác nhận giao hàng");
+        }
+
+        Order order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode));
+
+        if (actor.getRole() == RoleName.SHIPPER) {
+            if (order.getShipper() == null || !order.getShipper().getId().equals(actor.getId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không phải là shipper được phân công giao đơn hàng này");
+            }
+        }
+
+        OrderStatus fromStatus = order.getStatus();
+        OrderStatus toStatus = OrderStatus.DELIVERED;
+
+        // Validate chuyển trạng thái sang DELIVERED (từ DELIVERING)
+        orderStatusValidator.validateTransition(order, toStatus, actor);
+
+        LocalDateTime now = LocalDateTime.now();
+        order.setStatus(toStatus);
+        order.setDeliveredAt(now);
+
+        // AC 3: Cập nhật trạng thái thanh toán sang PAID nếu là COD
+        if (paymentService != null) {
+            Payment paidPayment = paymentService.markPaymentAsPaid(order.getId());
+            if (paidPayment != null) {
+                order.setPayment(paidPayment);
+            }
+        }
+        if (order.getPayment() != null) {
+            order.getPayment().setStatus(PaymentStatus.PAID);
+            order.getPayment().setPaidAt(now);
+        }
+
+        Order updatedOrder = orderRepository.save(order);
+
+        // Ghi lịch sử
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrder(updatedOrder);
+        history.setFromStatus(fromStatus);
+        history.setToStatus(toStatus);
+        history.setChangedBy(actor);
+        String note = "Shipper xác nhận giao hàng thành công";
+        if (request != null && request.getNote() != null && !request.getNote().trim().isEmpty()) {
+            note += ": " + request.getNote().trim();
+        }
+        history.setNote(note);
+        orderStatusHistoryRepository.save(history);
+
+        log.info("Order {} delivered successfully by user {} ({})", orderCode, userId, actor.getRole());
+
+        return toOrderResponse(updatedOrder);
+    }
+
+    private LocalDateTime parseDateTime(String input, boolean isEndOfDay) {
+        if (input == null || input.trim().isEmpty()) {
+            return null;
+        }
+        String str = input.trim();
+        try {
+            if (str.length() == 10) {
+                LocalDate date = LocalDate.parse(str);
+                return isEndOfDay ? date.atTime(LocalTime.MAX) : date.atStartOfDay();
+            }
+            if (str.contains(" ")) {
+                str = str.replace(" ", "T");
+            }
+            return LocalDateTime.parse(str);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Định dạng ngày không hợp lệ (hỗ trợ yyyy-MM-dd hoặc ISO-8601): " + input);
+        }
     }
 
     @Override
@@ -301,9 +543,18 @@ public class OrderServiceImpl implements OrderService {
         // AC 1: Validate state machine (chặn nhảy cóc, FAILED chỉ từ DELIVERING, phân quyền vận hành)
         orderStatusValidator.validateTransition(order, toStatus, actor);
 
-        // Gán thông tin shipper nếu chuyển sang DELIVERING
+        // Shipper chỉ được thao tác trên đơn được phân công cho mình (khác confirmDelivery đã check ở trên)
+        if (actor.getRole() == RoleName.SHIPPER
+                && (order.getShipper() == null || !order.getShipper().getId().equals(actor.getId()))) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không phải là shipper được phân công giao đơn hàng này");
+        }
+
+        // Gán shipper nếu chuyển sang DELIVERING — việc phân công là của STAFF/ADMIN
         if (toStatus == OrderStatus.DELIVERING) {
             if (request.getShipperId() != null) {
+                if (actor.getRole() == RoleName.SHIPPER) {
+                    throw new BusinessException(ErrorCode.FORBIDDEN, "Shipper không có quyền phân công đơn hàng cho người khác");
+                }
                 User shipper = userRepository.findById(request.getShipperId())
                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper với ID: " + request.getShipperId()));
                 if (shipper.getRole() != RoleName.SHIPPER) {
@@ -311,14 +562,27 @@ public class OrderServiceImpl implements OrderService {
                             "Người dùng ID " + request.getShipperId() + " không có vai trò SHIPPER");
                 }
                 order.setShipper(shipper);
-            } else if (actor.getRole() == RoleName.SHIPPER && order.getShipper() == null) {
-                order.setShipper(actor);
+            } else if (order.getShipper() == null) {
+                // Không có shipperId và đơn chưa được gán → chặn, tránh đơn DELIVERING không có shipper
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        "Cần chỉ định shipperId khi chuyển sang DELIVERING (đơn chưa được phân công)");
             }
         }
 
-        // Đóng dấu thời gian giao hàng thành công
+        // Đóng dấu thời gian giao hàng thành công & cập nhật thanh toán nếu hoàn thành
         if (toStatus == OrderStatus.DELIVERED) {
-            order.setDeliveredAt(LocalDateTime.now());
+            LocalDateTime now = LocalDateTime.now();
+            order.setDeliveredAt(now);
+            if (paymentService != null) {
+                Payment paidPayment = paymentService.markPaymentAsPaid(order.getId());
+                if (paidPayment != null) {
+                    order.setPayment(paidPayment);
+                }
+            }
+            if (order.getPayment() != null) {
+                order.getPayment().setStatus(PaymentStatus.PAID);
+                order.getPayment().setPaidAt(now);
+            }
         }
 
         order.setStatus(toStatus);
@@ -351,6 +615,11 @@ public class OrderServiceImpl implements OrderService {
         // Customer chỉ được xem lịch sử đơn hàng của chính mình
         if (actor.getRole() == RoleName.CUSTOMER && (order.getUser() == null || !order.getUser().getId().equals(actor.getId()))) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không có quyền xem lịch sử đơn hàng của người khác");
+        }
+
+        // Shipper chỉ được xem lịch sử đơn hàng được phân công cho mình
+        if (actor.getRole() == RoleName.SHIPPER && (order.getShipper() == null || !order.getShipper().getId().equals(actor.getId()))) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không phải là shipper được phân công giao đơn hàng này");
         }
 
         List<OrderStatusHistory> histories = orderStatusHistoryRepository.findByOrderOrderCodeOrderByCreatedAtAsc(orderCode);
@@ -401,6 +670,9 @@ public class OrderServiceImpl implements OrderService {
         }
 
         Payment payment = order.getPayment();
+        if (payment == null && order.getId() != null) {
+            payment = paymentRepository.findByOrderId(order.getId()).orElse(null);
+        }
 
         return OrderResponse.builder()
                 .id(order.getId())
@@ -420,6 +692,9 @@ public class OrderServiceImpl implements OrderService {
                 .createdAt(order.getCreatedAt())
                 .cancelReason(order.getCancelReason())
                 .deliveredAt(order.getDeliveredAt())
+                .shipperId(order.getShipper() != null ? order.getShipper().getId() : null)
+                .shipperName(order.getShipper() != null ? order.getShipper().getFullName() : null)
+                .shipperPhone(order.getShipper() != null ? order.getShipper().getPhone() : null)
                 .items(itemResponses)
                 .build();
     }

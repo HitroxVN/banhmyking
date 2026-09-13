@@ -10,6 +10,7 @@ import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.GlobalExceptionHandler;
 import com.banhmyking.banhmyking.service.OrderService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -47,11 +50,27 @@ class OrderControllerTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /** Principal giả — username là userId (JWT subject), user 1 (customer). */
+    private static final org.springframework.security.core.userdetails.UserDetails PRINCIPAL =
+            org.springframework.security.core.userdetails.User
+                    .withUsername("1")
+                    .password("x")
+                    .authorities("ROLE_CUSTOMER")
+                    .build();
+
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(orderController)
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver())
                 .build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(PRINCIPAL, null, PRINCIPAL.getAuthorities()));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -82,7 +101,6 @@ class OrderControllerTest {
                 .build();
 
         mockMvc.perform(post("/api/v1/orders")
-                        .header("X-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -102,7 +120,6 @@ class OrderControllerTest {
                 .build();
 
         mockMvc.perform(post("/api/v1/orders")
-                        .header("X-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -123,15 +140,14 @@ class OrderControllerTest {
 
         when(orderService.getOrderByCode(1L, "BMK-20260908-ABC12")).thenReturn(response);
 
-        mockMvc.perform(get("/api/v1/orders/BMK-20260908-ABC12")
-                        .header("X-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/orders/BMK-20260908-ABC12"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.orderCode").value("BMK-20260908-ABC12"));
     }
 
     @Test
-    @DisplayName("GET /api/v1/orders - Xem danh sách đơn hàng của user")
+    @DisplayName("GET /api/v1/orders - Xem danh sách đơn hàng của user (phân trang)")
     void getUserOrders_shouldReturnOrderList() throws Exception {
         OrderResponse response = OrderResponse.builder()
                 .id(1L)
@@ -139,14 +155,21 @@ class OrderControllerTest {
                 .total(BigDecimal.valueOf(95000))
                 .build();
 
-        when(orderService.getUserOrders(1L)).thenReturn(List.of(response));
+        com.banhmyking.banhmyking.dto.common.PageResponse<OrderResponse> pageResponse =
+                new com.banhmyking.banhmyking.dto.common.PageResponse<>(
+                        List.of(response), 0, 10, 1L, 1, true
+                );
+
+        when(orderService.getUserOrders(1L, 0, 10)).thenReturn(pageResponse);
 
         mockMvc.perform(get("/api/v1/orders")
-                        .header("X-User-Id", 1L))
+                        .param("page", "0")
+                        .param("size", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].orderCode").value("BMK-20260908-ABC12"));
+                .andExpect(jsonPath("$.data.content").isArray())
+                .andExpect(jsonPath("$.data.content[0].orderCode").value("BMK-20260908-ABC12"))
+                .andExpect(jsonPath("$.data.totalElements").value(1));
     }
 
     @Test
@@ -167,7 +190,6 @@ class OrderControllerTest {
                         .build();
 
         mockMvc.perform(put("/api/v1/orders/BMK-20260908-ABC12/cancel")
-                        .header("X-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -195,7 +217,6 @@ class OrderControllerTest {
                         .build();
 
         mockMvc.perform(put("/api/v1/orders/BMK-20260908-ABC12/status")
-                        .header("X-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -218,8 +239,7 @@ class OrderControllerTest {
 
         when(orderService.getOrderStatusHistory(1L, "BMK-20260908-ABC12")).thenReturn(List.of(history));
 
-        mockMvc.perform(get("/api/v1/orders/BMK-20260908-ABC12/history")
-                        .header("X-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/orders/BMK-20260908-ABC12/history"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").isArray())
