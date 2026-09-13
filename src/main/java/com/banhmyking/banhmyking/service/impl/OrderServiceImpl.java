@@ -47,10 +47,13 @@ import com.banhmyking.banhmyking.repository.OrderRepository;
 import com.banhmyking.banhmyking.repository.OrderStatusHistoryRepository;
 import com.banhmyking.banhmyking.repository.PaymentRepository;
 import com.banhmyking.banhmyking.repository.PromotionRepository;
+import com.banhmyking.banhmyking.dto.delivery.DeliveryFeeResult;
 import com.banhmyking.banhmyking.repository.PromotionUsageRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
 import com.banhmyking.banhmyking.service.CartService;
+import com.banhmyking.banhmyking.service.DeliveryFeeCalculator;
 import com.banhmyking.banhmyking.service.OrderService;
+import com.banhmyking.banhmyking.service.PaymentService;
 import com.banhmyking.banhmyking.service.PriceCalculator;
 import com.banhmyking.banhmyking.util.OrderCodeGenerator;
 import com.banhmyking.banhmyking.validator.OrderStatusValidator;
@@ -80,6 +83,8 @@ public class OrderServiceImpl implements OrderService {
     private final PromotionUsageRepository promotionUsageRepository;
     private final PaymentRepository paymentRepository;
     private final PriceCalculator priceCalculator;
+    private final DeliveryFeeCalculator deliveryFeeCalculator;
+    private final PaymentService paymentService;
     private final OrderCodeGenerator orderCodeGenerator;
     private final OrderStatusValidator orderStatusValidator;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
@@ -150,8 +155,37 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // 5. Tính tiền qua PriceCalculator (AC 5)
-        PriceBreakdown priceBreakdown = priceCalculator.calculate(cart, promotion);
+        // 5. Tính tiền qua DeliveryFeeCalculator & PriceCalculator (AC 1, AC 5)
+        BigDecimal cartSubtotal = BigDecimal.ZERO;
+        if (cart.getItems() != null) {
+            for (CartItem item : cart.getItems()) {
+                BigDecimal basePrice = item.getProduct() != null && item.getProduct().getPrice() != null
+                        ? item.getProduct().getPrice() : BigDecimal.ZERO;
+                BigDecimal optionsExtra = BigDecimal.ZERO;
+                if (item.getSelectedOptions() != null) {
+                    for (CartItemOption cio : item.getSelectedOptions()) {
+                        if (cio.getProductOption() != null && cio.getProductOption().getExtraPrice() != null) {
+                            optionsExtra = optionsExtra.add(cio.getProductOption().getExtraPrice());
+                        }
+                    }
+                }
+                int qty = item.getQuantity() != null ? item.getQuantity() : 1;
+                cartSubtotal = cartSubtotal.add(basePrice.add(optionsExtra).multiply(BigDecimal.valueOf(qty)));
+            }
+        }
+        cartSubtotal = cartSubtotal.setScale(2, RoundingMode.HALF_UP);
+
+        PriceBreakdown priceBreakdown;
+        if (deliveryFeeCalculator != null) {
+            DeliveryFeeResult deliveryResult = deliveryFeeCalculator.calculateFee(
+                    request.getDistanceKm(), shippingAddress, cartSubtotal);
+            BigDecimal shippingFee = (deliveryResult != null && deliveryResult.getShippingFee() != null)
+                    ? deliveryResult.getShippingFee()
+                    : PriceCalculator.DEFAULT_SHIPPING_FEE;
+            priceBreakdown = priceCalculator.calculate(cart, promotion, shippingFee);
+        } else {
+            priceBreakdown = priceCalculator.calculate(cart, promotion);
+        }
 
         // 6. Sinh mã đơn hàng qua OrderCodeGenerator có retry 2–3 lần (AC 1)
         String orderCode = orderCodeGenerator.generateUniqueCode(orderRepository::existsByOrderCode, 3);
@@ -207,14 +241,22 @@ public class OrderServiceImpl implements OrderService {
         // Lưu Order (cascade lưu order_items và order_item_options)
         order = orderRepository.save(order);
 
-        // Khởi tạo Payment
-        Payment payment = new Payment();
-        payment.setOrder(order);
-        payment.setMethod(request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.COD);
-        payment.setStatus(PaymentStatus.PENDING);
-        payment.setAmount(order.getTotal());
-        paymentRepository.save(payment);
-        order.setPayment(payment);
+        // Khởi tạo Payment với trạng thái PENDING khi chốt đơn (AC 2)
+        PaymentMethod method = request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.COD;
+        Payment payment;
+        if (paymentService != null) {
+            payment = paymentService.createPendingPayment(order, method, order.getTotal());
+        } else {
+            payment = new Payment();
+            payment.setOrder(order);
+            payment.setMethod(method);
+            payment.setStatus(PaymentStatus.PENDING);
+            payment.setAmount(order.getTotal());
+            payment = paymentRepository.save(payment);
+        }
+        if (payment != null) {
+            order.setPayment(payment);
+        }
 
         // Ghi nhận lượt dùng khuyến mãi (nếu có)
         if (promotion != null) {
@@ -392,14 +434,20 @@ public class OrderServiceImpl implements OrderService {
         // Validate chuyển trạng thái sang DELIVERED (từ DELIVERING)
         orderStatusValidator.validateTransition(order, toStatus, actor);
 
+        LocalDateTime now = LocalDateTime.now();
         order.setStatus(toStatus);
-        order.setDeliveredAt(LocalDateTime.now());
+        order.setDeliveredAt(now);
 
-        // Cập nhật trạng thái thanh toán nếu là COD
-        Payment payment = order.getPayment();
-        if (payment != null && payment.getMethod() == PaymentMethod.COD && payment.getStatus() == PaymentStatus.PENDING) {
-            payment.setStatus(PaymentStatus.PAID);
-            payment.setPaidAt(LocalDateTime.now());
+        // AC 3: Cập nhật trạng thái thanh toán sang PAID nếu là COD
+        if (paymentService != null) {
+            Payment paidPayment = paymentService.markPaymentAsPaid(order.getId());
+            if (paidPayment != null) {
+                order.setPayment(paidPayment);
+            }
+        }
+        if (order.getPayment() != null) {
+            order.getPayment().setStatus(PaymentStatus.PAID);
+            order.getPayment().setPaidAt(now);
         }
 
         Order updatedOrder = orderRepository.save(order);
@@ -521,9 +569,20 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // Đóng dấu thời gian giao hàng thành công
+        // Đóng dấu thời gian giao hàng thành công & cập nhật thanh toán nếu hoàn thành
         if (toStatus == OrderStatus.DELIVERED) {
-            order.setDeliveredAt(LocalDateTime.now());
+            LocalDateTime now = LocalDateTime.now();
+            order.setDeliveredAt(now);
+            if (paymentService != null) {
+                Payment paidPayment = paymentService.markPaymentAsPaid(order.getId());
+                if (paidPayment != null) {
+                    order.setPayment(paidPayment);
+                }
+            }
+            if (order.getPayment() != null) {
+                order.getPayment().setStatus(PaymentStatus.PAID);
+                order.getPayment().setPaidAt(now);
+            }
         }
 
         order.setStatus(toStatus);
@@ -611,6 +670,9 @@ public class OrderServiceImpl implements OrderService {
         }
 
         Payment payment = order.getPayment();
+        if (payment == null && order.getId() != null) {
+            payment = paymentRepository.findByOrderId(order.getId()).orElse(null);
+        }
 
         return OrderResponse.builder()
                 .id(order.getId())

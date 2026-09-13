@@ -68,6 +68,7 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**"
                         ).permitAll()
+                        .requestMatchers("/api/v1/delivery/**").permitAll()
                         // Admin user API: STAFF chỉ đọc, ADMIN toàn quyền
                         .requestMatchers(HttpMethod.GET, "/api/v1/admin/users").hasAnyRole("STAFF", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/admin/users/**").hasAnyRole("STAFF", "ADMIN")
