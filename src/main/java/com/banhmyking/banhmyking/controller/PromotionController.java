@@ -3,6 +3,7 @@ package com.banhmyking.banhmyking.controller;
 import com.banhmyking.banhmyking.dto.common.ApiResponse;
 import com.banhmyking.banhmyking.dto.promotion.CreatePromotionRequest;
 import com.banhmyking.banhmyking.dto.promotion.PromotionResponse;
+import com.banhmyking.banhmyking.dto.promotion.UpdatePromotionRequest;
 import com.banhmyking.banhmyking.dto.promotion.ValidatePromotionRequest;
 import com.banhmyking.banhmyking.service.PromotionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,9 +13,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,7 +27,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
-@Tag(name = "Promotion", description = "APIs quản lý mã giảm giá & Atomic Redemption (Sprint 6 - PROMO-01)")
+@Tag(name = "Promotion", description = "APIs quản lý mã giảm giá & Atomic Redemption (Sprint 6 - PROMO-01 & PROMO-02)")
 public class PromotionController {
 
     private final PromotionService promotionService;
@@ -70,5 +73,24 @@ public class PromotionController {
             @PathVariable Long id) {
         PromotionResponse response = promotionService.getPromotionById(id);
         return ResponseEntity.ok(ApiResponse.ok("Lấy thông tin mã giảm giá thành công", response));
+    }
+
+    @Operation(summary = "Cập nhật mã giảm giá (ADMIN)", description = "Cập nhật thông tin mã giảm giá theo ID")
+    @PutMapping("/admin/promotions/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<PromotionResponse>> updatePromotion(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdatePromotionRequest request) {
+        PromotionResponse response = promotionService.updatePromotion(id, request);
+        return ResponseEntity.ok(ApiResponse.ok("Cập nhật mã giảm giá thành công", response));
+    }
+
+    @Operation(summary = "Xóa mã giảm giá (ADMIN)", description = "Vô hiệu hóa hoặc xóa mã giảm giá theo ID")
+    @DeleteMapping("/admin/promotions/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> deletePromotion(
+            @PathVariable Long id) {
+        promotionService.deletePromotion(id);
+        return ResponseEntity.ok(ApiResponse.ok("Xóa mã giảm giá thành công"));
     }
 }

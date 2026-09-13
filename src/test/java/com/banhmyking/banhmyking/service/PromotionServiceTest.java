@@ -119,4 +119,106 @@ class PromotionServiceTest {
 
         verify(promotionUsageRepository, never()).save(any());
     }
+
+    // --- Tests cho PROMO-02 (Admin CRUD Promotions & Validation) ---
+
+    @Test
+    @DisplayName("PROMO-02: Tạo mã giảm giá thành công khi dữ liệu hợp lệ")
+    void createPromotion_success() {
+        com.banhmyking.banhmyking.dto.promotion.CreatePromotionRequest req =
+                com.banhmyking.banhmyking.dto.promotion.CreatePromotionRequest.builder()
+                        .code("NEWYEAR2026")
+                        .description("Giảm 15% tối đa 30k")
+                        .discountType(DiscountType.PERCENTAGE)
+                        .value(BigDecimal.valueOf(15))
+                        .maxDiscountAmount(BigDecimal.valueOf(30000))
+                        .minOrderAmount(BigDecimal.valueOf(50000))
+                        .startsAt(LocalDateTime.now().minusDays(1))
+                        .endsAt(LocalDateTime.now().plusDays(10))
+                        .maxUsage(50)
+                        .active(true)
+                        .build();
+
+        when(promotionRepository.findByCode("NEWYEAR2026")).thenReturn(java.util.Optional.empty());
+        when(promotionRepository.save(any(Promotion.class))).thenAnswer(inv -> {
+            Promotion p = inv.getArgument(0);
+            p.setId(200L);
+            return p;
+        });
+
+        com.banhmyking.banhmyking.dto.promotion.PromotionResponse res = promotionService.createPromotion(req);
+
+        assertThat(res).isNotNull();
+        assertThat(res.getId()).isEqualTo(200L);
+        assertThat(res.getCode()).isEqualTo("NEWYEAR2026");
+        assertThat(res.getDiscountType()).isEqualTo(DiscountType.PERCENTAGE);
+        verify(promotionRepository).save(any(Promotion.class));
+    }
+
+    @Test
+    @DisplayName("PROMO-02: Bắn lỗi khi ngày bắt đầu >= ngày kết thúc")
+    void createPromotion_whenStartsAtAfterEndsAt_shouldThrowValidationException() {
+        com.banhmyking.banhmyking.dto.promotion.CreatePromotionRequest req =
+                com.banhmyking.banhmyking.dto.promotion.CreatePromotionRequest.builder()
+                        .code("INVALIDDATE")
+                        .description("Test ngày lỗi")
+                        .discountType(DiscountType.FIXED_AMOUNT)
+                        .value(BigDecimal.valueOf(10000))
+                        .startsAt(LocalDateTime.now().plusDays(5))
+                        .endsAt(LocalDateTime.now().plusDays(1)) // Ends before starts
+                        .maxUsage(10)
+                        .build();
+
+        when(promotionRepository.findByCode("INVALIDDATE")).thenReturn(java.util.Optional.empty());
+
+        assertThatThrownBy(() -> promotionService.createPromotion(req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Ngày bắt đầu phải nhỏ hơn ngày kết thúc");
+    }
+
+    @Test
+    @DisplayName("PROMO-02: Bắn lỗi khi loại PERCENTAGE thiếu maxDiscountAmount")
+    void createPromotion_whenPercentageWithoutMaxDiscountAmount_shouldThrowValidationException() {
+        com.banhmyking.banhmyking.dto.promotion.CreatePromotionRequest req =
+                com.banhmyking.banhmyking.dto.promotion.CreatePromotionRequest.builder()
+                        .code("NOMAXDISCOUNT")
+                        .description("Giảm 20% không giới hạn")
+                        .discountType(DiscountType.PERCENTAGE)
+                        .value(BigDecimal.valueOf(20))
+                        .maxDiscountAmount(null) // Thiếu maxDiscountAmount
+                        .startsAt(LocalDateTime.now().minusDays(1))
+                        .endsAt(LocalDateTime.now().plusDays(5))
+                        .maxUsage(10)
+                        .build();
+
+        when(promotionRepository.findByCode("NOMAXDISCOUNT")).thenReturn(java.util.Optional.empty());
+
+        assertThatThrownBy(() -> promotionService.createPromotion(req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("PERCENTAGE bắt buộc phải truyền giá trị maxDiscountAmount");
+    }
+
+    @Test
+    @DisplayName("PROMO-02: Xóa thành công mã chưa được dùng (Hard Delete)")
+    void deletePromotion_whenNoUsages_shouldDeletePermanently() {
+        when(promotionRepository.findById(100L)).thenReturn(java.util.Optional.of(testPromotion));
+        when(promotionUsageRepository.existsByPromotionId(100L)).thenReturn(false);
+
+        promotionService.deletePromotion(100L);
+
+        verify(promotionRepository).delete(testPromotion);
+    }
+
+    @Test
+    @DisplayName("PROMO-02: Xóa mềm mã đã có lịch sử sử dụng (Soft Deactivate)")
+    void deletePromotion_whenHasUsages_shouldSoftDeactivate() {
+        when(promotionRepository.findById(100L)).thenReturn(java.util.Optional.of(testPromotion));
+        when(promotionUsageRepository.existsByPromotionId(100L)).thenReturn(true);
+
+        promotionService.deletePromotion(100L);
+
+        assertThat(testPromotion.isActive()).isFalse();
+        verify(promotionRepository).save(testPromotion);
+        verify(promotionRepository, never()).delete(any());
+    }
 }

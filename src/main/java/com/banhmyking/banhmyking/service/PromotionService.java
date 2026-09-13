@@ -11,6 +11,8 @@ import com.banhmyking.banhmyking.entity.User;
 import java.math.BigDecimal;
 import java.util.List;
 
+import com.banhmyking.banhmyking.dto.promotion.UpdatePromotionRequest;
+
 public interface PromotionService {
 
     /**
@@ -44,6 +46,16 @@ public interface PromotionService {
      * Admin tạo mới mã giảm giá.
      */
     PromotionResponse createPromotion(CreatePromotionRequest request);
+
+    /**
+     * Admin cập nhật thông tin mã giảm giá.
+     */
+    PromotionResponse updatePromotion(Long id, UpdatePromotionRequest request);
+
+    /**
+     * Admin xóa mã giảm giá.
+     */
+    void deletePromotion(Long id);
 
     /**
      * Lấy danh sách tất cả mã giảm giá (Admin).

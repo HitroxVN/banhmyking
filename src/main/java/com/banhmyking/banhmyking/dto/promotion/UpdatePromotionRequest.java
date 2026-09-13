@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CreatePromotionRequest {
+public class UpdatePromotionRequest {
 
     @NotBlank(message = "Mã khuyến mãi không được để trống")
     private String code;
@@ -49,6 +49,6 @@ public class CreatePromotionRequest {
     @Min(value = 1, message = "Số lượt sử dụng tối đa phải từ 1 trở lên")
     private Integer maxUsage;
 
-    @Builder.Default
-    private Boolean active = true;
+    @NotNull(message = "Trạng thái hoạt động không được để trống")
+    private Boolean active;
 }

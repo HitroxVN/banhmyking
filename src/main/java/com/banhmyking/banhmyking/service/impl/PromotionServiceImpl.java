@@ -2,6 +2,7 @@ package com.banhmyking.banhmyking.service.impl;
 
 import com.banhmyking.banhmyking.dto.promotion.CreatePromotionRequest;
 import com.banhmyking.banhmyking.dto.promotion.PromotionResponse;
+import com.banhmyking.banhmyking.dto.promotion.UpdatePromotionRequest;
 import com.banhmyking.banhmyking.dto.promotion.ValidatePromotionRequest;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.Promotion;
@@ -23,6 +24,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -117,19 +119,15 @@ public class PromotionServiceImpl implements PromotionService {
     @Transactional(rollbackFor = Exception.class)
     public PromotionResponse createPromotion(CreatePromotionRequest request) {
         String code = request.getCode().trim().toUpperCase();
+
+        // Check unique code
         if (promotionRepository.findByCode(code).isPresent()) {
             throw new BusinessException(ErrorCode.CONFLICT, "Mã khuyến mãi '" + code + "' đã tồn tại");
         }
 
-        if (request.getEndsAt().isBefore(request.getStartsAt())) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Thời gian kết thúc phải sau thời gian bắt đầu");
-        }
-
-        if (request.getDiscountType() == DiscountType.PERCENTAGE) {
-            if (request.getValue().compareTo(BigDecimal.valueOf(100)) > 0) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Phần trăm giảm giá không thể vượt quá 100%");
-            }
-        }
+        // Validate business logic: startsAt < endsAt & PERCENTAGE requires maxDiscountAmount
+        validatePromotionData(code, request.getDiscountType(), request.getValue(),
+                request.getMaxDiscountAmount(), request.getStartsAt(), request.getEndsAt());
 
         Promotion promotion = Promotion.builder()
                 .code(code)
@@ -142,13 +140,64 @@ public class PromotionServiceImpl implements PromotionService {
                 .endsAt(request.getEndsAt())
                 .maxUsage(request.getMaxUsage() != null ? request.getMaxUsage() : 0)
                 .usedCount(0)
-                .active(true)
+                .active(request.getActive() != null ? request.getActive() : true)
                 .build();
 
         promotion = promotionRepository.save(promotion);
         log.info("Created new promotion: {} (ID: {})", code, promotion.getId());
 
         return toPromotionResponse(promotion);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PromotionResponse updatePromotion(Long id, UpdatePromotionRequest request) {
+        Promotion promotion = promotionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mã khuyến mãi với ID: " + id));
+
+        String code = request.getCode().trim().toUpperCase();
+
+        // Check unique code (excluding current ID)
+        Optional<Promotion> existingWithCode = promotionRepository.findByCode(code);
+        if (existingWithCode.isPresent() && !existingWithCode.get().getId().equals(id)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "Mã khuyến mãi '" + code + "' đã tồn tại");
+        }
+
+        // Validate business logic: startsAt < endsAt & PERCENTAGE requires maxDiscountAmount
+        validatePromotionData(code, request.getDiscountType(), request.getValue(),
+                request.getMaxDiscountAmount(), request.getStartsAt(), request.getEndsAt());
+
+        promotion.setCode(code);
+        promotion.setDescription(request.getDescription());
+        promotion.setDiscountType(request.getDiscountType());
+        promotion.setValue(request.getValue());
+        promotion.setMaxDiscountAmount(request.getMaxDiscountAmount());
+        promotion.setMinOrderAmount(request.getMinOrderAmount() != null ? request.getMinOrderAmount() : BigDecimal.ZERO);
+        promotion.setStartsAt(request.getStartsAt());
+        promotion.setEndsAt(request.getEndsAt());
+        promotion.setMaxUsage(request.getMaxUsage() != null ? request.getMaxUsage() : 0);
+        promotion.setActive(request.getActive() != null ? request.getActive() : true);
+
+        promotion = promotionRepository.save(promotion);
+        log.info("Updated promotion ID: {} ({})", id, code);
+
+        return toPromotionResponse(promotion);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deletePromotion(Long id) {
+        Promotion promotion = promotionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mã khuyến mãi với ID: " + id));
+
+        if (promotionUsageRepository.existsByPromotionId(id)) {
+            log.info("Promotion ID {} has associated usages. Performing soft deactivation (active = false).", id);
+            promotion.setActive(false);
+            promotionRepository.save(promotion);
+        } else {
+            log.info("Promotion ID {} has no usages. Deleting permanently.", id);
+            promotionRepository.delete(promotion);
+        }
     }
 
     @Override
@@ -165,6 +214,23 @@ public class PromotionServiceImpl implements PromotionService {
         Promotion promotion = promotionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mã khuyến mãi với ID: " + id));
         return toPromotionResponse(promotion);
+    }
+
+    private void validatePromotionData(String code, DiscountType discountType, BigDecimal value,
+                                       BigDecimal maxDiscountAmount, LocalDateTime startsAt, LocalDateTime endsAt) {
+        if (startsAt == null || endsAt == null || !startsAt.isBefore(endsAt)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Ngày bắt đầu phải nhỏ hơn ngày kết thúc");
+        }
+
+        if (discountType == DiscountType.PERCENTAGE) {
+            if (maxDiscountAmount == null || maxDiscountAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        "Loại giảm giá PERCENTAGE bắt buộc phải truyền giá trị maxDiscountAmount lớn hơn 0");
+            }
+            if (value != null && value.compareTo(BigDecimal.valueOf(100)) > 0) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Phần trăm giảm giá không thể vượt quá 100%");
+            }
+        }
     }
 
     private BigDecimal computeDiscount(Promotion promotion, BigDecimal orderAmount) {

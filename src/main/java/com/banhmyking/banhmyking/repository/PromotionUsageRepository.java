@@ -9,4 +9,5 @@ import java.util.Optional;
 @Repository
 public interface PromotionUsageRepository extends JpaRepository<PromotionUsage, Long> {
     Optional<PromotionUsage> findByPromotionIdAndUserId(Long promotionId, Long userId);
+    boolean existsByPromotionId(Long promotionId);
 }
