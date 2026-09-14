@@ -23,6 +23,10 @@ public interface UserService {
 
     // ─── Admin — ghi (chỉ ADMIN) ─────────────────────────────────────────────
 
+    UserDetailResponse createUser(Long actorId, com.banhmyking.banhmyking.dto.user.AdminCreateUserRequest request);
+
+    UserDetailResponse updateUser(Long actorId, Long targetId, com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest request);
+
     UserDetailResponse changeRole(Long actorId, Long targetId, UpdateRoleRequest request);
 
     UserDetailResponse changeStatus(Long actorId, Long targetId, UpdateStatusRequest request);

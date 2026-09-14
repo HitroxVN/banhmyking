@@ -35,4 +35,18 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
            "LEFT JOIN FETCH o.payment " +
            "WHERE o.orderCode = :orderCode")
     Optional<Order> findByOrderCodeWithDetails(@Param("orderCode") String orderCode);
+
+    @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.status NOT IN (com.banhmyking.banhmyking.enums.OrderStatus.CANCELLED, com.banhmyking.banhmyking.enums.OrderStatus.FAILED)")
+    java.math.BigDecimal sumTotalRevenue();
+
+    @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.createdAt >= :startDate AND o.status NOT IN (com.banhmyking.banhmyking.enums.OrderStatus.CANCELLED, com.banhmyking.banhmyking.enums.OrderStatus.FAILED)")
+    java.math.BigDecimal sumRevenueSince(@Param("startDate") java.time.LocalDateTime startDate);
+
+    long countByCreatedAtGreaterThanEqual(java.time.LocalDateTime startDate);
+
+    long countByStatus(OrderStatus status);
+
+    long countByStatusIn(List<OrderStatus> statuses);
+
+    List<Order> findByCreatedAtGreaterThanEqualOrderByCreatedAtAsc(java.time.LocalDateTime startDate);
 }

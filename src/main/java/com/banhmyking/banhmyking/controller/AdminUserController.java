@@ -52,6 +52,25 @@ public class AdminUserController {
         return ApiResponse.ok("Lấy thông tin người dùng thành công", userService.getUser(id));
     }
 
+    @org.springframework.web.bind.annotation.PostMapping
+    @Operation(summary = "Tạo người dùng mới (Admin)", description = "ADMIN tạo mới tài khoản (khách hàng, nhân viên, shipper).")
+    public ApiResponse<UserDetailResponse> createUser(
+            @AuthenticationPrincipal UserDetails principal,
+            @Valid @RequestBody com.banhmyking.banhmyking.dto.user.AdminCreateUserRequest request) {
+        return ApiResponse.ok("Tạo người dùng thành công",
+                userService.createUser(actorId(principal), request));
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/{id}")
+    @Operation(summary = "Cập nhật người dùng (Admin)", description = "ADMIN cập nhật thông tin họ tên, SĐT, phân quyền vai trò, trạng thái tài khoản.")
+    public ApiResponse<UserDetailResponse> updateUser(
+            @AuthenticationPrincipal UserDetails principal,
+            @PathVariable Long id,
+            @Valid @RequestBody com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest request) {
+        return ApiResponse.ok("Cập nhật người dùng thành công",
+                userService.updateUser(actorId(principal), id, request));
+    }
+
     @PatchMapping("/{id}/role")
     @Operation(summary = "Đổi vai trò", description = "ADMIN đổi vai trò 1 user. Tự động thu hồi refresh token của user đó.")
     public ApiResponse<UserDetailResponse> changeRole(

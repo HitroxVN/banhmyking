@@ -207,6 +207,81 @@ class AdminUserControllerTest {
                 .andExpect(jsonPath("$.message").value("Không thể khoá ADMIN cuối cùng"));
     }
 
+    // ─── POST createUser ───────────────────────────────────────────────────────
+
+    @Test
+    void createUser_validRequest_success() throws Exception {
+        com.banhmyking.banhmyking.dto.user.AdminCreateUserRequest req =
+                new com.banhmyking.banhmyking.dto.user.AdminCreateUserRequest(
+                        "staff@banhmyking.vn", "123456", "Nguyễn Văn Staff", "0912345678", RoleName.STAFF);
+
+        when(userService.createUser(eq(1L), any(com.banhmyking.banhmyking.dto.user.AdminCreateUserRequest.class)))
+                .thenReturn(new UserDetailResponse(
+                        10L, "staff@banhmyking.vn", "Nguyễn Văn Staff", "0912345678",
+                        null, RoleName.STAFF, false, LocalDateTime.now()));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/admin/users")
+                        .principal(PRINCIPAL::getUsername)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.email").value("staff@banhmyking.vn"))
+                .andExpect(jsonPath("$.data.role").value("STAFF"));
+    }
+
+    @Test
+    void createUser_invalidEmail_returns400() throws Exception {
+        String body = "{\"email\":\"not-an-email\",\"password\":\"123456\",\"fullName\":\"Name\",\"role\":\"STAFF\"}";
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/admin/users")
+                        .principal(PRINCIPAL::getUsername)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
+
+    // ─── PUT updateUser ────────────────────────────────────────────────────────
+
+    @Test
+    void updateUser_validRequest_success() throws Exception {
+        com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest req =
+                new com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest(
+                        "Nguyễn Cập Nhật", "0987654321", RoleName.SHIPPER, false, null);
+
+        when(userService.updateUser(eq(1L), eq(2L), any(com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest.class)))
+                .thenReturn(new UserDetailResponse(
+                        2L, "customer@gmail.com", "Nguyễn Cập Nhật", "0987654321",
+                        null, RoleName.SHIPPER, false, LocalDateTime.now()));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/admin/users/2")
+                        .principal(PRINCIPAL::getUsername)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.fullName").value("Nguyễn Cập Nhật"))
+                .andExpect(jsonPath("$.data.role").value("SHIPPER"));
+    }
+
+    @Test
+    void updateUser_lastAdminDemotion_returns400() throws Exception {
+        com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest req =
+                new com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest(
+                        "Admin Sửa", "0987654321", RoleName.STAFF, false, null);
+
+        when(userService.updateUser(eq(1L), eq(2L), any(com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest.class)))
+                .thenThrow(new BusinessException(ErrorCode.BUSINESS_ERROR, "Không thể hạ quyền ADMIN cuối cùng"));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/admin/users/2")
+                        .principal(PRINCIPAL::getUsername)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Không thể hạ quyền ADMIN cuối cùng"));
+    }
+
     // ─── DELETE ───────────────────────────────────────────────────────────────
 
     @Test

@@ -21,6 +21,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final PasswordEncoder passwordEncoder;
 
     // ─── Self-service ─────────────────────────────────────────────────────────
 
@@ -78,6 +80,74 @@ public class UserServiceImpl implements UserService {
     }
 
     // ─── Admin — ghi ─────────────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
+    public UserDetailResponse createUser(Long actorId, com.banhmyking.banhmyking.dto.user.AdminCreateUserRequest request) {
+        String email = request.email().trim().toLowerCase();
+        if (userRepository.existsByEmail(email)) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Email đã tồn tại trong hệ thống");
+        }
+
+        User user = new User();
+        user.setEmail(email);
+        user.setPassword(passwordEncoder.encode(request.password()));
+        user.setFullName(request.fullName().trim());
+        user.setPhone(request.phone() != null && !request.phone().isBlank() ? request.phone().trim() : null);
+        user.setRole(request.role() != null ? request.role() : RoleName.CUSTOMER);
+        user.setBanned(false);
+        user.setDeleted(false);
+
+        User saved = userRepository.save(user);
+        return toDetail(saved);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
+    public UserDetailResponse updateUser(Long actorId, Long targetId, com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest request) {
+        User target = findActiveTarget(targetId);
+
+        if (request.fullName() != null && !request.fullName().isBlank()) {
+            target.setFullName(request.fullName().trim());
+        }
+
+        if (request.phone() != null) {
+            target.setPhone(request.phone().trim());
+        }
+
+        if (request.password() != null && !request.password().isBlank()) {
+            target.setPassword(passwordEncoder.encode(request.password()));
+        }
+
+        if (request.role() != null && request.role() != target.getRole()) {
+            if (targetId.equals(actorId)) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Không thể thay đổi vai trò của chính mình");
+            }
+            if (target.getRole() == RoleName.ADMIN && countActiveAdmins() <= 1) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Không thể thay đổi vai trò của ADMIN cuối cùng");
+            }
+            target.setRole(request.role());
+            revokeRefreshTokens(targetId);
+        }
+
+        if (request.banned() != null && request.banned() != target.isBanned()) {
+            if (targetId.equals(actorId)) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Không thể khoá/mở tài khoản của chính mình");
+            }
+            if (Boolean.TRUE.equals(request.banned()) && target.getRole() == RoleName.ADMIN && countActiveAdmins() <= 1) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Không thể khoá ADMIN cuối cùng");
+            }
+            target.setBanned(request.banned());
+            if (target.isBanned()) {
+                revokeRefreshTokens(targetId);
+            }
+        }
+
+        User updated = userRepository.save(target);
+        return toDetail(updated);
+    }
 
     @Override
     @Transactional
