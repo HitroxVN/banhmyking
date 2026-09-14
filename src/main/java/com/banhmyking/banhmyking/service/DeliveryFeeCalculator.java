@@ -2,6 +2,8 @@ package com.banhmyking.banhmyking.service;
 
 import com.banhmyking.banhmyking.dto.delivery.DeliveryFeeResult;
 import com.banhmyking.banhmyking.enums.DeliveryArea;
+import com.banhmyking.banhmyking.exception.BusinessException;
+import com.banhmyking.banhmyking.exception.ErrorCode;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -56,6 +58,17 @@ public class DeliveryFeeCalculator {
      * @return DeliveryFeeResult Chứa phí thực tế, phí gốc, cờ freeship và mô tả
      */
     public DeliveryFeeResult calculateFee(BigDecimal distanceKm, String shippingAddress, BigDecimal subtotal) {
+        // input rác chặn tại nguồn — distanceKm/subtotal âm trước đây lọt qua branch
+        // "tính theo khu vực" (null-check chỉ > 0) nhưng vẫn được echo vào result/description.
+        if (distanceKm != null && distanceKm.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Khoảng cách giao hàng không được âm (distanceKm = " + distanceKm + ")");
+        }
+        if (subtotal != null && subtotal.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Tạm tính đơn hàng không được âm (subtotal = " + subtotal + ")");
+        }
+
         DeliveryArea area = detectArea(shippingAddress);
         BigDecimal originalFee;
 

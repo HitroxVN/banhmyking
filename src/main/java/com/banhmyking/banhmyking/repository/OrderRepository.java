@@ -1,7 +1,6 @@
 package com.banhmyking.banhmyking.repository;
 
 import com.banhmyking.banhmyking.entity.Order;
-import com.banhmyking.banhmyking.enums.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -25,10 +24,6 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     List<Order> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     Page<Order> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
-
-    Page<Order> findByShipperIdOrderByCreatedAtDesc(Long shipperId, Pageable pageable);
-
-    Page<Order> findByShipperIdAndStatusOrderByCreatedAtDesc(Long shipperId, OrderStatus status, Pageable pageable);
 
     @Query("SELECT DISTINCT o FROM Order o " +
            "LEFT JOIN FETCH o.items i " +

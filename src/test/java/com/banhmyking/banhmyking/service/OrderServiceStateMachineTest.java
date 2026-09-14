@@ -78,6 +78,12 @@ class OrderServiceStateMachineTest {
     private PriceCalculator priceCalculator;
 
     @Mock
+    private DeliveryFeeCalculator deliveryFeeCalculator;
+
+    @Mock
+    private PaymentService paymentService;
+
+    @Mock
     private OrderCodeGenerator orderCodeGenerator;
 
     @Spy

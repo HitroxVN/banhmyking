@@ -112,6 +112,13 @@ public class PaymentServiceImpl implements PaymentService {
                     return p;
                 });
 
+        // Không được reset thanh toán đã hoàn tất về PENDING (mất bằng chứng đã thu tiền).
+        // PAID/REFUNDED là trạng thái cuối — tái sử dụng cổng thanh toán chỉ cho phép từ PENDING/FAILED.
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "Đơn " + order.getOrderCode() + " đã thanh toán, không thể tạo lại phiếu chờ");
+        }
+
         payment.setMethod(method != null ? method : PaymentMethod.COD);
         payment.setStatus(PaymentStatus.PENDING);
         payment.setAmount(amount);

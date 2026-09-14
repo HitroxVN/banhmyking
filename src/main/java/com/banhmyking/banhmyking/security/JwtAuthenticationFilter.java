@@ -50,7 +50,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            } catch (JwtException | UsernameNotFoundException ex) {
+            } catch (JwtException | UsernameNotFoundException | NumberFormatException ex) {
+                // NumberFormatException: token chữ ký hợp lệ nhưng subject không phải số
+                // (token cũ/dữ liệu rác) → coi như không xác thực, để EntryPoint trả 401 — không nổ 500.
                 log.debug("JWT auth thất bại: {}", ex.getMessage());
                 SecurityContextHolder.clearContext();
             }

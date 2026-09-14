@@ -43,14 +43,20 @@ public class DataInitializer implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (userRepository.count() == 0) {
-            log.info("Khởi tạo dữ liệu mẫu cho kiểm thử...");
+        // toàn bộ seed user đi qua seedUserIfAbsent (guard existsByEmail) — idempotent,
+        // độc lập với trạng thái catalog.
+        seedUserIfAbsent("customer@gmail.com", "12345678", "Khách Hàng Test", "0901234567", RoleName.CUSTOMER);
+        seedUserIfAbsent("admin@gmail.com", "12345678", "Quản Trị Viên", "0900000001", RoleName.ADMIN);
+        seedUserIfAbsent("staff@gmail.com", "12345678", "Nhân Viên Test", "0900000002", RoleName.STAFF);
+        seedUserIfAbsent("shipper@gmail.com", "12345678", "Shipper Test", "0900000003", RoleName.SHIPPER);
 
-            // 1. User demo — đủ 4 role, password BCrypt-encoded
-            seedUser("customer@gmail.com", "12345678", "Khách Hàng Test", "0901234567", RoleName.CUSTOMER);
-            seedUser("admin@gmail.com", "12345678", "Quản Trị Viên", "0900000001", RoleName.ADMIN);
-            seedUser("staff@gmail.com", "12345678", "Nhân Viên Test", "0900000002", RoleName.STAFF);
-            seedUser("shipper@gmail.com", "12345678", "Shipper Test", "0900000003", RoleName.SHIPPER);
+        seedUserIfAbsent("customer@banhmyking.vn", "123456", "Khách Hàng Test", "0901234567", RoleName.CUSTOMER);
+        seedUserIfAbsent("staff@banhmyking.vn", "123456", "Nhân Viên Quán", "0908889999", RoleName.STAFF);
+        seedUserIfAbsent("admin@banhmyking.vn", "123456", "Quản Trị Viên", "0907778888", RoleName.ADMIN);
+        seedUserIfAbsent("shipper@banhmyking.vn", "123456", "Tài Xế Giao Hàng", "0906665555", RoleName.SHIPPER);
+
+        if (productRepository.count() == 0) {
+            log.info("Khởi tạo dữ liệu mẫu cho kiểm thử...");
 
             // 2. Category demo
             Category category = new Category();
@@ -144,67 +150,13 @@ public class DataInitializer implements ApplicationRunner {
             log.info("Khởi tạo khuyến mãi mẫu: BANHMYKING10, GIAM10K");
           }
 
-        if (!userRepository.existsByEmail("customer@banhmyking.vn")) {
-            User customer = new User();
-            customer.setEmail("customer@banhmyking.vn");
-            customer.setPassword(passwordEncoder.encode("123456"));
-            customer.setFullName("Khách Hàng Test");
-            customer.setPhone("0901234567");
-            customer.setRole(RoleName.CUSTOMER);
-            userRepository.save(customer);
-            log.info("Khởi tạo tài khoản Customer demo ID: {}, Email: customer@banhmyking.vn", customer.getId());
-        }
-
-        if (!userRepository.existsByEmail("staff@banhmyking.vn")) {
-            User staff = new User();
-            staff.setEmail("staff@banhmyking.vn");
-            staff.setPassword(passwordEncoder.encode("123456"));
-            staff.setFullName("Nhân Viên Quán");
-            staff.setPhone("0908889999");
-            staff.setRole(RoleName.STAFF);
-            userRepository.save(staff);
-            log.info("Khởi tạo tài khoản Staff demo ID: {}, Email: staff@banhmyking.vn", staff.getId());
-        }
-
-        if (!userRepository.existsByEmail("admin@banhmyking.vn")) {
-            User admin = new User();
-            admin.setEmail("admin@banhmyking.vn");
-            admin.setPassword(passwordEncoder.encode("123456"));
-            admin.setFullName("Quản Trị Viên");
-            admin.setPhone("0907778888");
-            admin.setRole(RoleName.ADMIN);
-            userRepository.save(admin);
-            log.info("Khởi tạo tài khoản Admin demo ID: {}, Email: admin@banhmyking.vn", admin.getId());
-        }
-
-        if (!userRepository.existsByEmail("shipper@banhmyking.vn")) {
-            User shipper = new User();
-            shipper.setEmail("shipper@banhmyking.vn");
-            shipper.setPassword(passwordEncoder.encode("123456"));
-            shipper.setFullName("Tài Xế Giao Hàng");
-            shipper.setPhone("0906665555");
-            shipper.setRole(RoleName.SHIPPER);
-            userRepository.save(shipper);
-            log.info("Khởi tạo tài khoản Shipper demo ID: {}, Email: shipper@banhmyking.vn", shipper.getId());
-        }
-
-        // Đảm bảo Product 1 có đủ 3 tùy chọn: Chả Lụa, Pate, Trứng Ốp La
-        productRepository.findById(1L).ifPresent(p1 -> {
-            boolean hasEgg = productOptionRepository.findByProductId(1L).stream()
-                    .anyMatch(opt -> opt.getName().toLowerCase().contains("trứng"));
-            if (!hasEgg) {
-                ProductOption optEgg = new ProductOption();
-                optEgg.setProduct(p1);
-                optEgg.setName("Thêm Trứng Ốp La");
-                optEgg.setExtraPrice(BigDecimal.valueOf(7000));
-                productOptionRepository.save(optEgg);
-                log.info("Khởi tạo tùy chọn 'Thêm Trứng Ốp La' cho Product 1");
-            }
-        });
     }
 
-    /** Seed 1 user demo — encode BCrypt */
-    private void seedUser(String email, String rawPassword, String fullName, String phone, RoleName role) {
+    /** Seed 1 user demo nếu chưa tồn tại — encode BCrypt. guard duy nhất cho mọi user. */
+    private void seedUserIfAbsent(String email, String rawPassword, String fullName, String phone, RoleName role) {
+        if (userRepository.existsByEmail(email)) {
+            return;
+        }
         User u = new User();
         u.setEmail(email);
         u.setPassword(passwordEncoder.encode(rawPassword));

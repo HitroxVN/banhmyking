@@ -28,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AuthControllerTest {
 
     @Mock AuthService authService;
+    @Mock com.banhmyking.banhmyking.service.UserService userService;
     @InjectMocks AuthController authController;
 
     MockMvc mockMvc;

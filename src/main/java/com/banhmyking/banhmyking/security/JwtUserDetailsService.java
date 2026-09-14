@@ -10,8 +10,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 /**
- * Load UserDetails by userId (String) — dùng cho JwtAuthenticationFilter.
- * Tách với CustomUserDetailsService (load by email) tránh nhập nhằng.
+ * Load UserDetails by userId — dùng cho JwtAuthenticationFilter.
+ * (CustomUserDetailsService load-by-email đã xóa: không nơi nào dùng.)
  */
 @Service
 @RequiredArgsConstructor

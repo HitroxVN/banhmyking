@@ -7,6 +7,7 @@ import com.banhmyking.banhmyking.service.DeliveryFeeCalculator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -45,7 +46,7 @@ public class DeliveryController {
     @Operation(summary = "Tính thử phí giao hàng (Request Body)",
             description = "Tính phí ship qua request body JSON.")
     public ResponseEntity<ApiResponse<DeliveryFeeResult>> calculateDeliveryFee(
-            @RequestBody CalculateDeliveryFeeRequest request) {
+            @Valid @RequestBody(required = false) CalculateDeliveryFeeRequest request) {
 
         BigDecimal distanceKm = request != null ? request.getDistanceKm() : null;
         String address = request != null ? request.getShippingAddress() : null;
