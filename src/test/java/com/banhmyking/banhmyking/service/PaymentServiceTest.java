@@ -1,6 +1,8 @@
 package com.banhmyking.banhmyking.service;
 
 import com.banhmyking.banhmyking.dto.payment.PaymentResponse;
+import com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest;
+import com.banhmyking.banhmyking.dto.payment.SepayWebhookRequest;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.Payment;
 import com.banhmyking.banhmyking.entity.User;
@@ -221,5 +223,260 @@ class PaymentServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.getOrderCode()).isEqualTo("BMK-20260912-TEST1");
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("processPayment: Chuyển khoản thành công -> Payment PAID và Order CONFIRMED")
+    void processPayment_withBankTransfer_success() {
+        Payment payment = new Payment();
+        payment.setId(1L);
+        payment.setOrder(testOrder);
+        payment.setMethod(PaymentMethod.BANK_TRANSFER);
+        payment.setStatus(PaymentStatus.PENDING);
+        payment.setAmount(BigDecimal.valueOf(115000));
+        testOrder.setPayment(payment);
+        testOrder.setStatus(OrderStatus.PENDING);
+
+        when(userRepository.findById(10L)).thenReturn(Optional.of(customer));
+        when(orderRepository.findByOrderCodeWithDetails("BMK-20260912-TEST1")).thenReturn(Optional.of(testOrder));
+        when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.of(payment));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(i -> i.getArgument(0));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+
+        com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest req =
+                com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest.builder()
+                        .method(PaymentMethod.BANK_TRANSFER)
+                        .transactionRef("TXN-TEST-12345")
+                        .build();
+
+        PaymentResponse res = paymentService.processPayment(10L, "BMK-20260912-TEST1", req);
+
+        assertThat(res).isNotNull();
+        assertThat(res.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(res.getGatewayTxnId()).isEqualTo("TXN-TEST-12345");
+        assertThat(testOrder.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+    }
+
+    @Test
+    @DisplayName("processPayment: Cờ simulateFailure = true -> Ném lỗi nghiệp vụ từ chối giao dịch")
+    void processPayment_withSimulateFailure_throwsBusinessException() {
+        when(userRepository.findById(10L)).thenReturn(Optional.of(customer));
+        when(orderRepository.findByOrderCodeWithDetails("BMK-20260912-TEST1")).thenReturn(Optional.of(testOrder));
+
+        com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest req =
+                com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest.builder()
+                        .method(PaymentMethod.E_WALLET)
+                        .simulateFailure(true)
+                        .build();
+
+        assertThatThrownBy(() -> paymentService.processPayment(10L, "BMK-20260912-TEST1", req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("từ chối");
+    }
+
+    @Test
+    @DisplayName("processPayment: Chọn COD -> Payment giữ PENDING")
+    void processPayment_withCod_keepsPending() {
+        Payment payment = new Payment();
+        payment.setId(1L);
+        payment.setOrder(testOrder);
+        payment.setAmount(BigDecimal.valueOf(115000));
+        testOrder.setPayment(payment);
+
+        when(userRepository.findById(10L)).thenReturn(Optional.of(customer));
+        when(orderRepository.findByOrderCodeWithDetails("BMK-20260912-TEST1")).thenReturn(Optional.of(testOrder));
+        when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.of(payment));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(i -> i.getArgument(0));
+
+        com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest req =
+                com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest.builder()
+                        .method(PaymentMethod.COD)
+                        .build();
+
+        PaymentResponse res = paymentService.processPayment(10L, "BMK-20260912-TEST1", req);
+
+        assertThat(res).isNotNull();
+        assertThat(res.getStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(res.getMethod()).isEqualTo(PaymentMethod.COD);
+    }
+
+    @Test
+    @DisplayName("processSepayWebhook: Webhook SePay thành công chuyển Payment sang PAID và Order sang CONFIRMED")
+    void processSepayWebhook_success() {
+        when(orderRepository.findByOrderCodeWithDetails("BMK-20260912-TEST1")).thenReturn(Optional.of(testOrder));
+        when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.empty());
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(i -> i.getArgument(0));
+
+        SepayWebhookRequest req = SepayWebhookRequest.builder()
+                .id(92704L)
+                .gateway("Techcombank")
+                .accountNumber("8888332999")
+                .content("Thanh toan don BMK-20260912-TEST1 banh my king")
+                .transferType("in")
+                .transferAmount(BigDecimal.valueOf(115000))
+                .referenceCode("FT26258012345678")
+                .build();
+
+        PaymentResponse res = paymentService.processSepayWebhook(null, req);
+
+        assertThat(res).isNotNull();
+        assertThat(res.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(res.getMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
+        assertThat(res.getGatewayTxnId()).isEqualTo("FT26258012345678");
+        assertThat(testOrder.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+    }
+
+    @Test
+    @DisplayName("processSepayWebhook: Nhận dạng mã đơn không có gạch ngang BMK20260912TEST1")
+    void processSepayWebhook_success_withNoHyphen() {
+        when(orderRepository.findByOrderCodeWithDetails("BMK-20260912-TEST1")).thenReturn(Optional.of(testOrder));
+        when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.empty());
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(i -> i.getArgument(0));
+
+        SepayWebhookRequest req = SepayWebhookRequest.builder()
+                .id(92705L)
+                .gateway("Techcombank")
+                .content("BMK20260912TEST1 chuyen tien")
+                .transferType("in")
+                .transferAmount(BigDecimal.valueOf(120000)) // chuyển dư tiền
+                .referenceCode("FT26999")
+                .build();
+
+        PaymentResponse res = paymentService.processSepayWebhook(null, req);
+
+        assertThat(res).isNotNull();
+        assertThat(res.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(testOrder.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+    }
+
+    @Test
+    @DisplayName("processSepayWebhook: Chuyển thiếu tiền -> ném BusinessException")
+    void processSepayWebhook_amountMismatch_throwsException() {
+        when(orderRepository.findByOrderCodeWithDetails("BMK-20260912-TEST1")).thenReturn(Optional.of(testOrder));
+
+        SepayWebhookRequest req = SepayWebhookRequest.builder()
+                .id(92706L)
+                .gateway("Techcombank")
+                .content("BMK-20260912-TEST1")
+                .transferType("in")
+                .transferAmount(BigDecimal.valueOf(50000)) // Đơn cần 115k nhưng chỉ chuyển 50k
+                .build();
+
+        assertThatThrownBy(() -> paymentService.processSepayWebhook(null, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("không đủ cho đơn hàng");
+    }
+
+    @Test
+    @DisplayName("processSepayWebhook: Giao dịch tiền ra (out) -> bỏ qua trả về null")
+    void processSepayWebhook_transferTypeOut_ignored() {
+        SepayWebhookRequest req = SepayWebhookRequest.builder()
+                .id(92707L)
+                .transferType("out")
+                .transferAmount(BigDecimal.valueOf(100000))
+                .build();
+
+        PaymentResponse res = paymentService.processSepayWebhook(null, req);
+        assertThat(res).isNull();
+    }
+
+    @Test
+    @DisplayName("processSepayWebhook: Nhận dạng mã đơn có khoảng trắng BMK 20260912 TEST1")
+    void processSepayWebhook_success_withSpaces() {
+        when(orderRepository.findByOrderCodeWithDetails("BMK-20260912-TEST1")).thenReturn(Optional.of(testOrder));
+        when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.empty());
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(i -> i.getArgument(0));
+
+        SepayWebhookRequest req = SepayWebhookRequest.builder()
+                .id(92708L)
+                .gateway("Techcombank")
+                .content("CK BMK 20260912 TEST1 thanh toan")
+                .transferType("in")
+                .transferAmount(BigDecimal.valueOf(115000))
+                .referenceCode("FT998877")
+                .build();
+
+        PaymentResponse res = paymentService.processSepayWebhook(null, req);
+
+        assertThat(res).isNotNull();
+        assertThat(res.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(testOrder.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+    }
+
+    @Test
+    @DisplayName("processPayment: Đơn hàng đã hủy (CANCELLED) -> ném BusinessException chặn thanh toán")
+    void processPayment_cancelledOrder_throwsException() {
+        testOrder.setStatus(OrderStatus.CANCELLED);
+        when(userRepository.findById(10L)).thenReturn(Optional.of(customer));
+        when(orderRepository.findByOrderCodeWithDetails("BMK-20260912-TEST1")).thenReturn(Optional.of(testOrder));
+
+        ProcessPaymentRequest req = ProcessPaymentRequest.builder()
+                .method(PaymentMethod.BANK_TRANSFER)
+                .build();
+
+        assertThatThrownBy(() -> paymentService.processPayment(10L, "BMK-20260912-TEST1", req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Không thể thanh toán cho đơn hàng đã ở trạng thái CANCELLED");
+    }
+
+    @Test
+    @DisplayName("processPayment: Đơn hàng đã thanh toán PAID trước đó -> Trả về kết quả hiện tại (Idempotent)")
+    void processPayment_alreadyPaid_returnsExistingPayment() {
+        Payment paidPayment = new Payment();
+        paidPayment.setId(1L);
+        paidPayment.setOrder(testOrder);
+        paidPayment.setMethod(PaymentMethod.BANK_TRANSFER);
+        paidPayment.setStatus(PaymentStatus.PAID);
+        paidPayment.setGatewayTxnId("TXN-ORIGINAL-999");
+        paidPayment.setAmount(BigDecimal.valueOf(115000));
+        testOrder.setPayment(paidPayment);
+        testOrder.setStatus(OrderStatus.CONFIRMED);
+
+        when(userRepository.findById(10L)).thenReturn(Optional.of(customer));
+        when(orderRepository.findByOrderCodeWithDetails("BMK-20260912-TEST1")).thenReturn(Optional.of(testOrder));
+        when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.of(paidPayment));
+
+        ProcessPaymentRequest req = ProcessPaymentRequest.builder()
+                .method(PaymentMethod.BANK_TRANSFER)
+                .transactionRef("TXN-NEW-REF")
+                .build();
+
+        PaymentResponse res = paymentService.processPayment(10L, "BMK-20260912-TEST1", req);
+
+        assertThat(res).isNotNull();
+        assertThat(res.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(res.getGatewayTxnId()).isEqualTo("TXN-ORIGINAL-999"); // Không bị ghi đè mã giao dịch cũ
+    }
+
+    @Test
+    @DisplayName("processSepayWebhook: Webhook SePay gửi lặp lại khi đã PAID -> Trả về kết quả (Idempotent)")
+    void processSepayWebhook_alreadyPaid_returnsExistingPayment() {
+        Payment paidPayment = new Payment();
+        paidPayment.setId(1L);
+        paidPayment.setOrder(testOrder);
+        paidPayment.setMethod(PaymentMethod.BANK_TRANSFER);
+        paidPayment.setStatus(PaymentStatus.PAID);
+        paidPayment.setGatewayTxnId("FT26258012345678");
+        paidPayment.setAmount(BigDecimal.valueOf(115000));
+        testOrder.setPayment(paidPayment);
+        testOrder.setStatus(OrderStatus.CONFIRMED);
+
+        when(orderRepository.findByOrderCodeWithDetails("BMK-20260912-TEST1")).thenReturn(Optional.of(testOrder));
+        when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.of(paidPayment));
+
+        SepayWebhookRequest req = SepayWebhookRequest.builder()
+                .id(92709L)
+                .gateway("Techcombank")
+                .content("BMK-20260912-TEST1")
+                .transferType("in")
+                .transferAmount(BigDecimal.valueOf(115000))
+                .referenceCode("FT26258012345678")
+                .build();
+
+        PaymentResponse res = paymentService.processSepayWebhook(null, req);
+
+        assertThat(res).isNotNull();
+        assertThat(res.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(res.getGatewayTxnId()).isEqualTo("FT26258012345678");
     }
 }
