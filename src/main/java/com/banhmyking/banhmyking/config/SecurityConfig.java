@@ -76,6 +76,7 @@ public class SecurityConfig {
                                 "/v3/api-docs/**"
                         ).permitAll()
                         .requestMatchers("/api/v1/delivery/**").permitAll()
+                        .requestMatchers("/api/v1/payments/webhook/**").permitAll()
                         // Admin user API: STAFF chỉ đọc, ADMIN toàn quyền
                         .requestMatchers(HttpMethod.GET, "/api/v1/admin/users").hasAnyRole("STAFF", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/admin/users/**").hasAnyRole("STAFF", "ADMIN")

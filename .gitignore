@@ -39,3 +39,4 @@ src/main/resources/application-dev.properties
 /markdown/
 *.DS_Store
 TESTCASES.md
+.env

@@ -499,7 +499,7 @@ export const CartPage: React.FC = () => {
                   className="btn-checkout"
                   disabled={!cart || cart.items.length === 0 || isUpdating}
                   onClick={() => {
-                    alert(`Đơn hàng của bạn trị giá ${formatCurrency(subtotal)}. Tính năng thanh toán và tạo đơn hàng sẽ tiếp tục ở module Checkout!`);
+                    navigate('/checkout');
                   }}
                 >
                   🚀 Tiến hành đặt hàng ({formatCurrency(subtotal)})

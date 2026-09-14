@@ -28,4 +28,14 @@ public interface PaymentService {
      * Cập nhật Payment sang PAID khi đơn hàng giao thành công (DELIVERED).
      */
     Payment markPaymentAsPaid(Long orderId);
+
+    /**
+     * Xử lý thanh toán cho đơn hàng theo phương thức đã chọn.
+     */
+    PaymentResponse processPayment(Long userId, String orderCode, com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest request);
+
+    /**
+     * Tiếp nhận và xử lý webhook tự động từ SePay khi tài khoản ngân hàng nhận tiền.
+     */
+    PaymentResponse processSepayWebhook(String authHeader, com.banhmyking.banhmyking.dto.payment.SepayWebhookRequest request);
 }
