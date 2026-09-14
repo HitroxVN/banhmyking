@@ -86,4 +86,10 @@ public class CatalogController {
         catalogService.deleteProduct(productId);
         return ResponseEntity.ok(ApiResponse.ok("Xóa sản phẩm thành công"));
     }
+
+    @PostMapping(value = "/products/upload-image", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<String>> uploadProductImage(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.ok("Tải ảnh lên thành công", catalogService.uploadProductImage(file)));
+    }
 }

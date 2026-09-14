@@ -3,8 +3,11 @@ package com.banhmyking.banhmyking.controller;
 import com.banhmyking.banhmyking.dto.common.ApiResponse;
 import com.banhmyking.banhmyking.dto.common.PageResponse;
 import com.banhmyking.banhmyking.dto.order.ConfirmDeliveryRequest;
+import com.banhmyking.banhmyking.dto.order.FailDeliveryRequest;
 import com.banhmyking.banhmyking.dto.order.OrderResponse;
 import com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse;
+import com.banhmyking.banhmyking.dto.order.RejectOrderRequest;
+import com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.security.SecurityUtils;
 import com.banhmyking.banhmyking.service.OrderService;
@@ -72,6 +75,36 @@ public class ShipperOrderController {
         Long userId = SecurityUtils.requireUserId(principal);
         OrderResponse response = orderService.confirmDelivery(userId, orderCode, request);
         return ResponseEntity.ok(ApiResponse.ok("Xác nhận giao hàng thành công", response));
+    }
+
+    @PutMapping("/{orderCode}/fail")
+    @Operation(summary = "Xác nhận giao hàng thất bại (Shipper)",
+            description = "Shipper báo cáo giao hàng không thành công kèm lý do cụ thể. Chuyển trạng thái từ DELIVERING sang FAILED.")
+    public ResponseEntity<ApiResponse<OrderResponse>> failDelivery(
+            @AuthenticationPrincipal UserDetails principal,
+            @Parameter(description = "Mã đơn hàng", example = "BMK-20260908-A1B2C")
+            @PathVariable String orderCode,
+            @Valid @RequestBody FailDeliveryRequest request) {
+        Long userId = SecurityUtils.requireUserId(principal);
+        UpdateOrderStatusRequest updateRequest = UpdateOrderStatusRequest.builder()
+                .newStatus(OrderStatus.FAILED)
+                .note(request.getReason())
+                .build();
+        OrderResponse response = orderService.updateOrderStatus(userId, orderCode, updateRequest);
+        return ResponseEntity.ok(ApiResponse.ok("Báo cáo giao hàng thất bại thành công", response));
+    }
+
+    @PutMapping("/{orderCode}/reject")
+    @Operation(summary = "Shipper từ chối nhận đơn hàng được gán",
+            description = "Shipper từ chối nhận đơn hàng đang ở trạng thái READY_FOR_PICKUP kèm lý do cụ thể. Đơn hàng sẽ được gỡ gán khỏi shipper để nhân viên quán điều phối lại.")
+    public ResponseEntity<ApiResponse<OrderResponse>> rejectOrder(
+            @AuthenticationPrincipal UserDetails principal,
+            @Parameter(description = "Mã đơn hàng", example = "BMK-20260908-A1B2C")
+            @PathVariable String orderCode,
+            @Valid @RequestBody RejectOrderRequest request) {
+        Long userId = SecurityUtils.requireUserId(principal);
+        OrderResponse response = orderService.rejectAssignedOrder(userId, orderCode, request);
+        return ResponseEntity.ok(ApiResponse.ok("Từ chối nhận đơn hàng thành công", response));
     }
 
     @GetMapping("/{orderCode}/history")

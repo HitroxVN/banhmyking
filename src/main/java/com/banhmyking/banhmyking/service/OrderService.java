@@ -7,6 +7,7 @@ import com.banhmyking.banhmyking.dto.order.ConfirmDeliveryRequest;
 import com.banhmyking.banhmyking.dto.order.CreateOrderRequest;
 import com.banhmyking.banhmyking.dto.order.OrderResponse;
 import com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse;
+import com.banhmyking.banhmyking.dto.order.RejectOrderRequest;
 import com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 
@@ -59,6 +60,12 @@ public interface OrderService {
     OrderResponse confirmDelivery(Long userId, String orderCode, ConfirmDeliveryRequest request);
 
     /**
+     * Shipper từ chối nhận đơn hàng được gán (chỉ khi đơn ở READY_FOR_PICKUP).
+     * Gỡ gán shipper (shipper = null) và ghi nhận lý do vào lịch sử trạng thái.
+     */
+    OrderResponse rejectAssignedOrder(Long userId, String orderCode, RejectOrderRequest request);
+
+    /**
      * Hủy đơn hàng tuân thủ phân quyền (AC 3):
      * - Customer: PENDING hoặc CONFIRMED, có check ownership.
      * - Staff/Admin: Tới bước READY_FOR_PICKUP, bắt buộc phải kèm lý do hủy.
@@ -78,4 +85,9 @@ public interface OrderService {
      * Lấy lịch sử các lần chuyển trạng thái của đơn hàng.
      */
     List<OrderStatusHistoryResponse> getOrderStatusHistory(Long userId, String orderCode);
+
+    /**
+     * Lấy danh sách tài xế (Shipper) kèm số lượng đơn đang giao để phục vụ điều phối (Staff/Admin).
+     */
+    List<com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse> getAvailableShippers(Long userId);
 }

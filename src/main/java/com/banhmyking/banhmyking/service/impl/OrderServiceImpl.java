@@ -10,6 +10,7 @@ import com.banhmyking.banhmyking.dto.order.OrderItemResponse;
 import com.banhmyking.banhmyking.dto.order.OrderResponse;
 import com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse;
 import com.banhmyking.banhmyking.dto.order.PriceBreakdown;
+import com.banhmyking.banhmyking.dto.order.RejectOrderRequest;
 import com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest;
 import com.banhmyking.banhmyking.repository.specification.OrderSpecifications;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -373,6 +374,17 @@ public class OrderServiceImpl implements OrderService {
                     "Người dùng ID " + request.getShipperId() + " không có vai trò SHIPPER");
         }
 
+        // Chặn gán nếu shipper đang có đơn chưa hoàn tất (READY_FOR_PICKUP hoặc DELIVERING)
+        long activeOrdersCount = orderRepository.countByShipperIdAndStatusInAndIdNot(
+                shipper.getId(),
+                java.util.List.of(OrderStatus.READY_FOR_PICKUP, OrderStatus.DELIVERING),
+                order.getId()
+        );
+        if (activeOrdersCount > 0) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Tài xế " + shipper.getFullName() + " hiện đang có đơn hàng chưa hoàn tất (" + activeOrdersCount + " đơn đang xử lý). Vui lòng chọn tài xế khác đang rảnh.");
+        }
+
         order.setShipper(shipper);
         Order updatedOrder = orderRepository.save(order);
 
@@ -475,6 +487,51 @@ public class OrderServiceImpl implements OrderService {
         orderStatusHistoryRepository.save(history);
 
         log.info("Order {} delivered successfully by user {} ({})", orderCode, userId, actor.getRole());
+
+        return toOrderResponse(updatedOrder);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderResponse rejectAssignedOrder(Long userId, String orderCode, RejectOrderRequest request) {
+        log.info("Shipper {} is rejecting order {}", userId, orderCode);
+
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+
+        if (actor.getRole() != RoleName.SHIPPER && actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ nhân viên giao hàng mới có quyền từ chối nhận đơn");
+        }
+
+        Order order = orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode));
+
+        if (order.getShipper() == null || !order.getShipper().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không phải là shipper được phân công giao đơn hàng này");
+        }
+
+        if (order.getStatus() != OrderStatus.READY_FOR_PICKUP) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Chỉ có thể từ chối đơn hàng khi ở trạng thái chờ lấy bánh (READY_FOR_PICKUP). Trạng thái hiện tại: " + order.getStatus());
+        }
+
+        String reason = (request != null && request.getReason() != null) ? request.getReason().trim() : "Không có lý do cụ thể";
+
+        // Ghi lịch sử từ chối trước khi gỡ gán
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrder(order);
+        history.setFromStatus(OrderStatus.READY_FOR_PICKUP);
+        history.setToStatus(OrderStatus.READY_FOR_PICKUP);
+        history.setChangedBy(actor);
+        history.setNote("Tài xế " + actor.getFullName() + " (" + actor.getPhone() + ") từ chối nhận đơn: " + reason);
+        orderStatusHistoryRepository.save(history);
+
+        // Gỡ gán shipper để Staff phân công lại cho người khác
+        order.setShipper(null);
+        Order updatedOrder = orderRepository.save(order);
+
+        log.info("Order {} rejected by shipper {} ({}). Reason: {}. Order is now unassigned.",
+                orderCode, actor.getFullName(), userId, reason);
 
         return toOrderResponse(updatedOrder);
     }
@@ -594,6 +651,10 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
+        if (toStatus == OrderStatus.FAILED && request.getNote() != null && !request.getNote().trim().isEmpty()) {
+            order.setCancelReason(request.getNote().trim());
+        }
+
         order.setStatus(toStatus);
         Order updatedOrder = orderRepository.save(order);
 
@@ -706,5 +767,41 @@ public class OrderServiceImpl implements OrderService {
                 .shipperPhone(order.getShipper() != null ? order.getShipper().getPhone() : null)
                 .items(itemResponses)
                 .build();
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public java.util.List<com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse> getAvailableShippers(Long userId) {
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+
+        if (actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ nhân viên hoặc quản trị viên mới có quyền xem danh sách điều phối shipper");
+        }
+
+        java.util.List<User> shippers = userRepository.findByRoleAndDeletedFalse(RoleName.SHIPPER);
+        java.util.List<com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse> result = new java.util.ArrayList<>();
+
+        for (User s : shippers) {
+            if (s.isBanned()) {
+                continue;
+            }
+            long activeOrdersCount = orderRepository.countByShipperIdAndStatusIn(
+                    s.getId(),
+                    java.util.List.of(OrderStatus.READY_FOR_PICKUP, OrderStatus.DELIVERING)
+            );
+            result.add(com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse.builder()
+                    .id(s.getId())
+                    .fullName(s.getFullName())
+                    .phone(s.getPhone())
+                    .email(s.getEmail())
+                    .activeOrdersCount(activeOrdersCount)
+                    .available(activeOrdersCount == 0)
+                    .build());
+        }
+
+        // Ưu tiên shipper rảnh (activeOrdersCount == 0), sau đó theo số đơn ít nhất
+        result.sort(java.util.Comparator.comparingLong(com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse::getActiveOrdersCount));
+        return result;
     }
 }

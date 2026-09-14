@@ -2,8 +2,10 @@ package com.banhmyking.banhmyking.controller;
 
 import com.banhmyking.banhmyking.dto.common.PageResponse;
 import com.banhmyking.banhmyking.dto.order.ConfirmDeliveryRequest;
+import com.banhmyking.banhmyking.dto.order.FailDeliveryRequest;
 import com.banhmyking.banhmyking.dto.order.OrderResponse;
 import com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse;
+import com.banhmyking.banhmyking.dto.order.RejectOrderRequest;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.enums.PaymentMethod;
 import com.banhmyking.banhmyking.enums.PaymentStatus;
@@ -169,5 +171,56 @@ class ShipperOrderControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data[0].toStatus").value("DELIVERED"));
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/shipper/orders/{orderCode}/fail - Báo cáo giao hàng thất bại thành công (DELIVERING -> FAILED)")
+    void failDelivery_shouldReturnFailed() throws Exception {
+        OrderResponse response = OrderResponse.builder()
+                .id(1L)
+                .orderCode("BMK-20260908-ABC12")
+                .status(OrderStatus.FAILED)
+                .cancelReason("Khách hàng không nhấc máy sau 3 lần gọi")
+                .build();
+
+        when(orderService.updateOrderStatus(eq(4L), eq("BMK-20260908-ABC12"), any())).thenReturn(response);
+
+        FailDeliveryRequest request = FailDeliveryRequest.builder()
+                .reason("Khách hàng không nhấc máy sau 3 lần gọi")
+                .build();
+
+        mockMvc.perform(put("/api/v1/shipper/orders/BMK-20260908-ABC12/fail")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("FAILED"));
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/shipper/orders/{orderCode}/reject - Shipper từ chối nhận đơn hàng thành công")
+    void rejectOrder_shouldReturnSuccess() throws Exception {
+        OrderResponse response = OrderResponse.builder()
+                .id(1L)
+                .orderCode("BMK-20260908-ABC12")
+                .status(OrderStatus.READY_FOR_PICKUP)
+                .shipperId(null)
+                .shipperName(null)
+                .build();
+
+        when(orderService.rejectAssignedOrder(eq(4L), eq("BMK-20260908-ABC12"), any())).thenReturn(response);
+
+        RejectOrderRequest request = RejectOrderRequest.builder()
+                .reason("Xe gặp sự cố hỏng hóc trên đường")
+                .build();
+
+        mockMvc.perform(put("/api/v1/shipper/orders/BMK-20260908-ABC12/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Từ chối nhận đơn hàng thành công"))
+                .andExpect(jsonPath("$.data.status").value("READY_FOR_PICKUP"))
+                .andExpect(jsonPath("$.data.shipperId").doesNotExist());
     }
 }

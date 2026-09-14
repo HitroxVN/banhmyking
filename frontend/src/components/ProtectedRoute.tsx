@@ -19,9 +19,15 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Admin không tham gia mua hàng, tự động chuyển thẳng về Admin Dashboard
+  // Admin, Staff và Shipper không tham gia luồng mua hàng thông thường, tự động chuyển về portal tương ứng
   if (user?.role === 'ADMIN') {
     return <Navigate to="/admin" replace />;
+  }
+  if (user?.role === 'STAFF') {
+    return <Navigate to="/staff" replace />;
+  }
+  if (user?.role === 'SHIPPER') {
+    return <Navigate to="/shipper" replace />;
   }
 
   return <>{children}</>;

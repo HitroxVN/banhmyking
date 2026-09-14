@@ -40,3 +40,4 @@ src/main/resources/application-dev.properties
 *.DS_Store
 TESTCASES.md
 .env
+uploads/
