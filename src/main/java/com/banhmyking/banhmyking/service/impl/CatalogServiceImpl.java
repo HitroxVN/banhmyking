@@ -197,7 +197,9 @@ public class CatalogServiceImpl implements CatalogService {
 
     private ProductResponse saveProductWithOptions(Product product, ProductRequest request) {
         Product savedProduct = productRepository.save(product);
-        syncOptions(savedProduct, request.getOptions());
+        // client gửi "options": null (không gửi) → trước đây NPE 500; coalesce về rỗng
+        // (= xóa hết option hiện có, đồng bộ theo đúng payload).
+        syncOptions(savedProduct, request.getOptions() == null ? List.of() : request.getOptions());
         return toProductResponse(savedProduct);
     }
 
@@ -214,7 +216,8 @@ public class CatalogServiceImpl implements CatalogService {
             currentByName.putIfAbsent(option.getName().trim(), option);
         }
 
-        List<ProductOption> kept = new ArrayList<>();
+        // gom rồi saveAll một lần thay vì save() per-row (N+1 write).
+        List<ProductOption> toSave = new ArrayList<>();
         for (ProductOptionRequest optionRequest : requested) {
             String name = optionRequest.getName().trim();
             ProductOption option = currentByName.remove(name);
@@ -224,8 +227,9 @@ public class CatalogServiceImpl implements CatalogService {
                 option.setName(name);
             }
             option.setExtraPrice(optionRequest.getExtraPrice());
-            kept.add(productOptionRepository.save(option));
+            toSave.add(option);
         }
+        List<ProductOption> kept = productOptionRepository.saveAll(toSave);
 
         List<String> stillReferenced = new ArrayList<>();
         for (ProductOption stale : currentByName.values()) {

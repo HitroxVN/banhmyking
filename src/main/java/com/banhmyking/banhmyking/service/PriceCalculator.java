@@ -36,23 +36,7 @@ public class PriceCalculator {
         BigDecimal subtotal = BigDecimal.ZERO;
         if (cart != null && cart.getItems() != null) {
             for (CartItem item : cart.getItems()) {
-                BigDecimal basePrice = item.getProduct() != null && item.getProduct().getPrice() != null
-                        ? item.getProduct().getPrice()
-                        : BigDecimal.ZERO;
-
-                BigDecimal optionsExtra = BigDecimal.ZERO;
-                if (item.getSelectedOptions() != null) {
-                    for (CartItemOption cio : item.getSelectedOptions()) {
-                        if (cio.getProductOption() != null && cio.getProductOption().getExtraPrice() != null) {
-                            optionsExtra = optionsExtra.add(cio.getProductOption().getExtraPrice());
-                        }
-                    }
-                }
-
-                BigDecimal unitPrice = basePrice.add(optionsExtra);
-                int qty = item.getQuantity() != null ? item.getQuantity() : 1;
-                BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(qty));
-                subtotal = subtotal.add(lineTotal);
+                subtotal = subtotal.add(lineTotalOf(item));
             }
         }
         subtotal = subtotal.setScale(2, RoundingMode.HALF_UP);
@@ -78,6 +62,32 @@ public class PriceCalculator {
                 .discountAmount(discountAmount)
                 .total(total)
                 .build();
+    }
+
+    /**
+     * Đơn giá 1 món = giá gốc + tổng phụ phí topping (null-safe toàn bộ).
+     * NGUỒN SỰ THẬT DUY NHẤT của công thức — Cart / Order snapshot / checkout dùng chung.
+     */
+    public static BigDecimal unitPriceOf(CartItem item) {
+        BigDecimal basePrice = item.getProduct() != null && item.getProduct().getPrice() != null
+                ? item.getProduct().getPrice()
+                : BigDecimal.ZERO;
+
+        BigDecimal optionsExtra = BigDecimal.ZERO;
+        if (item.getSelectedOptions() != null) {
+            for (CartItemOption cio : item.getSelectedOptions()) {
+                if (cio.getProductOption() != null && cio.getProductOption().getExtraPrice() != null) {
+                    optionsExtra = optionsExtra.add(cio.getProductOption().getExtraPrice());
+                }
+            }
+        }
+        return basePrice.add(optionsExtra);
+    }
+
+    /** Tổng tiền 1 dòng = unitPrice × quantity (quantity null → 1). */
+    public static BigDecimal lineTotalOf(CartItem item) {
+        int qty = item.getQuantity() != null ? item.getQuantity() : 1;
+        return unitPriceOf(item).multiply(BigDecimal.valueOf(qty));
     }
 
     private void validatePromotion(Promotion promotion, BigDecimal subtotal) {

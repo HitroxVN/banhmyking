@@ -69,6 +69,28 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void register_expiresInComesFromProviderTtl_notHardcoded() {
+        // expiresIn phải khớp TTL access token thực sự được ký (đọc config), không phải 900 cố định
+        setRefreshExpiry(7);
+        when(userRepository.existsByEmail("x@y.com")).thenReturn(false);
+        when(passwordEncoder.encode("password1")).thenReturn("hashed");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            ReflectionTestUtils.setField(u, "id", 1L);
+            return u;
+        });
+        when(jwtTokenProvider.generateAccessToken(any())).thenReturn("access.token");
+        when(jwtTokenProvider.generateRefreshToken()).thenReturn("raw-refresh");
+        when(jwtTokenProvider.getAccessTokenExpiryMs()).thenReturn(1800000L); // 30 phút
+        when(refreshTokenRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        TokenResponse resp = authService.register(
+                new RegisterRequest("x@y.com", "password1", "Nguyen X", null));
+
+        assertThat(resp.expiresIn()).isEqualTo(1800L);
+    }
+
+    @Test
     void register_duplicateEmail_throwsConflict() {
         RegisterRequest req = new RegisterRequest("dup@b.com", "password1", "Nguyen B", null);
         when(userRepository.existsByEmail("dup@b.com")).thenReturn(true);

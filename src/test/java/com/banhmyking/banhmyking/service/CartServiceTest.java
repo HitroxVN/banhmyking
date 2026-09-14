@@ -118,7 +118,7 @@ class CartServiceTest {
     @Test
     @DisplayName("AC 1: addToCart khi chưa có giỏ hàng sẽ tự động tạo giỏ hàng mới (Lazy init)")
     void addToCart_whenCartDoesNotExist_shouldLazyInitCart() {
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testUser));
         when(productRepository.findByIdAndDeletedFalse(10L)).thenReturn(Optional.of(availableProduct));
         when(cartRepository.findByUserId(1L)).thenReturn(Optional.empty());
         when(cartRepository.save(any(Cart.class))).thenAnswer(invocation -> {
@@ -144,7 +144,7 @@ class CartServiceTest {
     @Test
     @DisplayName("AC 5: addToCart chặn thêm món nếu món ăn có trạng thái isAvailable = false")
     void addToCart_whenProductIsUnavailable_shouldThrowBusinessException() {
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testUser));
         when(productRepository.findByIdAndDeletedFalse(20L)).thenReturn(Optional.of(unavailableProduct));
 
         AddToCartRequest request = AddToCartRequest.builder()
@@ -174,7 +174,7 @@ class CartServiceTest {
         invalidOption.setName("Topping của món khác");
         invalidOption.setExtraPrice(BigDecimal.valueOf(5000));
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testUser));
         when(productRepository.findByIdAndDeletedFalse(10L)).thenReturn(Optional.of(availableProduct));
         when(productOptionRepository.findAllById(List.of(999L))).thenReturn(List.of(invalidOption));
 
@@ -216,7 +216,7 @@ class CartServiceTest {
         existingItem.getSelectedOptions().add(cio2);
         cart.getItems().add(existingItem);
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testUser));
         when(productRepository.findByIdAndDeletedFalse(10L)).thenReturn(Optional.of(availableProduct));
         when(productOptionRepository.findAllById(any())).thenReturn(List.of(optionChaLua, optionPate));
         when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
@@ -258,7 +258,7 @@ class CartServiceTest {
         existingItem.getSelectedOptions().add(cio1);
         cart.getItems().add(existingItem);
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testUser));
         when(productRepository.findByIdAndDeletedFalse(10L)).thenReturn(Optional.of(availableProduct));
         when(productOptionRepository.findAllById(List.of(102L))).thenReturn(List.of(optionChaLua));
         when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));

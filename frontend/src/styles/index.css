@@ -4299,6 +4299,15 @@ body::after {
   }
   .admin-content-body {
     padding: 1.25rem;
+/* Responsive */
+@media (max-width: 900px) {
+  .checkout-layout-grid,
+  .payment-layout-grid,
+  .checkout-skeleton-grid {
+    grid-template-columns: 1fr;
+  }
+  .vietqr-container {
+    grid-template-columns: 1fr;
   }
 }
 

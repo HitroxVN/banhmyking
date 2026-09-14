@@ -111,7 +111,7 @@ class DeliveryFeeCalculatorTest {
         }
 
         @Test
-        @DisplayName("Khoảng cách null hoặc <= 0 -> Fallback tính theo khu vực nội thành (15.000đ)")
+        @DisplayName("Khoảng cách null hoặc = 0 -> Fallback tính theo khu vực nội thành (15.000đ)")
         void calculateFee_nullOrZeroDistance_shouldFallbackToAreaFee() {
             DeliveryFeeResult r1 = calculator.calculateFee(null, "Quận Hai Bà Trưng, Hà Nội", BigDecimal.valueOf(50000));
             assertThat(r1.getShippingFee()).isEqualByComparingTo(BigDecimal.valueOf(15000));
@@ -119,8 +119,11 @@ class DeliveryFeeCalculatorTest {
             DeliveryFeeResult r2 = calculator.calculateFee(BigDecimal.ZERO, "Quận Hai Bà Trưng, Hà Nội", BigDecimal.valueOf(50000));
             assertThat(r2.getShippingFee()).isEqualByComparingTo(BigDecimal.valueOf(15000));
 
-            DeliveryFeeResult r3 = calculator.calculateFee(BigDecimal.valueOf(-1.5), "Quận Hai Bà Trưng, Hà Nội", BigDecimal.valueOf(50000));
-            assertThat(r3.getShippingFee()).isEqualByComparingTo(BigDecimal.valueOf(15000));
+            // distanceKm ÂM trước đây rơi ngầm vào nhánh khu vực; giờ chặn 400 tại calculator.
+            org.assertj.core.api.Assertions.assertThatThrownBy(
+                    () -> calculator.calculateFee(BigDecimal.valueOf(-1.5), "Quận Hai Bà Trưng, Hà Nội", BigDecimal.valueOf(50000)))
+                    .isInstanceOf(com.banhmyking.banhmyking.exception.BusinessException.class)
+                    .hasMessageContaining("không được âm");
         }
     }
 
@@ -370,5 +373,14 @@ class DeliveryFeeCalculatorTest {
         assertThat(result).isNotNull();
         assertThat(result.getShippingFee()).isEqualByComparingTo(BigDecimal.valueOf(15000));
         assertThat(result.isFreeship()).isFalse();
+    }
+
+    @Test
+    @DisplayName("subtotal âm → 400 VALIDATION_ERROR (trước đây lọt qua, ép freeship sai)")
+    void calculateFee_negativeSubtotal_shouldThrow() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> calculator.calculateFee(BigDecimal.valueOf(1.0), "Quận 1, TP.HCM", BigDecimal.valueOf(-1000)))
+                .isInstanceOf(com.banhmyking.banhmyking.exception.BusinessException.class)
+                .hasMessageContaining("không được âm");
     }
 }

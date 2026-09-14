@@ -5,10 +5,11 @@ import com.banhmyking.banhmyking.dto.auth.LoginRequest;
 import com.banhmyking.banhmyking.dto.auth.RefreshRequest;
 import com.banhmyking.banhmyking.dto.auth.RegisterRequest;
 import com.banhmyking.banhmyking.dto.auth.TokenResponse;
-import com.banhmyking.banhmyking.dto.auth.UserInfoResponse;
 import com.banhmyking.banhmyking.dto.common.ApiResponse;
+import com.banhmyking.banhmyking.dto.user.UserDetailResponse;
 import com.banhmyking.banhmyking.security.SecurityUtils;
 import com.banhmyking.banhmyking.service.AuthService;
+import com.banhmyking.banhmyking.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final UserService userService;
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
@@ -61,7 +63,8 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ApiResponse<UserInfoResponse> me(@AuthenticationPrincipal UserDetails principal) {
-        return ApiResponse.ok(authService.getMe(SecurityUtils.requireUserId(principal)));
+    public ApiResponse<UserDetailResponse> me(@AuthenticationPrincipal UserDetails principal) {
+        // delegate sang UserService — /auth/me và /users/me trả cùng shape, một nguồn sự thật
+        return ApiResponse.ok(userService.getMe(SecurityUtils.requireUserId(principal)));
     }
 }
