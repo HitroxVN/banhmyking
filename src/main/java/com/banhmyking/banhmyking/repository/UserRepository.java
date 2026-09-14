@@ -2,15 +2,15 @@ package com.banhmyking.banhmyking.repository;
 
 import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.enums.RoleName;
+import jakarta.persistence.LockModeType;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
-import java.util.Optional;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
@@ -21,6 +21,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmail(String email);
 
     Optional<User> findByIdAndDeletedFalse(Long id);
+
+    /**
+     * khóa dòng user khi thao tác lazy-init giỏ hàng — hai request cùng user chạy song
+     * song sẽ xếp hàng thay vì cùng thấy cart trống và cùng INSERT (va chạm unique user_id).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM User u WHERE u.id = :id")
+    Optional<User> findByIdForUpdate(@Param("id") Long id);
 
     long countByRoleAndDeletedFalseAndBannedFalse(RoleName role);
 

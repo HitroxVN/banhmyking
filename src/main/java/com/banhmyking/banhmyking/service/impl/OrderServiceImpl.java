@@ -14,7 +14,6 @@ import com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest;
 import com.banhmyking.banhmyking.repository.specification.OrderSpecifications;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -40,6 +39,7 @@ import com.banhmyking.banhmyking.enums.PaymentStatus;
 import com.banhmyking.banhmyking.enums.RoleName;
 import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ErrorCode;
+import com.banhmyking.banhmyking.exception.NotFoundMessages;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
 import com.banhmyking.banhmyking.repository.AddressRepository;
 import com.banhmyking.banhmyking.repository.CartRepository;
@@ -57,6 +57,7 @@ import com.banhmyking.banhmyking.service.OrderService;
 import com.banhmyking.banhmyking.service.PaymentService;
 import com.banhmyking.banhmyking.service.PriceCalculator;
 import com.banhmyking.banhmyking.util.OrderCodeGenerator;
+import com.banhmyking.banhmyking.util.PageableFactory;
 import com.banhmyking.banhmyking.validator.OrderStatusValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -90,14 +91,63 @@ public class OrderServiceImpl implements OrderService {
     private final OrderStatusValidator orderStatusValidator;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
 
+    // ─── Helpers dùng chung ───────────────────────────────────────
+
+    /** Resolve user bắt buộc tồn tại — message tập trung, hết copy-paste 12 lần. */
+    private User requireUser(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(NotFoundMessages.userById(id)));
+    }
+
+    private Order requireOrderByCode(String orderCode) {
+        return orderRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new ResourceNotFoundException(NotFoundMessages.orderByCode(orderCode)));
+    }
+
+    private User requireShipper(Long shipperId) {
+        User shipper = userRepository.findById(shipperId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper với ID: " + shipperId));
+        if (shipper.getRole() != RoleName.SHIPPER) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Người dùng ID " + shipperId + " không có vai trò SHIPPER");
+        }
+        return shipper;
+    }
+
+    /**
+     * Mark payment PAID khi đơn chuyển DELIVERED — block copy-paste 2 lần
+     * (confirmDelivery + updateOrderStatus), gom về đây.
+     */
+    private void applyDeliveredPayment(Order order, LocalDateTime now) {
+        Payment paidPayment = paymentService.markPaymentAsPaid(order.getId());
+        if (paidPayment != null) {
+            order.setPayment(paidPayment);
+        }
+        if (order.getPayment() != null) {
+            order.getPayment().setStatus(PaymentStatus.PAID);
+            order.getPayment().setPaidAt(now);
+        }
+    }
+
+    /** Ghi 1 dòng order_status_history — block lặp 4 lần, gom về đây. */
+    private void recordHistory(Order order, OrderStatus fromStatus, OrderStatus toStatus,
+                               User changedBy, String note) {
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrder(order);
+        history.setFromStatus(fromStatus);
+        history.setToStatus(toStatus);
+        history.setChangedBy(changedBy);
+        history.setNote(note);
+        orderStatusHistoryRepository.save(history);
+    }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public OrderResponse createFromCart(Long userId, CreateOrderRequest request) {
         log.info("Creating order from cart for user {}", userId);
 
         // 1. Kiểm tra User
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+        User user = requireUser(userId);
 
         // 2. Validate giỏ hàng hợp lệ (AC 3)
         Cart cart = cartRepository.findByUserIdWithDetails(userId)
@@ -157,36 +207,23 @@ public class OrderServiceImpl implements OrderService {
         }
 
         // 5. Tính tiền qua DeliveryFeeCalculator & PriceCalculator (AC 1, AC 5)
+        // #15: dùng chung công thức unitPrice/lineTotal với PriceCalculator — không tự tính lại
         BigDecimal cartSubtotal = BigDecimal.ZERO;
         if (cart.getItems() != null) {
             for (CartItem item : cart.getItems()) {
-                BigDecimal basePrice = item.getProduct() != null && item.getProduct().getPrice() != null
-                        ? item.getProduct().getPrice() : BigDecimal.ZERO;
-                BigDecimal optionsExtra = BigDecimal.ZERO;
-                if (item.getSelectedOptions() != null) {
-                    for (CartItemOption cio : item.getSelectedOptions()) {
-                        if (cio.getProductOption() != null && cio.getProductOption().getExtraPrice() != null) {
-                            optionsExtra = optionsExtra.add(cio.getProductOption().getExtraPrice());
-                        }
-                    }
-                }
-                int qty = item.getQuantity() != null ? item.getQuantity() : 1;
-                cartSubtotal = cartSubtotal.add(basePrice.add(optionsExtra).multiply(BigDecimal.valueOf(qty)));
+                cartSubtotal = cartSubtotal.add(PriceCalculator.lineTotalOf(item));
             }
         }
         cartSubtotal = cartSubtotal.setScale(2, RoundingMode.HALF_UP);
 
-        PriceBreakdown priceBreakdown;
-        if (deliveryFeeCalculator != null) {
-            DeliveryFeeResult deliveryResult = deliveryFeeCalculator.calculateFee(
-                    request.getDistanceKm(), shippingAddress, cartSubtotal);
-            BigDecimal shippingFee = (deliveryResult != null && deliveryResult.getShippingFee() != null)
-                    ? deliveryResult.getShippingFee()
-                    : PriceCalculator.DEFAULT_SHIPPING_FEE;
-            priceBreakdown = priceCalculator.calculate(cart, promotion, shippingFee);
-        } else {
-            priceBreakdown = priceCalculator.calculate(cart, promotion);
-        }
+        // #18: deliveryFeeCalculator/paymentService là bean bắt buộc (@RequiredArgsConstructor)
+        // — null-check và fallback tự tạo Payment là dead code, đã xóa.
+        DeliveryFeeResult deliveryResult = deliveryFeeCalculator.calculateFee(
+                request.getDistanceKm(), shippingAddress, cartSubtotal);
+        BigDecimal shippingFee = (deliveryResult != null && deliveryResult.getShippingFee() != null)
+                ? deliveryResult.getShippingFee()
+                : PriceCalculator.DEFAULT_SHIPPING_FEE;
+        PriceBreakdown priceBreakdown = priceCalculator.calculate(cart, promotion, shippingFee);
 
         // 6. Sinh mã đơn hàng qua OrderCodeGenerator có retry 2–3 lần (AC 1)
         String orderCode = orderCodeGenerator.generateUniqueCode(orderRepository::existsByOrderCode, 3);
@@ -216,7 +253,6 @@ public class OrderServiceImpl implements OrderService {
             orderItem.setUnitPrice(product.getPrice());       // Snapshot giá gốc
             orderItem.setQuantity(cartItem.getQuantity());
 
-            BigDecimal optionsSum = BigDecimal.ZERO;
             if (cartItem.getSelectedOptions() != null) {
                 for (CartItemOption cio : cartItem.getSelectedOptions()) {
                     if (cio.getProductOption() != null) {
@@ -225,14 +261,12 @@ public class OrderServiceImpl implements OrderService {
                         oio.setOptionName(cio.getProductOption().getName());      // Snapshot tên topping
                         oio.setOptionPrice(cio.getProductOption().getExtraPrice()); // Snapshot giá topping
                         orderItem.getOptions().add(oio);
-
-                        optionsSum = optionsSum.add(cio.getProductOption().getExtraPrice());
                     }
                 }
             }
 
-            BigDecimal unitPriceWithOptions = product.getPrice().add(optionsSum);
-            BigDecimal lineTotal = unitPriceWithOptions.multiply(BigDecimal.valueOf(cartItem.getQuantity()))
+            // lineTotal qua helper chung (null-safe extraPrice — trước đây cộng trực tiếp → NPE tiềm ẩn)
+            BigDecimal lineTotal = PriceCalculator.lineTotalOf(cartItem)
                     .setScale(2, RoundingMode.HALF_UP);
             orderItem.setLineTotal(lineTotal); // Snapshot line_total
 
@@ -243,21 +277,10 @@ public class OrderServiceImpl implements OrderService {
         order = orderRepository.save(order);
 
         // Khởi tạo Payment với trạng thái PENDING khi chốt đơn (AC 2)
+        // paymentService là bean bắt buộc — bỏ null-check + nhánh tự tạo Payment (dead code).
         PaymentMethod method = request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.COD;
-        Payment payment;
-        if (paymentService != null) {
-            payment = paymentService.createPendingPayment(order, method, order.getTotal());
-        } else {
-            payment = new Payment();
-            payment.setOrder(order);
-            payment.setMethod(method);
-            payment.setStatus(PaymentStatus.PENDING);
-            payment.setAmount(order.getTotal());
-            payment = paymentRepository.save(payment);
-        }
-        if (payment != null) {
-            order.setPayment(payment);
-        }
+        Payment payment = paymentService.createPendingPayment(order, method, order.getTotal());
+        order.setPayment(payment);
 
         // Ghi nhận lượt dùng khuyến mãi (nếu có) — SAU khi order đã save để FK order_id hợp lệ.
         // Increment atomic trong UPDATE (điều kiện maxUsage) → không race hai đơn cùng vượt quota.
@@ -294,8 +317,7 @@ public class OrderServiceImpl implements OrderService {
         Order order = orderRepository.findByOrderCodeWithDetails(orderCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode));
 
-        User actor = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+        User actor = requireUser(userId);
 
         if (actor.getRole() == RoleName.CUSTOMER && !order.getUser().getId().equals(userId)) {
             throw new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode);
@@ -319,7 +341,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<OrderResponse> getUserOrders(Long userId, int page, int size) {
-        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size));
+        Pageable pageable = PageableFactory.of(page, size);
         Page<Order> orderPage = orderRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
         return PageResponse.from(orderPage.map(this::toOrderResponse));
     }
@@ -327,8 +349,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<OrderResponse> getAllOrdersForAdmin(Long userId, OrderStatus status, String fromDateStr, String toDateStr, int page, int size) {
-        User actor = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+        User actor = requireUser(userId);
 
         if (actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ nhân viên hoặc quản trị viên mới có quyền xem toàn bộ đơn hàng");
@@ -337,7 +358,7 @@ public class OrderServiceImpl implements OrderService {
         LocalDateTime fromDate = parseDateTime(fromDateStr, false);
         LocalDateTime toDate = parseDateTime(toDateStr, true);
 
-        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size), Sort.by(Sort.Direction.DESC, "createdAt"));
+        Pageable pageable = PageableFactory.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Specification<Order> spec = OrderSpecifications.withFilters(status, fromDate, toDate);
         Page<Order> orderPage = orderRepository.findAll(spec, pageable);
 
@@ -349,15 +370,13 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse assignShipper(Long userId, String orderCode, AssignShipperRequest request) {
         log.info("Assigning shipper {} to order {} by user {}", request.getShipperId(), orderCode, userId);
 
-        User actor = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+        User actor = requireUser(userId);
 
         if (actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ nhân viên hoặc quản trị viên mới có quyền gán shipper");
         }
 
-        Order order = orderRepository.findByOrderCode(orderCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode));
+        Order order = requireOrderByCode(orderCode);
 
         OrderStatus currentStatus = order.getStatus();
         if (currentStatus == OrderStatus.DELIVERED || currentStatus == OrderStatus.CANCELLED || currentStatus == OrderStatus.FAILED) {
@@ -365,29 +384,18 @@ public class OrderServiceImpl implements OrderService {
                     "Không thể gán shipper cho đơn hàng ở trạng thái kết thúc: " + currentStatus);
         }
 
-        User shipper = userRepository.findById(request.getShipperId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper với ID: " + request.getShipperId()));
-
-        if (shipper.getRole() != RoleName.SHIPPER) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                    "Người dùng ID " + request.getShipperId() + " không có vai trò SHIPPER");
-        }
+        // requireShipper đã kiểm tra role SHIPPER
+        User shipper = requireShipper(request.getShipperId());
 
         order.setShipper(shipper);
         Order updatedOrder = orderRepository.save(order);
 
         // Ghi lịch sử gán shipper
-        OrderStatusHistory history = new OrderStatusHistory();
-        history.setOrder(updatedOrder);
-        history.setFromStatus(currentStatus);
-        history.setToStatus(currentStatus);
-        history.setChangedBy(actor);
         String historyNote = "Gán shipper: " + shipper.getFullName() + " (" + shipper.getPhone() + ")";
         if (request.getNote() != null && !request.getNote().trim().isEmpty()) {
             historyNote += " - Ghi chú: " + request.getNote().trim();
         }
-        history.setNote(historyNote);
-        orderStatusHistoryRepository.save(history);
+        recordHistory(updatedOrder, currentStatus, currentStatus, actor, historyNote);
 
         log.info("Order {} assigned to shipper {} by {} ({})",
                 orderCode, shipper.getFullName(), actor.getFullName(), actor.getRole());
@@ -398,20 +406,21 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<OrderResponse> getOrdersForShipper(Long userId, OrderStatus status, int page, int size) {
-        User actor = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+        User actor = requireUser(userId);
 
         if (actor.getRole() != RoleName.SHIPPER && actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ nhân viên giao hàng mới có quyền truy cập danh sách đơn giao");
         }
 
-        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size));
-        Page<Order> orderPage;
-        if (status != null) {
-            orderPage = orderRepository.findByShipperIdAndStatusOrderByCreatedAtDesc(userId, status, pageable);
-        } else {
-            orderPage = orderRepository.findByShipperIdOrderByCreatedAtDesc(userId, pageable);
-        }
+        Pageable pageable = PageableFactory.of(page, size,
+                Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        // SHIPPER chỉ thấy đơn của mình; STAFF/ADMIN (đã được gate ở controller + SecurityConfig)
+        // thấy toàn bộ — query cứng shipper_id = userId trước đây khiến staff/admin luôn nhận rỗng.
+        Specification<Order> spec = actor.getRole() == RoleName.SHIPPER
+                ? OrderSpecifications.assignedTo(userId, status)
+                : OrderSpecifications.withFilters(status, null, null);
+        Page<Order> orderPage = orderRepository.findAll(spec, pageable);
 
         return PageResponse.from(orderPage.map(this::toOrderResponse));
     }
@@ -421,15 +430,13 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse confirmDelivery(Long userId, String orderCode, ConfirmDeliveryRequest request) {
         log.info("Confirming delivery for order {} by user {}", orderCode, userId);
 
-        User actor = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+        User actor = requireUser(userId);
 
         if (actor.getRole() != RoleName.SHIPPER && actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ shipper được phân công mới có quyền xác nhận giao hàng");
         }
 
-        Order order = orderRepository.findByOrderCode(orderCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode));
+        Order order = requireOrderByCode(orderCode);
 
         if (actor.getRole() == RoleName.SHIPPER) {
             if (order.getShipper() == null || !order.getShipper().getId().equals(actor.getId())) {
@@ -447,32 +454,16 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(toStatus);
         order.setDeliveredAt(now);
 
-        // AC 3: Cập nhật trạng thái thanh toán sang PAID nếu là COD
-        if (paymentService != null) {
-            Payment paidPayment = paymentService.markPaymentAsPaid(order.getId());
-            if (paidPayment != null) {
-                order.setPayment(paidPayment);
-            }
-        }
-        if (order.getPayment() != null) {
-            order.getPayment().setStatus(PaymentStatus.PAID);
-            order.getPayment().setPaidAt(now);
-        }
+        // AC 3: Cập nhật trạng thái thanh toán sang PAID (gom block mark-paid 2 bản copy về 1 helper)
+        applyDeliveredPayment(order, now);
 
         Order updatedOrder = orderRepository.save(order);
 
-        // Ghi lịch sử
-        OrderStatusHistory history = new OrderStatusHistory();
-        history.setOrder(updatedOrder);
-        history.setFromStatus(fromStatus);
-        history.setToStatus(toStatus);
-        history.setChangedBy(actor);
         String note = "Shipper xác nhận giao hàng thành công";
         if (request != null && request.getNote() != null && !request.getNote().trim().isEmpty()) {
             note += ": " + request.getNote().trim();
         }
-        history.setNote(note);
-        orderStatusHistoryRepository.save(history);
+        recordHistory(updatedOrder, fromStatus, toStatus, actor, note);
 
         log.info("Order {} delivered successfully by user {} ({})", orderCode, userId, actor.getRole());
 
@@ -504,11 +495,9 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse cancelOrder(Long userId, String orderCode, CancelOrderRequest request) {
         log.info("Cancelling order {} by user {}", orderCode, userId);
 
-        User actor = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+        User actor = requireUser(userId);
 
-        Order order = orderRepository.findByOrderCode(orderCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode));
+        Order order = requireOrderByCode(orderCode);
 
         String reason = (request != null && request.getCancelReason() != null) ? request.getCancelReason().trim() : null;
 
@@ -521,13 +510,7 @@ public class OrderServiceImpl implements OrderService {
         Order updatedOrder = orderRepository.save(order);
 
         // AC 2: Tự động ghi 1 dòng vào order_status_history
-        OrderStatusHistory history = new OrderStatusHistory();
-        history.setOrder(updatedOrder);
-        history.setFromStatus(fromStatus);
-        history.setToStatus(OrderStatus.CANCELLED);
-        history.setChangedBy(actor);
-        history.setNote(reason);
-        orderStatusHistoryRepository.save(history);
+        recordHistory(updatedOrder, fromStatus, OrderStatus.CANCELLED, actor, reason);
 
         log.info("Order {} cancelled successfully from {} by user {} (role: {}). Reason: {}",
                 orderCode, fromStatus, userId, actor.getRole(), reason);
@@ -540,11 +523,9 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse updateOrderStatus(Long userId, String orderCode, UpdateOrderStatusRequest request) {
         log.info("Updating status for order {} to {} by user {}", orderCode, request.getNewStatus(), userId);
 
-        User actor = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+        User actor = requireUser(userId);
 
-        Order order = orderRepository.findByOrderCode(orderCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode));
+        Order order = requireOrderByCode(orderCode);
 
         OrderStatus fromStatus = order.getStatus();
         OrderStatus toStatus = request.getNewStatus();
@@ -564,13 +545,7 @@ public class OrderServiceImpl implements OrderService {
                 if (actor.getRole() == RoleName.SHIPPER) {
                     throw new BusinessException(ErrorCode.FORBIDDEN, "Shipper không có quyền phân công đơn hàng cho người khác");
                 }
-                User shipper = userRepository.findById(request.getShipperId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy shipper với ID: " + request.getShipperId()));
-                if (shipper.getRole() != RoleName.SHIPPER) {
-                    throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                            "Người dùng ID " + request.getShipperId() + " không có vai trò SHIPPER");
-                }
-                order.setShipper(shipper);
+                order.setShipper(requireShipper(request.getShipperId()));
             } else if (order.getShipper() == null) {
                 // Không có shipperId và đơn chưa được gán → chặn, tránh đơn DELIVERING không có shipper
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR,
@@ -582,29 +557,14 @@ public class OrderServiceImpl implements OrderService {
         if (toStatus == OrderStatus.DELIVERED) {
             LocalDateTime now = LocalDateTime.now();
             order.setDeliveredAt(now);
-            if (paymentService != null) {
-                Payment paidPayment = paymentService.markPaymentAsPaid(order.getId());
-                if (paidPayment != null) {
-                    order.setPayment(paidPayment);
-                }
-            }
-            if (order.getPayment() != null) {
-                order.getPayment().setStatus(PaymentStatus.PAID);
-                order.getPayment().setPaidAt(now);
-            }
+            applyDeliveredPayment(order, now);
         }
 
         order.setStatus(toStatus);
         Order updatedOrder = orderRepository.save(order);
 
         // AC 2: Tự động ghi 1 dòng vào order_status_history
-        OrderStatusHistory history = new OrderStatusHistory();
-        history.setOrder(updatedOrder);
-        history.setFromStatus(fromStatus);
-        history.setToStatus(toStatus);
-        history.setChangedBy(actor);
-        history.setNote(request.getNote());
-        orderStatusHistoryRepository.save(history);
+        recordHistory(updatedOrder, fromStatus, toStatus, actor, request.getNote());
 
         log.info("Order {} transitioned from {} to {} by user {} (role: {})",
                 orderCode, fromStatus, toStatus, userId, actor.getRole());
@@ -615,11 +575,9 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public List<OrderStatusHistoryResponse> getOrderStatusHistory(Long userId, String orderCode) {
-        User actor = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+        User actor = requireUser(userId);
 
-        Order order = orderRepository.findByOrderCode(orderCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với mã: " + orderCode));
+        Order order = requireOrderByCode(orderCode);
 
         // Customer chỉ được xem lịch sử đơn hàng của chính mình
         if (actor.getRole() == RoleName.CUSTOMER && (order.getUser() == null || !order.getUser().getId().equals(actor.getId()))) {

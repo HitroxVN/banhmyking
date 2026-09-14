@@ -44,6 +44,11 @@ public class JwtTokenProvider {
         this.accessTokenExpiryMs = props.accessTokenExpiryMs();
     }
 
+    /** TTL access token (ms) — để AuthService trả expiresIn khớp cấu hình, không hardcode. */
+    public long getAccessTokenExpiryMs() {
+        return accessTokenExpiryMs;
+    }
+
     /** Subject = userId (String), claim "role" = RoleName.name(). */
     public String generateAccessToken(User user) {
         Date now = new Date();

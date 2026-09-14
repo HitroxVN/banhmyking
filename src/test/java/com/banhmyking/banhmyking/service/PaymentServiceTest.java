@@ -111,6 +111,47 @@ class PaymentServiceTest {
     }
 
     @Test
+    @DisplayName("Không được reset payment đã PAID về PENDING khi tái sử dụng cổng thanh toán")
+    void createPendingPayment_whenAlreadyPaid_shouldThrowConflictAndNotTouchRecord() {
+        Payment paid = new Payment();
+        paid.setId(7L);
+        paid.setOrder(testOrder);
+        paid.setStatus(PaymentStatus.PAID);
+        paid.setMethod(PaymentMethod.BANK_TRANSFER);
+        paid.setAmount(BigDecimal.valueOf(115000));
+        paid.setPaidAt(java.time.LocalDateTime.now());
+
+        when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.of(paid));
+
+        assertThatThrownBy(() -> paymentService.createPendingPayment(testOrder, PaymentMethod.COD, BigDecimal.valueOf(115000)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("đã thanh toán");
+
+        // Bản ghi PAID + paidAt phải nguyên vẹn
+        assertThat(paid.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(paid.getPaidAt()).isNotNull();
+        verify(paymentRepository, never()).save(any(Payment.class));
+    }
+
+    @Test
+    @DisplayName("Payment FAILED vẫn được phép tạo lại (cho khách thử lại thanh toán)")
+    void createPendingPayment_whenFailed_canRetry() {
+        Payment failed = new Payment();
+        failed.setId(8L);
+        failed.setOrder(testOrder);
+        failed.setStatus(PaymentStatus.FAILED);
+        failed.setAmount(BigDecimal.valueOf(115000));
+
+        when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.of(failed));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Payment retried = paymentService.createPendingPayment(testOrder, PaymentMethod.BANK_TRANSFER, BigDecimal.valueOf(115000));
+
+        assertThat(retried.getStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(retried.getId()).isEqualTo(8L); // dùng lại bản ghi cũ
+    }
+
+    @Test
     @DisplayName("AC 3: Cập nhật Payment sang PAID ngay khi Shipper xác nhận DELIVERED")
     void markPaymentAsPaid_codPending_shouldTransitionToPaid() {
         Payment pendingPayment = new Payment();

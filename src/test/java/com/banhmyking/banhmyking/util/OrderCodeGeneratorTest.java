@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OrderCodeGeneratorTest {
 
@@ -37,6 +38,14 @@ class OrderCodeGeneratorTest {
         assertThat(uniqueCode).isNotNull();
         assertThat(uniqueCode).matches("^BMK-\\d{8}-[A-Z0-9]{5}$");
         assertThat(attemptCounter.get()).isEqualTo(3); // Đã retry 3 lần
+    }
+
+    @Test
+    @DisplayName("Hết retry mà vẫn trùng → throw, không trả mã chưa kiểm tra")
+    void generateUniqueCode_whenExhausted_shouldThrowNotReturnDirtyCode() {
+        assertThatThrownBy(() -> generator.generateUniqueCode(code -> true, 3))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Không sinh được mã đơn hàng duy nhất");
     }
 
     @Test

@@ -57,6 +57,9 @@ class OrderServiceApisTest {
     @Mock
     private OrderStatusValidator orderStatusValidator;
 
+    @Mock
+    private PaymentService paymentService;
+
     @InjectMocks
     private OrderServiceImpl orderService;
 
@@ -256,12 +259,12 @@ class OrderServiceApisTest {
     // ─── 5. Shipper: Lấy danh sách đơn được gán ──────────────────────────────
 
     @Test
-    @DisplayName("getOrdersForShipper - Shipper lấy danh sách đơn của mình thành công")
+    @DisplayName("getOrdersForShipper - Shipper lấy danh sách đơn của mình thành công (query qua specification assignedTo)")
     void getOrdersForShipper_whenShipperCalls_shouldReturnAssignedOrders() {
         sampleOrder.setShipper(shipper);
         when(userRepository.findById(4L)).thenReturn(Optional.of(shipper));
         Page<Order> page = new PageImpl<>(List.of(sampleOrder));
-        when(orderRepository.findByShipperIdOrderByCreatedAtDesc(eq(4L), any(Pageable.class)))
+        when(orderRepository.findAll(org.mockito.ArgumentMatchers.<Specification<Order>>any(), any(Pageable.class)))
                 .thenReturn(page);
 
         PageResponse<OrderResponse> result = orderService.getOrdersForShipper(4L, null, 0, 10);
@@ -269,6 +272,19 @@ class OrderServiceApisTest {
         assertNotNull(result);
         assertEquals(1, result.content().size());
         assertEquals("BMK-20260909-TEST1", result.content().get(0).getOrderCode());
+    }
+
+    @Test
+    @DisplayName("STAFF xem danh sách đơn giao — thấy TẤT CẢ đơn, không phải rỗng theo shipper_id của chính mình")
+    void getOrdersForShipper_whenStaffCalls_shouldSeeAllOrders() {
+        when(userRepository.findById(2L)).thenReturn(Optional.of(staff));
+        Page<Order> page = new PageImpl<>(List.of(sampleOrder));
+        when(orderRepository.findAll(org.mockito.ArgumentMatchers.<Specification<Order>>any(), any(Pageable.class)))
+                .thenReturn(page);
+
+        PageResponse<OrderResponse> result = orderService.getOrdersForShipper(2L, null, 0, 10);
+
+        assertEquals(1, result.content().size());
     }
 
     @Test
