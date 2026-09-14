@@ -12,10 +12,12 @@ import com.banhmyking.banhmyking.entity.Payment;
 import com.banhmyking.banhmyking.entity.Product;
 import com.banhmyking.banhmyking.entity.ProductOption;
 import com.banhmyking.banhmyking.entity.Promotion;
+import com.banhmyking.banhmyking.entity.PromotionUsage;
 import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.enums.PaymentMethod;
 import com.banhmyking.banhmyking.exception.BusinessException;
+import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.repository.AddressRepository;
 import com.banhmyking.banhmyking.repository.CartRepository;
 import com.banhmyking.banhmyking.repository.OrderItemRepository;
@@ -35,7 +37,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -73,6 +74,9 @@ class OrderServiceTest {
 
     @Mock
     private PromotionUsageRepository promotionUsageRepository;
+
+    @Mock
+    private PromotionService promotionService;
 
     @Mock
     private PaymentRepository paymentRepository;
@@ -271,15 +275,10 @@ class OrderServiceTest {
                 .promotionCode("SALE10")
                 .build();
 
-        Promotion promo = new Promotion();
-        promo.setId(10L);
-        promo.setCode("SALE10");
-
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
         when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
-        when(promotionRepository.findByCodeAndActiveTrue("SALE10")).thenReturn(Optional.of(promo));
-        when(promotionUsageRepository.findByPromotionIdAndUserId(10L, 1L)).thenReturn(Optional.of(new com.banhmyking.banhmyking.entity.PromotionUsage()));
+when(promotionService.validateForOrder(eq("SALE10"), eq(1L), any())).thenThrow(new BusinessException(ErrorCode.BUSINESS_ERROR, "Bạn đã sử dụng mã khuyến mãi 'SALE10' trước đó"));
 
         assertThatThrownBy(() -> orderService.createFromCart(1L, request))
                 .isInstanceOf(BusinessException.class)
@@ -319,28 +318,26 @@ class OrderServiceTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
         when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
-        when(promotionRepository.findByCodeAndActiveTrue("PROMO50")).thenReturn(Optional.of(promo));
-        when(promotionUsageRepository.findByPromotionIdAndUserId(50L, 1L)).thenReturn(Optional.empty());
-        when(priceCalculator.calculate(eq(testCart), eq(promo))).thenReturn(breakdown);
+        when(promotionService.validateForOrder(eq("PROMO50"), eq(1L), any())).thenReturn(promo);
+        when(priceCalculator.calculate(eq(testCart), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260910-PROMO");
-        when(promotionRepository.incrementUsedCountAtomic(50L)).thenReturn(1);
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
             Order o = inv.getArgument(0);
             o.setId(99L);
             return o;
         });
+        when(promotionService.redeemPromotion(eq(promo), any(), any(), any())).thenReturn(new PromotionUsage());
 
         OrderResponse response = orderService.createFromCart(1L, request);
 
         assertThat(response).isNotNull();
         assertThat(response.getDiscountAmount()).isEqualByComparingTo(BigDecimal.valueOf(10000));
         assertThat(response.getPromotionCode()).isEqualTo("PROMO50");
-        verify(promotionRepository).incrementUsedCountAtomic(50L);
-        verify(promotionUsageRepository).save(any());
+        verify(promotionService).redeemPromotion(eq(promo), any(), any(), any());
     }
 
     @Test
-    @DisplayName("Chặn tạo đơn khi atomic increment cho promotion trả về 0 (hết lượt)")
+    @DisplayName("Chặn tạo đơn khi promotion redemption bị hết lượt")
     void createFromCart_withPromotion_atomicExhausted_shouldThrowException() {
         CreateOrderRequest request = CreateOrderRequest.builder()
                 .addressId(200L)
@@ -366,22 +363,21 @@ class OrderServiceTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
         when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
-        when(promotionRepository.findByCodeAndActiveTrue("PROMO50")).thenReturn(Optional.of(promo));
-        when(promotionUsageRepository.findByPromotionIdAndUserId(50L, 1L)).thenReturn(Optional.empty());
-        when(priceCalculator.calculate(eq(testCart), eq(promo))).thenReturn(breakdown);
+        when(promotionService.validateForOrder(eq("PROMO50"), eq(1L), any())).thenReturn(promo);
+        when(priceCalculator.calculate(eq(testCart), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260910-FAIL");
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
             Order o = inv.getArgument(0);
             o.setId(99L);
             return o;
         });
-        when(promotionRepository.incrementUsedCountAtomic(50L)).thenReturn(0);
+        when(promotionService.redeemPromotion(eq(promo), any(), any(), any()))
+                .thenThrow(new BusinessException(ErrorCode.BUSINESS_ERROR, "Mã khuyến mãi đã hết lượt sử dụng"));
 
         assertThatThrownBy(() -> orderService.createFromCart(1L, request))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Mã khuyến mãi đã hết lượt sử dụng");
 
-        verify(promotionRepository).incrementUsedCountAtomic(50L);
-        verify(promotionUsageRepository, never()).save(any());
+        verify(promotionService).redeemPromotion(eq(promo), any(), any(), any());
     }
 }

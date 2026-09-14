@@ -68,10 +68,14 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     @Transactional(readOnly = true)
-    public PromotionResponse validatePromotion(ValidatePromotionRequest request) {
-        String code = request.getCode().trim().toUpperCase();
-        Promotion promotion = promotionRepository.findByCodeAndActiveTrue(code)
-                .orElseThrow(() -> new BusinessException(ErrorCode.BUSINESS_ERROR, "Mã khuyến mãi '" + code + "' không tồn tại hoặc đã hết hiệu lực"));
+    public Promotion validateForOrder(String code, Long userId, BigDecimal orderSubtotal) {
+        if (code == null || code.trim().isEmpty()) {
+            return null;
+        }
+
+        String normalizedCode = code.trim().toUpperCase();
+        Promotion promotion = promotionRepository.findByCodeAndActiveTrue(normalizedCode)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BUSINESS_ERROR, "Mã khuyến mãi '" + normalizedCode + "' không tồn tại hoặc đã hết hiệu lực"));
 
         LocalDateTime now = LocalDateTime.now();
         if (promotion.getStartsAt() != null && now.isBefore(promotion.getStartsAt())) {
@@ -86,17 +90,55 @@ public class PromotionServiceImpl implements PromotionService {
                 throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Mã khuyến mãi đã hết lượt sử dụng");
             }
         }
-        if (promotion.getMinOrderAmount() != null && request.getOrderAmount().compareTo(promotion.getMinOrderAmount()) < 0) {
+        if (promotion.getMinOrderAmount() != null && orderSubtotal.compareTo(promotion.getMinOrderAmount()) < 0) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR,
                     String.format("Đơn hàng chưa đạt giá trị tối thiểu %,.0fđ để áp dụng mã giảm giá",
                             promotion.getMinOrderAmount().doubleValue()));
         }
+
+        if (userId != null) {
+            if (promotionUsageRepository.findByPromotionIdAndUserId(promotion.getId(), userId).isPresent()) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Bạn đã sử dụng mã khuyến mãi '" + normalizedCode + "' trước đó");
+            }
+        }
+
+        return promotion;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PromotionResponse validatePromotion(ValidatePromotionRequest request) {
+        Long userId = request.getUserId();
+        if (userId == null) {
+            userId = getCurrentUserIdSafely();
+        }
+
+        Promotion promotion = validateForOrder(request.getCode(), userId, request.getOrderAmount());
 
         BigDecimal discountApplied = computeDiscount(promotion, request.getOrderAmount());
 
         PromotionResponse response = toPromotionResponse(promotion);
         response.setDiscountApplied(discountApplied);
         return response;
+    }
+
+    private Long getCurrentUserIdSafely() {
+        try {
+            org.springframework.security.core.Authentication auth =
+                    org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+                Object principal = auth.getPrincipal();
+                if (principal instanceof Long id) {
+                    return id;
+                } else if (principal instanceof String s) {
+                    return Long.valueOf(s);
+                } else if (principal instanceof org.springframework.security.core.userdetails.UserDetails ud) {
+                    return Long.valueOf(ud.getUsername());
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     @Override

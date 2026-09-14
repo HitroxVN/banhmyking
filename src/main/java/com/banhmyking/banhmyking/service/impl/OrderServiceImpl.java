@@ -19,7 +19,6 @@ import com.banhmyking.banhmyking.entity.OrderStatusHistory;
 import com.banhmyking.banhmyking.entity.Payment;
 import com.banhmyking.banhmyking.entity.Product;
 import com.banhmyking.banhmyking.entity.Promotion;
-import com.banhmyking.banhmyking.entity.PromotionUsage;
 import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.enums.PaymentMethod;
@@ -34,8 +33,6 @@ import com.banhmyking.banhmyking.repository.OrderItemRepository;
 import com.banhmyking.banhmyking.repository.OrderRepository;
 import com.banhmyking.banhmyking.repository.OrderStatusHistoryRepository;
 import com.banhmyking.banhmyking.repository.PaymentRepository;
-import com.banhmyking.banhmyking.repository.PromotionRepository;
-import com.banhmyking.banhmyking.repository.PromotionUsageRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
 import com.banhmyking.banhmyking.service.CartService;
 import com.banhmyking.banhmyking.service.OrderService;
@@ -64,8 +61,7 @@ public class OrderServiceImpl implements OrderService {
     private final CartService cartService;
     private final UserRepository userRepository;
     private final AddressRepository addressRepository;
-    private final PromotionRepository promotionRepository;
-    private final PromotionUsageRepository promotionUsageRepository;
+    private final com.banhmyking.banhmyking.service.PromotionService promotionService;
     private final PaymentRepository paymentRepository;
     private final PriceCalculator priceCalculator;
     private final OrderCodeGenerator orderCodeGenerator;
@@ -129,13 +125,8 @@ public class OrderServiceImpl implements OrderService {
         // 4. Resolve Promotion (nếu có)
         Promotion promotion = null;
         if (request.getPromotionCode() != null && !request.getPromotionCode().trim().isEmpty()) {
-            String code = request.getPromotionCode().trim().toUpperCase();
-            promotion = promotionRepository.findByCodeAndActiveTrue(code)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.BUSINESS_ERROR, "Mã khuyến mãi '" + code + "' không tồn tại hoặc đã hết hiệu lực"));
-
-            if (promotionUsageRepository.findByPromotionIdAndUserId(promotion.getId(), userId).isPresent()) {
-                throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Bạn đã sử dụng mã khuyến mãi '" + code + "' trước đó");
-            }
+            BigDecimal cartSubtotal = priceCalculator.calculateSubtotal(cart);
+            promotion = promotionService.validateForOrder(request.getPromotionCode(), userId, cartSubtotal);
         }
 
         // 5. Tính tiền qua PriceCalculator (AC 5)
@@ -204,19 +195,9 @@ public class OrderServiceImpl implements OrderService {
         paymentRepository.save(payment);
         order.setPayment(payment);
 
-        // Ghi nhận lượt dùng khuyến mãi (nếu có) bằng atomic update
+        // Ghi nhận lượt dùng khuyến mãi (nếu có) bằng atomic update và tạo PromotionUsage log
         if (promotion != null) {
-            int affectedRows = promotionRepository.incrementUsedCountAtomic(promotion.getId());
-            if (affectedRows == 0) {
-                throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Mã khuyến mãi đã hết lượt sử dụng");
-            }
-
-            PromotionUsage usage = new PromotionUsage();
-            usage.setPromotion(promotion);
-            usage.setUser(user);
-            usage.setOrder(order);
-            usage.setDiscountApplied(priceBreakdown.getDiscountAmount());
-            promotionUsageRepository.save(usage);
+            promotionService.redeemPromotion(promotion, user, order, priceBreakdown.getDiscountAmount());
         }
 
         // 8. Tự động xóa sạch giỏ hàng sau khi tạo đơn thành công (AC 6)

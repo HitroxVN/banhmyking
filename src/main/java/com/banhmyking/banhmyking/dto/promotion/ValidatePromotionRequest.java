@@ -24,4 +24,6 @@ public class ValidatePromotionRequest {
     @NotNull(message = "Giá trị đơn hàng không được để trống")
     @DecimalMin(value = "0.0", message = "Giá trị đơn hàng không được nhỏ hơn 0")
     private BigDecimal orderAmount;
+
+    private Long userId;
 }
