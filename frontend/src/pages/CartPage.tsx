@@ -1,21 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../context/useAuth';
+import { axiosClient } from '../api/axiosClient';
 import { formatCurrency } from '../utils/formatters';
 import type { CartItem } from '../types/cart';
 
-// Món ăn demo có sẵn trong DB (DataInitializer) để người dùng thử nghiệm tính năng thêm món
+// Món ăn demo có sẵn trong DB để người dùng thử nghiệm tính năng thêm món
 const DEMO_PRODUCT = {
   id: 1,
-  name: 'Bánh mì Pate Chả Lụa',
-  price: 30000,
+  name: 'Bánh Mì Pate Chả Lụa',
+  price: 25000,
   imageUrl: 'https://images.unsplash.com/photo-1626804475297-41608ea09aeb?auto=format&fit=crop&w=400&q=80',
   description: 'Bánh mì giòn kẹp pate gan béo ngậy và chả lụa hảo hạng',
   options: [
-    { id: 1, name: 'Thêm pate', extraPrice: 5000 },
-    { id: 2, name: 'Thêm chả lụa', extraPrice: 8000 },
-    { id: 3, name: 'Thêm trứng ốp la', extraPrice: 7000 },
+    { id: 1, name: 'Thêm Chả Lụa', extraPrice: 10000 },
+    { id: 2, name: 'Thêm Pate', extraPrice: 5000 },
+    { id: 4, name: 'Thêm Trứng Ốp La', extraPrice: 7000 },
   ],
 };
 
@@ -27,10 +28,25 @@ export const CartPage: React.FC = () => {
   const navigate = useNavigate();
 
   // State cho Quick-Add Demo
+  const [productOptions, setProductOptions] = useState(DEMO_PRODUCT.options);
   const [selectedOptions, setSelectedOptions] = useState<number[]>([]);
   const [demoQuantity, setDemoQuantity] = useState<number>(1);
   const [isAddingDemo, setIsAddingDemo] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    axiosClient
+      .get('/catalog/products/1')
+      .then((res) => {
+        const fetched = res.data?.data?.options;
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          setProductOptions(fetched);
+        }
+      })
+      .catch(() => {
+        // Fallback sang DEMO_PRODUCT.options mặc định
+      });
+  }, []);
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMessage({ type, text });
@@ -345,7 +361,7 @@ export const CartPage: React.FC = () => {
                 <div className="quick-add-body">
                   <div className="toppings-section-title">Chọn tùy chọn thêm (Toppings):</div>
                   <div className="toppings-grid">
-                    {DEMO_PRODUCT.options.map((opt) => {
+                    {productOptions.map((opt) => {
                       const isChecked = selectedOptions.includes(opt.id);
                       return (
                         <label
