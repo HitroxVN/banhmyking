@@ -2,8 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 
+import { tokenStorage } from '../utils/tokenStorage';
+
 export const LoginPage: React.FC = () => {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -16,12 +18,16 @@ export const LoginPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Nếu đã đăng nhập thì điều hướng về trang chủ
+  // Nếu đã đăng nhập: Admin chuyển thẳng về /admin, user thông thường về trang chủ
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/', { replace: true });
+      if (user?.role === 'ADMIN') {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, user, navigate]);
 
   // Đọc thông điệp từ URL params (ví dụ: đăng xuất thành công, token hết hạn)
   const urlNotice = useMemo(() => {
@@ -67,8 +73,13 @@ export const LoginPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       await login({ email: email.trim(), password });
-      const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/';
-      navigate(from, { replace: true });
+      const current = tokenStorage.getUserInfo();
+      if (current?.role === 'ADMIN') {
+        navigate('/admin', { replace: true });
+      } else {
+        const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/';
+        navigate(from, { replace: true });
+      }
     } catch (err: unknown) {
       const errObj = err as Error;
       setErrorMessage(errObj.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại email hoặc mật khẩu.');

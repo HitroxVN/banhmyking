@@ -56,6 +56,20 @@ export const HomePage: React.FC = () => {
         </div>
 
         <div className="navbar-user-actions">
+          {/* Admin Dashboard Shortcut if user is ADMIN */}
+          {user?.role === 'ADMIN' && (
+            <button
+              id="btn-nav-admin"
+              type="button"
+              className="btn-nav-admin"
+              onClick={() => navigate('/admin')}
+              title="Mở Bảng Điều Khiển Quản Trị Viên"
+            >
+              <span>👑</span>
+              <span>Bảng Quản Trị</span>
+            </button>
+          )}
+
           {/* Cart Shortcut Button with Badge */}
           <button
             id="btn-nav-cart"
@@ -92,7 +106,19 @@ export const HomePage: React.FC = () => {
             <div>
               <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Xin chào, {user?.fullName || 'Quý khách'}!</h1>
               <p style={{ opacity: 0.85, fontSize: '0.95rem' }}>Chào mừng bạn đến với hệ thống đặt món Bánh Mỳ King</p>
-              <div className="profile-role-pill">Vai trò: {user?.role || 'CUSTOMER'}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+                <div className="profile-role-pill">Vai trò: {user?.role || 'CUSTOMER'}</div>
+                {user?.role === 'ADMIN' && (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', borderRadius: '999px', width: 'auto' }}
+                    onClick={() => navigate('/admin')}
+                  >
+                    🚀 Mở Admin Dashboard →
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
