@@ -36,6 +36,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     long countByDeletedFalse();
 
+    java.util.List<User> findByRoleAndDeletedFalse(RoleName role);
+
     /** Tìm user còn hoạt động theo filter tuỳ ý (null = bỏ qua filter). */
     @Query("""
             SELECT u FROM User u

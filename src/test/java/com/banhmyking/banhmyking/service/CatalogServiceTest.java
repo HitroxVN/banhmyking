@@ -185,6 +185,39 @@ class CatalogServiceTest {
     }
 
     @Test
+    void uploadProductImage_NullOrEmptyFile_ThrowsException() {
+        org.springframework.mock.web.MockMultipartFile emptyFile =
+                new org.springframework.mock.web.MockMultipartFile("file", "test.png", "image/png", new byte[0]);
+
+        assertThatThrownBy(() -> catalogService.uploadProductImage(emptyFile))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("chọn tệp hình ảnh");
+
+        assertThatThrownBy(() -> catalogService.uploadProductImage(null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("chọn tệp hình ảnh");
+    }
+
+    @Test
+    void uploadProductImage_NonImageFormat_ThrowsException() {
+        org.springframework.mock.web.MockMultipartFile textFile =
+                new org.springframework.mock.web.MockMultipartFile("file", "script.sh", "text/plain", "echo hello".getBytes());
+
+        assertThatThrownBy(() -> catalogService.uploadProductImage(textFile))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("định dạng hình ảnh");
+    }
+
+    @Test
+    void uploadProductImage_ValidImage_ReturnsUploadUrl() {
+        org.springframework.mock.web.MockMultipartFile imageFile =
+                new org.springframework.mock.web.MockMultipartFile("file", "banhmi.png", "image/png", new byte[]{1, 2, 3});
+
+        String result = catalogService.uploadProductImage(imageFile);
+
+        assertThat(result).isNotNull();
+        assertThat(result).startsWith("/uploads/products/");
+        assertThat(result).endsWith(".png");
     @DisplayName("request không gửi options (null) → không NPE, đồng bộ xóa hết option không tham chiếu")
     void updateProductWithNullOptionsDoesNotThrow() {
         Product product = new Product();
@@ -245,3 +278,4 @@ class CatalogServiceTest {
         verify(productOptionRepository, never()).save(any(ProductOption.class));
     }
 }
+

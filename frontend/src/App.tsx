@@ -12,6 +12,11 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { AdminRoute } from './components/AdminRoute';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
+import { StaffRoute } from './components/StaffRoute';
+import { StaffOrderQueuePage } from './pages/staff/StaffOrderQueuePage';
+import { StaffMenuPage } from './pages/staff/StaffMenuPage';
+import { ShipperRoute } from './components/ShipperRoute';
+import { ShipperOrdersPage } from './pages/shipper/ShipperOrdersPage';
 
 export const App: React.FC = () => {
   return (
@@ -46,6 +51,46 @@ export const App: React.FC = () => {
                 <AdminRoute>
                   <AdminUsersPage />
                 </AdminRoute>
+              }
+            />
+
+            {/* Staff Routes (Restricted to STAFF and ADMIN roles) */}
+            <Route
+              path="/staff"
+              element={<Navigate to="/staff/orders" replace />}
+            />
+            <Route
+              path="/staff/orders"
+              element={
+                <StaffRoute>
+                  <StaffOrderQueuePage />
+                </StaffRoute>
+              }
+            />
+            <Route
+              path="/staff/menu"
+              element={
+                <StaffRoute>
+                  <StaffMenuPage />
+                </StaffRoute>
+              }
+            />
+
+            {/* Shipper Routes (Restricted to SHIPPER and ADMIN roles) */}
+            <Route
+              path="/shipper"
+              element={
+                <ShipperRoute>
+                  <ShipperOrdersPage />
+                </ShipperRoute>
+              }
+            />
+            <Route
+              path="/shipper/orders"
+              element={
+                <ShipperRoute>
+                  <ShipperOrdersPage />
+                </ShipperRoute>
               }
             />
 

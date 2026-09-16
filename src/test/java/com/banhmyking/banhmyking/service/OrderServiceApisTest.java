@@ -256,6 +256,22 @@ class OrderServiceApisTest {
                 () -> orderService.assignShipper(2L, "BMK-20260909-TEST1", request));
     }
 
+    @Test
+    @DisplayName("assignShipper - Shipper đang có đơn hoạt động thì chặn gán thêm đơn")
+    void assignShipper_whenShipperAlreadyHasActiveOrder_shouldThrowBusinessError() {
+        when(userRepository.findById(2L)).thenReturn(Optional.of(staff));
+        when(orderRepository.findByOrderCode("BMK-20260909-TEST1")).thenReturn(Optional.of(sampleOrder));
+        when(userRepository.findById(4L)).thenReturn(Optional.of(shipper));
+        when(orderRepository.countByShipperIdAndStatusInAndIdNot(eq(4L), any(), any()))
+                .thenReturn(1L);
+
+        AssignShipperRequest request = AssignShipperRequest.builder().shipperId(4L).build();
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> orderService.assignShipper(2L, "BMK-20260909-TEST1", request));
+        assertTrue(ex.getMessage().contains("hiện đang có đơn hàng chưa hoàn tất"));
+    }
+
     // ─── 5. Shipper: Lấy danh sách đơn được gán ──────────────────────────────
 
     @Test

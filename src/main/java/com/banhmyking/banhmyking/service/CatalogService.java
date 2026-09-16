@@ -17,4 +17,6 @@ public interface CatalogService {
     ProductResponse createProduct(ProductRequest request);
     ProductResponse updateProduct(Long productId, ProductRequest request);
     void deleteProduct(Long productId);
+    String uploadProductImage(org.springframework.web.multipart.MultipartFile file);
 }
+

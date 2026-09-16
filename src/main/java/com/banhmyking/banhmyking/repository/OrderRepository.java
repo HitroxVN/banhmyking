@@ -43,5 +43,11 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     long countByStatusIn(List<OrderStatus> statuses);
 
+    long countByShipperIdAndStatus(Long shipperId, OrderStatus status);
+
+    long countByShipperIdAndStatusIn(Long shipperId, List<OrderStatus> statuses);
+
+    long countByShipperIdAndStatusInAndIdNot(Long shipperId, List<OrderStatus> statuses, Long orderId);
+
     List<Order> findByCreatedAtGreaterThanEqualOrderByCreatedAtAsc(java.time.LocalDateTime startDate);
 }

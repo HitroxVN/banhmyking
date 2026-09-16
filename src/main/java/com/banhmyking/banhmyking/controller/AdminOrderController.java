@@ -116,4 +116,14 @@ public class AdminOrderController {
         List<OrderStatusHistoryResponse> history = orderService.getOrderStatusHistory(userId, orderCode);
         return ResponseEntity.ok(ApiResponse.ok("Lấy lịch sử trạng thái đơn hàng thành công", history));
     }
+
+    @GetMapping("/shippers/available")
+    @Operation(summary = "Danh sách Shipper khả dụng kèm số đơn đang giao (Staff/Admin)",
+            description = "Lấy danh sách tài xế đang hoạt động, thống kê số đơn DELIVERING của từng người để ưu tiên chọn người đang rảnh.")
+    public ResponseEntity<ApiResponse<List<com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse>>> getAvailableShippers(
+            @AuthenticationPrincipal UserDetails principal) {
+        Long userId = SecurityUtils.requireUserId(principal);
+        List<com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse> shippers = orderService.getAvailableShippers(userId);
+        return ResponseEntity.ok(ApiResponse.ok("Lấy danh sách shipper khả dụng thành công", shippers));
+    }
 }

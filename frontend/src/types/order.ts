@@ -64,7 +64,12 @@ export interface OrderResponse {
   paymentMethod: PaymentMethod;
   paymentStatus?: PaymentStatus;
   note?: string;
+  cancelReason?: string;
+  deliveredAt?: string;
+  shipperId?: number;
+  shipperName?: string;
+  shipperPhone?: string;
   items: OrderItemResponse[];
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }

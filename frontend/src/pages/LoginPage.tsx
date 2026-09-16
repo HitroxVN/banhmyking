@@ -18,11 +18,15 @@ export const LoginPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Nếu đã đăng nhập: Admin chuyển thẳng về /admin, user thông thường về trang chủ
+  // Nếu đã đăng nhập: Admin chuyển thẳng về /admin, Staff về /staff, user thông thường về trang chủ
   useEffect(() => {
     if (isAuthenticated) {
       if (user?.role === 'ADMIN') {
         navigate('/admin', { replace: true });
+      } else if (user?.role === 'STAFF') {
+        navigate('/staff', { replace: true });
+      } else if (user?.role === 'SHIPPER') {
+        navigate('/shipper', { replace: true });
       } else {
         navigate('/', { replace: true });
       }
@@ -76,6 +80,10 @@ export const LoginPage: React.FC = () => {
       const current = tokenStorage.getUserInfo();
       if (current?.role === 'ADMIN') {
         navigate('/admin', { replace: true });
+      } else if (current?.role === 'STAFF') {
+        navigate('/staff', { replace: true });
+      } else if (current?.role === 'SHIPPER') {
+        navigate('/shipper', { replace: true });
       } else {
         const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/';
         navigate(from, { replace: true });
@@ -227,6 +235,53 @@ export const LoginPage: React.FC = () => {
             <Link to="/register" className="link-text">
               Đăng ký ngay
             </Link>
+          </div>
+
+          {/* Quick Demo Logins */}
+          <div className="quick-demo-container">
+            <div className="quick-demo-title">Tài khoản trải nghiệm nhanh:</div>
+            <div className="quick-demo-buttons">
+              <button
+                type="button"
+                className="btn-demo-chip"
+                onClick={() => {
+                  setEmail('shipper@banhmyking.vn');
+                  setPassword('123456');
+                }}
+              >
+                🛵 Tài Xế (Shipper)
+              </button>
+              <button
+                type="button"
+                className="btn-demo-chip"
+                onClick={() => {
+                  setEmail('staff@banhmyking.vn');
+                  setPassword('123456');
+                }}
+              >
+                👨‍🍳 Bếp / Nhân Viên
+              </button>
+              <button
+                type="button"
+                className="btn-demo-chip"
+                onClick={() => {
+                  setEmail('admin@banhmyking.vn');
+                  setPassword('123456');
+                }}
+              >
+                👑 Quản Trị Viên
+              </button>
+              <button
+                type="button"
+                className="btn-demo-chip"
+                onClick={() => {
+                  setEmail('test@banhmyking.vn');
+                  setPassword('123456');
+                }}
+              >
+                🥖 Khách Hàng
+              </button>
+            </div>
           </div>
         </div>
       </div>
