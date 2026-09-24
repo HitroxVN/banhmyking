@@ -1,0 +1,110 @@
+/* Modal + ConfirmDialog — portal, ESC, click nền để đóng */
+.ui-modal__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: rgba(28, 25, 23, .5);
+  backdrop-filter: blur(2px);
+  animation: ui-fade-in .15s ease-out;
+}
+
+.ui-modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: calc(100vh - 32px);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  animation: ui-pop-in .18s cubic-bezier(.16, 1, .3, 1);
+}
+
+.ui-modal--sm { max-width: 400px; }
+.ui-modal--md { max-width: 560px; }
+.ui-modal--lg { max-width: 760px; }
+.ui-modal--xl { max-width: 1000px; }
+
+.ui-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.ui-modal__title {
+  margin: 0;
+  font-size: var(--text-xl);
+  color: var(--stone-900);
+}
+
+.ui-modal__close {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--stone-500);
+  cursor: pointer;
+}
+
+.ui-modal__close:hover {
+  background: var(--stone-100);
+  color: var(--stone-900);
+}
+
+.ui-modal__body {
+  padding: var(--space-5);
+  overflow-y: auto;
+}
+
+.ui-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+/* ConfirmDialog */
+.ui-confirm__text {
+  margin: 0;
+  color: var(--stone-600);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.ui-confirm__head {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.ui-confirm__icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.ui-confirm__icon--danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.ui-confirm__title {
+  margin: 0 0 6px;
+  font-size: var(--text-lg);
+  color: var(--stone-900);
+}

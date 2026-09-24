@@ -1,12 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useCart } from '../hooks/useCart';
+import { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Banknote, MapPin, QrCode, Receipt, Sandwich, ShieldCheck, ShoppingBag, Ticket, Timer, Truck } from 'lucide-react';
+import { useCart } from '../context/useCart';
 import { useAuth } from '../context/useAuth';
 import { addressApi } from '../api/addressApi';
 import { orderApi } from '../api/orderApi';
+import { deliveryApi } from '../api/deliveryApi';
+import { Badge, Button, EmptyState, Input, Spinner, Textarea, useToast } from '../components/ui';
 import { formatCurrency } from '../utils/formatters';
 import type { AddressResponse } from '../types/address';
 import type { CreateOrderRequest, PaymentMethod } from '../types/order';
+import type { DeliveryFeeResult } from '../types/delivery';
+import '../styles/components/order.css';
+import '../styles/components/checkout.css';
 
 interface FormErrors {
   receiverName?: string;
@@ -14,161 +21,153 @@ interface FormErrors {
   shippingAddress?: string;
 }
 
-export const CheckoutPage: React.FC = () => {
+const validateField = (name: keyof FormErrors, value: string): string | undefined => {
+  const trimmed = value.trim();
+  if (name === 'receiverName') {
+    if (!trimmed) return 'Vui lòng nhập họ và tên người nhận';
+    if (trimmed.length < 2) return 'Họ và tên người nhận tối thiểu 2 ký tự';
+  }
+  if (name === 'receiverPhone') {
+    if (!trimmed) return 'Vui lòng nhập số điện thoại nhận hàng';
+    if (!/^(0[35789])[0-9]{8}$/.test(trimmed)) {
+      return 'Số điện thoại không hợp lệ (10 chữ số, bắt đầu bằng 03, 05, 07, 08, 09)';
+    }
+  }
+  if (name === 'shippingAddress') {
+    if (!trimmed) return 'Vui lòng nhập địa chỉ nhận hàng chi tiết';
+    if (trimmed.length < 5) return 'Địa chỉ nhận hàng quá ngắn (tối thiểu 5 ký tự)';
+  }
+  return undefined;
+};
+
+export const CheckoutPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { cart, isLoading: isCartLoading, refreshCart, subtotal, totalQuantity } = useCart();
+  const toast = useToast();
 
-  // State cho sổ địa chỉ đã lưu
   const [savedAddresses, setSavedAddresses] = useState<AddressResponse[]>([]);
-  const [isLoadingAddresses, setIsLoadingAddresses] = useState<boolean>(true);
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(true);
   const [addressMode, setAddressMode] = useState<'saved' | 'new'>('new');
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
 
-  // Form State
-  const [receiverName, setReceiverName] = useState<string>('');
-  const [receiverPhone, setReceiverPhone] = useState<string>('');
-  const [shippingAddress, setShippingAddress] = useState<string>('');
+  const [receiverName, setReceiverName] = useState('');
+  const [receiverPhone, setReceiverPhone] = useState('');
+  const [shippingAddress, setShippingAddress] = useState('');
+  const [note, setNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
-  const [promotionCode, setPromotionCode] = useState<string>('');
-  const [note, setNote] = useState<string>('');
 
-  // Validation & Submit State
   const [errors, setErrors] = useState<FormErrors>({});
-  const [touched, setTouched] = useState<{ [key: string]: boolean }>({});
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // Tải danh sách địa chỉ đã lưu khi mount
-  useEffect(() => {
-    let isMounted = true;
-    const fetchAddresses = async () => {
-      try {
-        const addresses = await addressApi.getAddresses();
-        if (isMounted) {
-          setSavedAddresses(addresses);
-          if (addresses.length > 0) {
-            setAddressMode('saved');
-            // Ưu tiên địa chỉ mặc định, hoặc địa chỉ đầu tiên
-            const defaultAddr = addresses.find((a) => a.defaultAddress) || addresses[0];
-            setSelectedAddressId(defaultAddr.id);
-            setReceiverName(defaultAddr.receiverName);
-            setReceiverPhone(defaultAddr.receiverPhone);
-            setShippingAddress(defaultAddr.fullAddress);
-          } else {
-            // Chưa có địa chỉ lưu -> Điền mặc định từ thông tin User
-            setAddressMode('new');
-            if (user?.fullName) setReceiverName(user.fullName);
-            if (user?.phone) setReceiverPhone(user.phone);
-          }
-        }
-      } catch {
-        if (isMounted) {
-          setAddressMode('new');
-          if (user?.fullName) setReceiverName(user.fullName);
-          if (user?.phone) setReceiverPhone(user.phone);
-        }
-      } finally {
-        if (isMounted) setIsLoadingAddresses(false);
-      }
-    };
+  const [fee, setFee] = useState<DeliveryFeeResult | null>(null);
+  const [isLoadingFee, setIsLoadingFee] = useState(false);
 
-    fetchAddresses();
+  // Sổ địa chỉ: ưu tiên địa chỉ mặc định, chưa có thì điền sẵn thông tin tài khoản
+  useEffect(() => {
+    let alive = true;
+
+    addressApi
+      .getAddresses()
+      .then((addresses) => {
+        if (!alive) return;
+        setSavedAddresses(addresses);
+        if (addresses.length === 0) return;
+
+        const preferred = addresses.find((item) => item.defaultAddress) ?? addresses[0];
+        setAddressMode('saved');
+        setSelectedAddressId(preferred.id);
+        setReceiverName(preferred.receiverName);
+        setReceiverPhone(preferred.receiverPhone);
+        setShippingAddress(preferred.fullAddress);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setAddressMode('new');
+        setReceiverName(user?.fullName ?? '');
+        setReceiverPhone(user?.phone ?? '');
+      })
+      .finally(() => {
+        if (alive) setIsLoadingAddresses(false);
+      });
+
     return () => {
-      isMounted = false;
+      alive = false;
     };
   }, [user]);
 
-  // Xử lý chọn địa chỉ đã lưu
-  const handleSelectSavedAddress = (addr: AddressResponse) => {
-    setSelectedAddressId(addr.id);
-    setReceiverName(addr.receiverName);
-    setReceiverPhone(addr.receiverPhone);
-    setShippingAddress(addr.fullAddress);
-    // Xóa lỗi validation nếu có
-    setErrors({});
-  };
-
-  // Chuyển sang nhập địa chỉ mới
-  const handleSwitchToNewAddress = () => {
-    setAddressMode('new');
-    setSelectedAddressId(null);
-    setReceiverName(user?.fullName || '');
-    setReceiverPhone(user?.phone || '');
-    setShippingAddress('');
-    setErrors({});
-    setTouched({});
-  };
-
-  // Validation logic
-  const validateField = (name: string, value: string): string | undefined => {
-    const trimmed = value.trim();
-    if (name === 'receiverName') {
-      if (!trimmed) return 'Vui lòng nhập họ và tên người nhận';
-      if (trimmed.length < 2) return 'Họ và tên người nhận tối thiểu 2 ký tự';
-    }
-    if (name === 'receiverPhone') {
-      if (!trimmed) return 'Vui lòng nhập số điện thoại nhận hàng';
-      const phoneRegex = /^(0[3|5|7|8|9])[0-9]{8}$/;
-      if (!phoneRegex.test(trimmed)) {
-        return 'Số điện thoại không hợp lệ (10 chữ số, bắt đầu bằng 03, 05, 07, 08, 09)';
-      }
-    }
-    if (name === 'shippingAddress') {
-      if (!trimmed) return 'Vui lòng nhập địa chỉ nhận hàng chi tiết';
-      if (trimmed.length < 5) return 'Địa chỉ nhận hàng quá ngắn (tối thiểu 5 ký tự)';
-    }
-    return undefined;
-  };
-
-  const validateForm = (): boolean => {
-    const newErrors: FormErrors = {};
-    const nameErr = validateField('receiverName', receiverName);
-    if (nameErr) newErrors.receiverName = nameErr;
-
-    const phoneErr = validateField('receiverPhone', receiverPhone);
-    if (phoneErr) newErrors.receiverPhone = phoneErr;
-
-    const addressErr = validateField('shippingAddress', shippingAddress);
-    if (addressErr) newErrors.shippingAddress = addressErr;
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleBlur = (field: string) => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-    let val = '';
-    if (field === 'receiverName') val = receiverName;
-    if (field === 'receiverPhone') val = receiverPhone;
-    if (field === 'shippingAddress') val = shippingAddress;
-
-    const err = validateField(field, val);
-    setErrors((prev) => ({ ...prev, [field]: err }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setApiError(null);
-
-    // Validate form
-    setTouched({
-      receiverName: true,
-      receiverPhone: true,
-      shippingAddress: true,
-    });
-
-    if (!validateForm()) {
+  // Phí ship xem trước — gọi cùng tham số mà POST /orders sẽ dùng (không gửi distanceKm)
+  useEffect(() => {
+    const address = shippingAddress.trim();
+    if (subtotal <= 0 || address.length < 5) {
+      setFee(null);
       return;
     }
 
-    if (!cart || cart.items.length === 0) {
+    let cancelled = false;
+    setIsLoadingFee(true);
+
+    const timer = window.setTimeout(() => {
+      deliveryApi
+        .getFee({ subtotal, shippingAddress: address })
+        .then((result) => {
+          if (!cancelled) setFee(result);
+        })
+        .catch(() => {
+          if (!cancelled) setFee(null);
+        })
+        .finally(() => {
+          if (!cancelled) setIsLoadingFee(false);
+        });
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [shippingAddress, subtotal]);
+
+  const shippingFee = fee?.shippingFee ?? 0;
+  const total = subtotal + shippingFee;
+  const items = cart?.items ?? [];
+  const isEmpty = !isCartLoading && items.length === 0;
+
+  const selectAddress = (address: AddressResponse) => {
+    setSelectedAddressId(address.id);
+    setReceiverName(address.receiverName);
+    setReceiverPhone(address.receiverPhone);
+    setShippingAddress(address.fullAddress);
+    setErrors({});
+  };
+
+  const switchToNewAddress = () => {
+    setAddressMode('new');
+    setSelectedAddressId(null);
+    setReceiverName(user?.fullName ?? '');
+    setReceiverPhone(user?.phone ?? '');
+    setShippingAddress('');
+    setErrors({});
+  };
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setApiError(null);
+
+    const nextErrors: FormErrors = {
+      receiverName: validateField('receiverName', receiverName),
+      receiverPhone: validateField('receiverPhone', receiverPhone),
+      shippingAddress: validateField('shippingAddress', shippingAddress),
+    };
+    setErrors(nextErrors);
+    if (Object.values(nextErrors).some(Boolean)) return;
+
+    if (isEmpty) {
       setApiError('Giỏ hàng của bạn đang trống. Vui lòng thêm món trước khi đặt hàng.');
       return;
     }
 
     setIsSubmitting(true);
-
     try {
       const payload: CreateOrderRequest = {
         addressId: addressMode === 'saved' && selectedAddressId ? selectedAddressId : undefined,
@@ -176,464 +175,304 @@ export const CheckoutPage: React.FC = () => {
         receiverPhone: receiverPhone.trim(),
         shippingAddress: shippingAddress.trim(),
         paymentMethod,
-        promotionCode: promotionCode.trim() ? promotionCode.trim().toUpperCase() : undefined,
-        note: note.trim() ? note.trim() : undefined,
+        note: note.trim() || undefined,
       };
 
-      const createdOrder = await orderApi.createOrder(payload);
-
-      // Đồng bộ xóa giỏ hàng phía frontend sau khi đơn hàng được tạo thành công
+      const created = await orderApi.createOrder(payload);
       await refreshCart();
-
-      // Điều hướng chuẩn xác sang trang thanh toán
-      navigate(`/payment/${createdOrder.orderCode}`, {
-        state: { order: createdOrder },
-        replace: true,
-      });
-    } catch (err: unknown) {
-      // Bắt thông điệp lỗi nghiệp vụ từ backend
-      interface AxiosErrorPayload {
-        response?: {
-          data?: {
-            message?: string;
-            errors?: Record<string, string>;
-          };
-        };
-      }
-      const axiosErr = err as AxiosErrorPayload;
-      const message =
-        axiosErr.response?.data?.message ||
-        'Không thể tạo đơn hàng. Vui lòng kiểm tra lại thông tin và thử lại.';
+      navigate(`/payment/${created.orderCode}`, { state: { order: created }, replace: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Đặt hàng thất bại. Vui lòng thử lại.';
       setApiError(message);
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const isInitialLoading = isCartLoading || isLoadingAddresses;
+  if (isCartLoading) {
+    return (
+      <div className="page-state">
+        <Spinner size={30} />
+      </div>
+    );
+  }
+
+  if (isEmpty) {
+    return (
+      <>
+        <div className="page-bar">
+          <h1 className="page-bar__title">Thanh toán</h1>
+        </div>
+        <EmptyState
+          icon={<ShoppingBag size={30} />}
+          title="Chưa có món nào để thanh toán"
+          description="Giỏ hàng của bạn đang trống. Chọn món trong thực đơn trước nhé."
+          action={<Button onClick={() => navigate('/')}>Xem thực đơn</Button>}
+        />
+      </>
+    );
+  }
 
   return (
-    <div className="checkout-page-wrapper">
-      {/* Top Navbar */}
-      <header className="home-navbar">
-        <div className="navbar-brand" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
-          <div className="navbar-brand-badge">🥖</div>
-          <span className="navbar-brand-name">BÁNH MỲ KING</span>
+    <>
+      <div className="page-bar">
+        <div>
+          <p className="page-bar__crumb">
+            <Link to="/">Thực đơn</Link> / <Link to="/cart">Giỏ hàng</Link> / Thanh toán
+          </p>
+          <h1 className="page-bar__title">Thanh toán</h1>
         </div>
+      </div>
 
-        <div className="navbar-user-actions">
-          <button
-            type="button"
-            className="btn-nav-secondary"
-            onClick={() => navigate('/cart')}
-            title="Quay lại giỏ hàng"
-          >
-            🛒 Giỏ hàng ({totalQuantity})
-          </button>
+      {apiError && (
+        <div className="alert-banner alert-error page-alert">
+          <div>{apiError}</div>
         </div>
-      </header>
+      )}
 
-      {/* Main Container */}
-      <main className="checkout-main-container">
-        {/* Breadcrumb Header */}
-        <div className="checkout-header-row">
-          <button type="button" className="btn-back-link" onClick={() => navigate('/cart')}>
-            ← Quay lại giỏ hàng
-          </button>
-          <h1 className="checkout-page-title">📦 Thông tin giao hàng & Đặt món</h1>
-        </div>
-
-        {/* Global Alert Error */}
-        {apiError && (
-          <div className="alert-banner alert-error" style={{ marginBottom: '1.5rem' }}>
-            <span>⚠️</span>
-            <span>{apiError}</span>
-          </div>
-        )}
-
-        {/* Loading Skeleton */}
-        {isInitialLoading && (
-          <div className="checkout-skeleton-grid">
-            <div className="skeleton-card" style={{ height: '360px' }}>
-              <div className="skeleton-line" style={{ width: '40%', height: '24px', marginBottom: '1.5rem' }}></div>
-              <div className="skeleton-line" style={{ width: '100%', height: '48px', marginBottom: '1rem' }}></div>
-              <div className="skeleton-line" style={{ width: '100%', height: '48px', marginBottom: '1rem' }}></div>
-              <div className="skeleton-line" style={{ width: '100%', height: '80px' }}></div>
+      <form className="order-grid" onSubmit={handleSubmit} noValidate>
+        <div>
+          <section className="card">
+            <div className="card__head">
+              <h2 className="card__title">
+                <MapPin size={19} />
+                Thông tin nhận hàng
+              </h2>
             </div>
-            <div className="skeleton-card" style={{ height: '280px' }}>
-              <div className="skeleton-line" style={{ width: '50%', height: '24px', marginBottom: '1.5rem' }}></div>
-              <div className="skeleton-line" style={{ width: '100%', height: '36px', marginBottom: '0.75rem' }}></div>
-              <div className="skeleton-line" style={{ width: '100%', height: '36px', marginBottom: '0.75rem' }}></div>
-              <div className="skeleton-line" style={{ width: '100%', height: '48px' }}></div>
-            </div>
-          </div>
-        )}
+            <div className="card__body">
+              {isLoadingAddresses ? (
+                <Spinner size={22} />
+              ) : (
+                <>
+                  {savedAddresses.length > 0 && (
+                    <div className="ck__mode">
+                      <button
+                        type="button"
+                        className={`ck__mode-btn${addressMode === 'saved' ? ' ck__mode-btn--on' : ''}`}
+                        onClick={() => {
+                          setAddressMode('saved');
+                          const preferred = savedAddresses.find((a) => a.id === selectedAddressId) ?? savedAddresses[0];
+                          selectAddress(preferred);
+                        }}
+                      >
+                        Địa chỉ đã lưu
+                      </button>
+                      <button
+                        type="button"
+                        className={`ck__mode-btn${addressMode === 'new' ? ' ck__mode-btn--on' : ''}`}
+                        onClick={switchToNewAddress}
+                      >
+                        Nhập địa chỉ mới
+                      </button>
+                    </div>
+                  )}
 
-        {/* Empty Cart Notice */}
-        {!isInitialLoading && (!cart || cart.items.length === 0) && (
-          <div className="empty-cart-card">
-            <div className="empty-cart-illustration">🛒</div>
-            <h2 className="empty-cart-title">Giỏ hàng của bạn đang trống</h2>
-            <p className="empty-cart-desc">
-              Vui lòng chọn các món ăn yêu thích tại thực đơn trước khi tiến hành thanh toán nhé!
-            </p>
-            <button
-              type="button"
-              className="btn-primary"
-              style={{ width: 'auto', padding: '0.85rem 1.75rem' }}
-              onClick={() => navigate('/cart')}
-            >
-              ← Quay lại xem giỏ hàng
-            </button>
-          </div>
-        )}
-
-        {/* Main Checkout Form Layout */}
-        {!isInitialLoading && cart && cart.items.length > 0 && (
-          <form className="checkout-layout-grid" onSubmit={handleSubmit} noValidate>
-            {/* Left Column: Delivery Info & Payment Methods */}
-            <div className="checkout-form-column">
-              {/* Card 1: Thông tin nhận hàng */}
-              <div className="checkout-section-card">
-                <div className="section-card-header">
-                  <div className="section-icon-badge">📍</div>
-                  <div>
-                    <h2 className="section-card-title">Địa chỉ nhận hàng</h2>
-                    <p className="section-card-subtitle">Vui lòng cung cấp địa chỉ chính xác để shipper giao nhanh nhất</p>
-                  </div>
-                </div>
-
-                {/* Chọn địa chỉ đã lưu hoặc Nhập mới nếu có sổ địa chỉ */}
-                {savedAddresses.length > 0 && (
-                  <div className="address-tabs-selector">
-                    <button
-                      type="button"
-                      className={`address-tab-btn ${addressMode === 'saved' ? 'active' : ''}`}
-                      onClick={() => setAddressMode('saved')}
-                    >
-                      🔖 Chọn địa chỉ đã lưu ({savedAddresses.length})
-                    </button>
-                    <button
-                      type="button"
-                      className={`address-tab-btn ${addressMode === 'new' ? 'active' : ''}`}
-                      onClick={handleSwitchToNewAddress}
-                    >
-                      ➕ Nhập địa chỉ mới
-                    </button>
-                  </div>
-                )}
-
-                {/* Danh sách địa chỉ đã lưu */}
-                {addressMode === 'saved' && savedAddresses.length > 0 && (
-                  <div className="saved-addresses-list">
-                    {savedAddresses.map((addr) => {
-                      const isSelected = selectedAddressId === addr.id;
-                      return (
-                        <div
-                          key={addr.id}
-                          className={`saved-address-item ${isSelected ? 'selected' : ''}`}
-                          onClick={() => handleSelectSavedAddress(addr)}
+                  {addressMode === 'saved' ? (
+                    <div className="ck__addr-list">
+                      {savedAddresses.map((address) => (
+                        <label
+                          key={address.id}
+                          className={`ck__addr${selectedAddressId === address.id ? ' ck__addr--on' : ''}`}
                         >
-                          <div className="saved-address-radio">
-                            <span className="radio-dot">{isSelected ? '●' : '○'}</span>
-                          </div>
-                          <div className="saved-address-details">
-                            <div className="saved-address-name-row">
-                              <span className="saved-name">{addr.receiverName}</span>
-                              <span className="saved-phone">({addr.receiverPhone})</span>
-                              {addr.defaultAddress && (
-                                <span className="saved-default-badge">Mặc định</span>
-                              )}
-                            </div>
-                            <div className="saved-address-full">{addr.fullAddress}</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Form fields nhập thông tin (hiển thị khi nhập mới hoặc khi chỉnh sửa) */}
-                <div className="form-fields-stack">
-                  {/* Họ tên & SĐT */}
-                  <div className="form-row-two-cols">
-                    <div className="form-group">
-                      <label className="form-label" htmlFor="receiverName">
-                        Họ và tên người nhận <span className="required-star">*</span>
-                      </label>
-                      <input
-                        id="receiverName"
-                        type="text"
-                        className={`form-input ${touched.receiverName && errors.receiverName ? 'input-error' : ''}`}
-                        placeholder="Ví dụ: Nguyễn Văn A"
-                        value={receiverName}
-                        onChange={(e) => {
-                          setReceiverName(e.target.value);
-                          if (touched.receiverName) {
-                            setErrors((prev) => ({
-                              ...prev,
-                              receiverName: validateField('receiverName', e.target.value),
-                            }));
-                          }
-                        }}
-                        onBlur={() => handleBlur('receiverName')}
-                        disabled={isSubmitting}
-                      />
-                      {touched.receiverName && errors.receiverName && (
-                        <span className="field-error-text" id="receiverName-error">
-                          {errors.receiverName}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label" htmlFor="receiverPhone">
-                        Số điện thoại nhận hàng <span className="required-star">*</span>
-                      </label>
-                      <input
-                        id="receiverPhone"
-                        type="tel"
-                        className={`form-input ${touched.receiverPhone && errors.receiverPhone ? 'input-error' : ''}`}
-                        placeholder="Ví dụ: 0901234567"
-                        value={receiverPhone}
-                        onChange={(e) => {
-                          setReceiverPhone(e.target.value);
-                          if (touched.receiverPhone) {
-                            setErrors((prev) => ({
-                              ...prev,
-                              receiverPhone: validateField('receiverPhone', e.target.value),
-                            }));
-                          }
-                        }}
-                        onBlur={() => handleBlur('receiverPhone')}
-                        disabled={isSubmitting}
-                      />
-                      {touched.receiverPhone && errors.receiverPhone && (
-                        <span className="field-error-text" id="receiverPhone-error">
-                          {errors.receiverPhone}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Địa chỉ chi tiết */}
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="shippingAddress">
-                      Địa chỉ nhận hàng chi tiết <span className="required-star">*</span>
-                    </label>
-                    <textarea
-                      id="shippingAddress"
-                      rows={3}
-                      className={`form-input form-textarea ${touched.shippingAddress && errors.shippingAddress ? 'input-error' : ''}`}
-                      placeholder="Số nhà, tên tòa nhà, tên đường, phường/xã, quận/huyện, TP.HCM..."
-                      value={shippingAddress}
-                      onChange={(e) => {
-                        setShippingAddress(e.target.value);
-                        if (touched.shippingAddress) {
-                          setErrors((prev) => ({
-                            ...prev,
-                            shippingAddress: validateField('shippingAddress', e.target.value),
-                          }));
-                        }
-                      }}
-                      onBlur={() => handleBlur('shippingAddress')}
-                      disabled={isSubmitting}
-                    />
-                    {touched.shippingAddress && errors.shippingAddress && (
-                      <span className="field-error-text" id="shippingAddress-error">
-                        {errors.shippingAddress}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Ghi chú đơn hàng */}
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="orderNote">
-                      Ghi chú đơn hàng (Tùy chọn)
-                    </label>
-                    <input
-                      id="orderNote"
-                      type="text"
-                      className="form-input"
-                      placeholder="Ví dụ: Giao trước 12h, không cay, xin thêm túi..."
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 2: Phương thức thanh toán */}
-              <div className="checkout-section-card">
-                <div className="section-card-header">
-                  <div className="section-icon-badge">💳</div>
-                  <div>
-                    <h2 className="section-card-title">Phương thức thanh toán</h2>
-                    <p className="section-card-subtitle">Lựa chọn hình thức thanh toán thuận tiện nhất cho bạn</p>
-                  </div>
-                </div>
-
-                <div className="payment-options-stack">
-                  {/* COD */}
-                  <label
-                    className={`payment-option-card ${paymentMethod === 'COD' ? 'active' : ''}`}
-                    onClick={() => setPaymentMethod('COD')}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="COD"
-                      checked={paymentMethod === 'COD'}
-                      onChange={() => setPaymentMethod('COD')}
-                      style={{ display: 'none' }}
-                      disabled={isSubmitting}
-                    />
-                    <div className="payment-option-radio">
-                      <span className="radio-dot">{paymentMethod === 'COD' ? '●' : '○'}</span>
-                    </div>
-                    <div className="payment-option-content">
-                      <div className="payment-option-title-row">
-                        <span className="payment-icon">💵</span>
-                        <span className="payment-option-name">Thanh toán khi nhận hàng (COD)</span>
-                        <span className="payment-badge-popular">Phổ biến</span>
-                      </div>
-                      <p className="payment-option-desc">
-                        Thanh toán bằng tiền mặt trực tiếp cho shipper khi nhận được ổ bánh mì nóng giòn.
-                      </p>
-                    </div>
-                  </label>
-
-                  {/* BANK TRANSFER (VietQR) */}
-                  <label
-                    className={`payment-option-card ${paymentMethod === 'BANK_TRANSFER' ? 'active' : ''}`}
-                    onClick={() => setPaymentMethod('BANK_TRANSFER')}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="BANK_TRANSFER"
-                      checked={paymentMethod === 'BANK_TRANSFER'}
-                      onChange={() => setPaymentMethod('BANK_TRANSFER')}
-                      style={{ display: 'none' }}
-                      disabled={isSubmitting}
-                    />
-                    <div className="payment-option-radio">
-                      <span className="radio-dot">{paymentMethod === 'BANK_TRANSFER' ? '●' : '○'}</span>
-                    </div>
-                    <div className="payment-option-content">
-                      <div className="payment-option-title-row">
-                        <span className="payment-icon">📲</span>
-                        <span className="payment-option-name">Chuyển khoản Ngân hàng / Quét mã VietQR</span>
-                        <span className="payment-badge-fast">Tiện lợi 24/7</span>
-                      </div>
-                      <p className="payment-option-desc">
-                        Chuyển khoản nhanh qua mã QR tự động điền sẵn số tiền và mã đơn hàng sau khi đặt.
-                      </p>
-                    </div>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column: Order Review & Submit */}
-            <div className="checkout-summary-column">
-              <div className="order-summary-card">
-                <h2 className="summary-card-title">Đơn hàng của bạn ({totalQuantity} món)</h2>
-
-                {/* Items Mini List */}
-                <div className="checkout-mini-items-list">
-                  {cart.items.map((item) => (
-                    <div key={item.id} className="checkout-mini-item">
-                      <div className="checkout-mini-item-info">
-                        <div className="checkout-mini-item-title">
-                          <span className="mini-qty">{item.quantity}x</span>
-                          <span className="mini-name">{item.productName}</span>
-                        </div>
-                        {item.options && item.options.length > 0 && (
-                          <div className="checkout-mini-toppings">
-                            + {item.options.map((o) => `${o.name} (${formatCurrency(o.extraPrice)})`).join(', ')}
-                          </div>
-                        )}
-                      </div>
-                      <div className="checkout-mini-item-price">
-                        {formatCurrency(item.subtotal)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="summary-divider"></div>
-
-                {/* Voucher / Promo code */}
-                <div className="promo-input-wrapper">
-                  <input
-                    type="text"
-                    className="promo-input"
-                    placeholder="Mã ưu đãi (Ví dụ: BANHMYKING10)"
-                    value={promotionCode}
-                    onChange={(e) => setPromotionCode(e.target.value)}
-                    disabled={isSubmitting}
-                  />
-                </div>
-
-                <div className="summary-calculation-rows">
-                  <div className="summary-row">
-                    <span className="summary-label">Tạm tính:</span>
-                    <span className="summary-value">{formatCurrency(subtotal)}</span>
-                  </div>
-                  <div className="summary-row">
-                    <span className="summary-label">Phí vận chuyển:</span>
-                    <span className="summary-value" style={{ color: '#059669', fontWeight: 600 }}>
-                      Miễn phí (Freeship)
-                    </span>
-                  </div>
-                </div>
-
-                <div className="summary-divider"></div>
-
-                {/* Grand Total */}
-                <div className="summary-grand-total-row">
-                  <div>
-                    <div className="grand-total-label">Tổng thanh toán</div>
-                    <div className="grand-total-subtext">Đã bao gồm VAT và ưu đãi</div>
-                  </div>
-                  <div className="grand-total-price" id="checkout-total-price">
-                    {formatCurrency(subtotal)}
-                  </div>
-                </div>
-
-                {/* Submit Button with Loading State */}
-                <button
-                  id="btn-submit-order"
-                  type="submit"
-                  className="btn-submit-order"
-                  disabled={isSubmitting || !cart || cart.items.length === 0}
-                >
-                  {isSubmitting ? (
-                    <div className="submit-spinner-box">
-                      <div className="spinner" style={{ width: '20px', height: '20px', borderWidth: '2.5px' }}></div>
-                      <span>Đang khởi tạo đơn hàng...</span>
+                          <input
+                            className="ck__addr-radio"
+                            type="radio"
+                            name="saved-address"
+                            checked={selectedAddressId === address.id}
+                            onChange={() => selectAddress(address)}
+                          />
+                          <span className="ck__addr-main">
+                            <span className="ck__addr-name">
+                              {address.receiverName}
+                              <span className="ck__addr-phone">{address.receiverPhone}</span>
+                              {address.defaultAddress && <Badge tone="info">Mặc định</Badge>}
+                            </span>
+                            <span className="ck__addr-text">{address.fullAddress}</span>
+                          </span>
+                        </label>
+                      ))}
                     </div>
                   ) : (
-                    <span>🚀 Xác nhận đặt hàng ({formatCurrency(subtotal)})</span>
+                    <div className="ck__row2">
+                      <Input
+                        label="Họ và tên người nhận"
+                        required
+                        value={receiverName}
+                        onChange={(event) => setReceiverName(event.target.value)}
+                        onBlur={() => setErrors((prev) => ({ ...prev, receiverName: validateField('receiverName', receiverName) }))}
+                        error={errors.receiverName}
+                        placeholder="Nguyễn Văn A"
+                      />
+                      <Input
+                        label="Số điện thoại"
+                        required
+                        inputMode="tel"
+                        value={receiverPhone}
+                        onChange={(event) => setReceiverPhone(event.target.value)}
+                        onBlur={() => setErrors((prev) => ({ ...prev, receiverPhone: validateField('receiverPhone', receiverPhone) }))}
+                        error={errors.receiverPhone}
+                        placeholder="0901234567"
+                      />
+                    </div>
                   )}
-                </button>
 
-                {/* Trust Badges */}
-                <div className="cart-trust-badges" style={{ marginTop: '1rem' }}>
-                  <div className="trust-badge-item">
-                    <span>⚡</span> Chuẩn bị và giao nóng giòn 30 phút
+                  {addressMode === 'new' && (
+                    <Input
+                      label="Địa chỉ nhận hàng"
+                      required
+                      value={shippingAddress}
+                      onChange={(event) => setShippingAddress(event.target.value)}
+                      onBlur={() => setErrors((prev) => ({ ...prev, shippingAddress: validateField('shippingAddress', shippingAddress) }))}
+                      error={errors.shippingAddress}
+                      hint="Số nhà, đường, phường/quận, thành phố — giúp tính phí giao chính xác."
+                      placeholder="123 Lê Lợi, Quận 1, TP.HCM"
+                    />
+                  )}
+
+                  <div className="ck__block">
+                    <Textarea
+                      label="Ghi chú cho quán"
+                      value={note}
+                      maxLength={300}
+                      onChange={(event) => setNote(event.target.value)}
+                      placeholder="Ví dụ: không hành, cắt đôi, gọi trước khi giao..."
+                    />
                   </div>
-                  <div className="trust-badge-item">
-                    <span>🛡️</span> Cam kết hoàn tiền 100% nếu không hài lòng
-                  </div>
-                </div>
+                </>
+              )}
+            </div>
+          </section>
+
+          <section className="card">
+            <div className="card__head">
+              <h2 className="card__title">
+                <Receipt size={19} />
+                Phương thức thanh toán
+              </h2>
+            </div>
+            <div className="card__body">
+              <div className="ck__pays">
+                <label className={`ck__pay${paymentMethod === 'COD' ? ' ck__pay--on' : ''}`}>
+                  <input
+                    type="radio"
+                    name="payment-method"
+                    checked={paymentMethod === 'COD'}
+                    onChange={() => setPaymentMethod('COD')}
+                  />
+                  <span className="ck__pay-icon">
+                    <Banknote size={18} />
+                  </span>
+                  <span className="ck__pay-text">
+                    <span className="ck__pay-title">Tiền mặt khi nhận hàng</span>
+                    <span className="ck__pay-desc">Thanh toán cho tài xế sau khi nhận bánh</span>
+                  </span>
+                </label>
+
+                <label className={`ck__pay${paymentMethod === 'BANK_TRANSFER' ? ' ck__pay--on' : ''}`}>
+                  <input
+                    type="radio"
+                    name="payment-method"
+                    checked={paymentMethod === 'BANK_TRANSFER'}
+                    onChange={() => setPaymentMethod('BANK_TRANSFER')}
+                  />
+                  <span className="ck__pay-icon">
+                    <QrCode size={18} />
+                  </span>
+                  <span className="ck__pay-text">
+                    <span className="ck__pay-title">Chuyển khoản VietQR</span>
+                    <span className="ck__pay-desc">Quét mã QR, đơn được xác nhận tự động</span>
+                  </span>
+                </label>
               </div>
             </div>
-          </form>
-        )}
-      </main>
-    </div>
+          </section>
+        </div>
+
+        <aside className="card">
+          <div className="card__head">
+            <h2 className="card__title">
+              <Receipt size={19} />
+              Đơn hàng của bạn
+            </h2>
+            <span className="menu__section-sub">{totalQuantity} món</span>
+          </div>
+          <div className="card__body">
+            <div className="ck__items">
+              {items.map((item) => (
+                <div className="ck__item" key={item.id}>
+                  <span className="ck__item-media">
+                    {item.productImageUrl ? (
+                      <img className="ck__item-img" src={item.productImageUrl} alt={item.productName} />
+                    ) : (
+                      <span className="pcard__placeholder" aria-hidden="true">
+                        <Sandwich size={18} />
+                      </span>
+                    )}
+                  </span>
+                  <div>
+                    <p className="ck__item-name">{item.productName}</p>
+                    <p className="ck__item-meta">
+                      {item.quantity} × {formatCurrency(item.unitPrice)}
+                    </p>
+                  </div>
+                  <span className="ck__item-price">{formatCurrency(item.subtotal)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="summary__divider" />
+
+            <div className="summary__row">
+              <span>Tạm tính</span>
+              <span>{formatCurrency(subtotal)}</span>
+            </div>
+            <div className={`summary__row${fee?.freeship ? ' summary__row--free' : ''}`}>
+              <span>
+                <Truck size={14} /> Phí giao hàng
+              </span>
+              <span>
+                {isLoadingFee ? 'Đang tính…' : fee?.freeship ? 'Miễn phí' : formatCurrency(shippingFee)}
+              </span>
+            </div>
+            {fee?.description && <p className="summary__row summary__row--note">{fee.description}</p>}
+
+            <div className="summary__divider" />
+
+            <div className="summary__total">
+              <span className="summary__total-label">Tổng thanh toán</span>
+              <span className="summary__total-price">{formatCurrency(total)}</span>
+            </div>
+
+            <div className="ck__block">
+              <Input
+                label="Mã giảm giá"
+                icon={<Ticket size={16} />}
+                placeholder="Sắp ra mắt"
+                disabled
+                hint="Tính năng khuyến mãi sẽ mở ở bản cập nhật sau."
+              />
+            </div>
+          </div>
+          <div className="card__foot">
+            <Button type="submit" block size="lg" loading={isSubmitting}>
+              {`Xác nhận đặt hàng — ${formatCurrency(total)}`}
+            </Button>
+
+            <div className="ck__trust">
+              <span className="ck__trust-item">
+                <ShieldCheck size={14} /> Bánh nướng theo đơn
+              </span>
+              <span className="ck__trust-item">
+                <Timer size={14} /> Giao trong 30 phút
+              </span>
+              <span className="ck__trust-item">
+                <Truck size={14} /> Miễn phí từ {formatCurrency(fee?.freeshipThreshold ?? 200000)}
+              </span>
+            </div>
+          </div>
+        </aside>
+      </form>
+    </>
   );
 };

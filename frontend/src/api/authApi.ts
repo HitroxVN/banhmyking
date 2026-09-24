@@ -27,6 +27,22 @@ export const authApi = {
   },
 
   /**
+   * Cập nhật hồ sơ cá nhân (email không đổi được ở backend)
+   */
+  async updateProfile(data: { fullName: string; phone?: string }): Promise<UserInfoResponse> {
+    const response = await axiosClient.patch<ApiResponse<UserInfoResponse>>('/users/me', data);
+    return response.data.data;
+  },
+
+  /**
+   * Đổi mật khẩu. Backend thu hồi toàn bộ refresh token sau khi đổi
+   * → phải đăng nhập lại để có phiên mới.
+   */
+  async changePassword(data: { oldPassword: string; newPassword: string }): Promise<void> {
+    await axiosClient.patch<ApiResponse<void>>('/auth/change-password', data);
+  },
+
+  /**
    * Đăng xuất hệ thống và thu hồi refresh token
    */
   async logout(refreshToken: string): Promise<void> {

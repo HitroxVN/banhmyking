@@ -1,812 +1,549 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { StaffLayout } from '../../components/staff/StaffLayout';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CupSoda, ImagePlus, Plus, Sandwich, Search, Star, Upload, XCircle } from 'lucide-react';
+import {
+  Button,
+  ChipGroup,
+  EmptyState,
+  Input,
+  Modal,
+  PageHeader,
+  Select,
+  Skeleton,
+  Spinner,
+  Textarea,
+  useConfirm,
+  useToast,
+} from '../../components/ui';
 import { staffCatalogApi } from '../../api/staffCatalogApi';
-import type { CategoryItem, ProductItem, ProductCreatePayload, ProductUpdatePayload } from '../../types/staff';
+import type { CategoryItem, ProductCreatePayload, ProductItem } from '../../types/staff';
 import { formatCurrency } from '../../utils/formatters';
+import '../../styles/components/staff-menu.css';
 
-export const StaffMenuPage: React.FC = () => {
+const MAX_IMAGE_MB = 5;
+const DEFAULT_PRICE = 35000;
+
+const emptyForm = (categoryId: number): ProductCreatePayload => ({
+  categoryId,
+  name: '',
+  description: '',
+  imageUrl: '',
+  price: DEFAULT_PRICE,
+  available: true,
+  featured: false,
+});
+
+export const StaffMenuPage = () => {
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Modal States
-  const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
-  const [showEditModal, setShowEditModal] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [busyProductId, setBusyProductId] = useState<number | null>(null);
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Form States
-  const [createForm, setCreateForm] = useState<ProductCreatePayload>({
-    categoryId: 1,
-    name: '',
-    description: '',
-    imageUrl: '',
-    price: 35000,
-    available: true,
-    featured: false,
-  });
+  const confirm = useConfirm();
+  const toast = useToast();
 
-  const [editForm, setEditForm] = useState<ProductUpdatePayload>({
-    categoryId: 1,
-    name: '',
-    description: '',
-    imageUrl: '',
-    price: 35000,
-    available: true,
-    featured: false,
-  });
-
-  // Image Upload States
-  const [isUploadingImage, setIsUploadingImage] = useState<boolean>(false);
-  const [showManualUrlCreate, setShowManualUrlCreate] = useState<boolean>(false);
-  const [showManualUrlEdit, setShowManualUrlEdit] = useState<boolean>(false);
-  const [isDragOverCreate, setIsDragOverCreate] = useState<boolean>(false);
-  const [isDragOverEdit, setIsDragOverEdit] = useState<boolean>(false);
-
-  // Xử lý tải ảnh lên máy chủ
-  const handleUploadFile = async (
-    file: File | undefined,
-    isEdit: boolean
-  ) => {
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      setAlert({
-        type: 'error',
-        message: 'Tệp tải lên phải là định dạng hình ảnh (PNG, JPG, WEBP, GIF).',
-      });
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setAlert({
-        type: 'error',
-        message: 'Dung lượng ảnh tải lên không được vượt quá 5MB.',
-      });
-      return;
-    }
-
-    setIsUploadingImage(true);
-    try {
-      const uploadedUrl = await staffCatalogApi.uploadImage(file);
-      if (isEdit) {
-        setEditForm((prev) => ({ ...prev, imageUrl: uploadedUrl }));
-      } else {
-        setCreateForm((prev) => ({ ...prev, imageUrl: uploadedUrl }));
-      }
-      setAlert({
-        type: 'success',
-        message: 'Tải ảnh món ăn lên máy chủ thành công!',
-      });
-    } catch (err: unknown) {
-      const error = err as Error;
-      setAlert({
-        type: 'error',
-        message: error.message || 'Tải ảnh lên máy chủ thất bại.',
-      });
-    } finally {
-      setIsUploadingImage(false);
-    }
-  };
-
-  const handleDropFile = (e: React.DragEvent, isEdit: boolean) => {
-    e.preventDefault();
-    if (isEdit) setIsDragOverEdit(false);
-    else setIsDragOverCreate(false);
-
-    const file = e.dataTransfer.files?.[0];
-    handleUploadFile(file, isEdit);
-  };
-
-
-  const loadData = useCallback(async (manual = false) => {
-    if (manual) {
-      setIsRefreshing(true);
-    }
+  const load = useCallback(async (manual = false) => {
+    if (manual) setIsRefreshing(true);
+    setErrorMsg(null);
     try {
       const [catList, prodList] = await Promise.all([
         staffCatalogApi.getCategories(),
-        staffCatalogApi.getProducts(undefined, false), // lấy cả món còn lẫn hết
+        // Lấy cả món đang hết hàng để bếp thấy và bật lại
+        staffCatalogApi.getProducts(undefined, false),
       ]);
       setCategories(catList);
       setProducts(prodList);
-      if (catList.length > 0 && !createForm.categoryId) {
-        setCreateForm((prev) => ({ ...prev, categoryId: catList[0].id }));
-      }
     } catch (err: unknown) {
-      const error = err as Error;
-      setAlert({ type: 'error', message: error.message || 'Không thể tải dữ liệu thực đơn.' });
+      setErrorMsg(err instanceof Error ? err.message : 'Không tải được dữ liệu thực đơn.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [createForm.categoryId]);
-
-  useEffect(() => {
-    let ignore = false;
-    staffCatalogApi
-      .getCategories()
-      .then((catList) => {
-        if (!ignore) {
-          setCategories(catList);
-          if (catList.length > 0) {
-            setCreateForm((prev) => ({ ...prev, categoryId: catList[0].id }));
-          }
-        }
-        return staffCatalogApi.getProducts(undefined, false);
-      })
-      .then((prodList) => {
-        if (!ignore) {
-          setProducts(prodList);
-          setIsLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!ignore) {
-          const error = err as Error;
-          setAlert({ type: 'error', message: error.message || 'Không thể tải dữ liệu thực đơn.' });
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      ignore = true;
-    };
   }, []);
 
-  // Lọc sản phẩm theo danh mục và từ khoá tìm kiếm
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const reload = () => {
+    setIsLoading(true);
+    void load(true);
+  };
+
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      const matchCategory = selectedCategoryId ? p.categoryId === selectedCategoryId : true;
-      const matchQuery = searchQuery.trim()
-        ? p.name.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
-          (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase().trim()))
-        : true;
-      return matchCategory && matchQuery;
+    const query = searchQuery.trim().toLowerCase();
+
+    return products.filter((product) => {
+      if (selectedCategoryId && product.categoryId !== selectedCategoryId) return false;
+      if (!query) return true;
+      return (
+        product.name.toLowerCase().includes(query) ||
+        (product.description?.toLowerCase().includes(query) ?? false)
+      );
     });
   }, [products, selectedCategoryId, searchQuery]);
 
-  // Thao tác bật/tắt nhanh tình trạng còn hàng / hết hàng (1 chạm)
-  const handleToggleAvailable = async (prod: ProductItem) => {
+  const countInCategory = (categoryId: number) =>
+    products.filter((product) => product.categoryId === categoryId).length;
+
+  const replaceProduct = (updated: ProductItem) => {
+    setProducts((prev) => prev.map((product) => (product.id === updated.id ? updated : product)));
+  };
+
+  const handleToggleAvailable = async (product: ProductItem) => {
+    setBusyProductId(product.id);
     try {
-      const updated = await staffCatalogApi.toggleProductAvailability(prod);
-      setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      setAlert({
-        type: 'success',
-        message: `Đã cập nhật tình trạng "${updated.name}" thành: ${
-          updated.available ? '🟢 CÒN HÀNG' : '🔴 HẾT HÀNG'
-        }`,
-      });
+      const updated = await staffCatalogApi.toggleProductAvailability(product);
+      replaceProduct(updated);
+      toast.success(`${updated.name}: ${updated.available ? 'còn hàng' : 'đã tạm hết hàng'}`);
     } catch (err: unknown) {
-      const error = err as Error;
-      setAlert({ type: 'error', message: error.message || 'Cập nhật trạng thái thất bại.' });
+      toast.error(err instanceof Error ? err.message : 'Cập nhật tình trạng món thất bại.');
+    } finally {
+      setBusyProductId(null);
     }
   };
 
-  // Mở modal chỉnh sửa
-  const handleOpenEdit = (prod: ProductItem) => {
-    setEditingProduct(prod);
-    setEditForm({
-      categoryId: prod.categoryId,
-      name: prod.name,
-      description: prod.description || '',
-      imageUrl: prod.imageUrl || '',
-      price: prod.price,
-      available: prod.available,
-      featured: prod.featured,
+  const handleDelete = async (product: ProductItem) => {
+    const ok = await confirm({
+      title: 'Xoá món khỏi thực đơn',
+      message: `Xoá món "${product.name}"? Món sẽ không còn hiển thị cho khách đặt hàng.`,
+      confirmText: 'Xoá món',
+      danger: true,
     });
-    setShowEditModal(true);
-  };
+    if (!ok) return;
 
-  // Submit tạo món mới
-  const handleCreateSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setAlert(null);
     try {
-      const created = await staffCatalogApi.createProduct(createForm);
-      setProducts((prev) => [created, ...prev]);
-      setAlert({ type: 'success', message: `Đã thêm món "${created.name}" vào thực đơn thành công!` });
-      setShowCreateModal(false);
-      setCreateForm({
-        categoryId: categories.length > 0 ? categories[0].id : 1,
-        name: '',
-        description: '',
-        imageUrl: '',
-        price: 35000,
-        available: true,
-        featured: false,
-      });
+      await staffCatalogApi.deleteProduct(product.id);
+      setProducts((prev) => prev.filter((item) => item.id !== product.id));
+      toast.success(`Đã xoá món ${product.name}`);
     } catch (err: unknown) {
-      const error = err as Error;
-      setAlert({ type: 'error', message: error.message || 'Thêm món ăn thất bại.' });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Submit chỉnh sửa món
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingProduct) return;
-    setIsSubmitting(true);
-    setAlert(null);
-    try {
-      const updated = await staffCatalogApi.updateProduct(editingProduct.id, editForm);
-      setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      setAlert({ type: 'success', message: `Cập nhật thông tin món "${updated.name}" thành công!` });
-      setShowEditModal(false);
-    } catch (err: unknown) {
-      const error = err as Error;
-      setAlert({ type: 'error', message: error.message || 'Cập nhật món ăn thất bại.' });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Xoá món ăn
-  const handleDeleteProduct = async (prod: ProductItem) => {
-    if (
-      window.confirm(
-        `Bạn có chắc chắn muốn xoá món "${prod.name}" khỏi thực đơn?\nMón ăn sẽ không còn hiển thị cho khách đặt hàng.`
-      )
-    ) {
-      try {
-        await staffCatalogApi.deleteProduct(prod.id);
-        setProducts((prev) => prev.filter((p) => p.id !== prod.id));
-        setAlert({ type: 'success', message: `Đã xoá món "${prod.name}" khỏi thực đơn thành công!` });
-      } catch (err: unknown) {
-        const error = err as Error;
-        setAlert({ type: 'error', message: error.message || 'Xoá món ăn thất bại.' });
-      }
+      toast.error(err instanceof Error ? err.message : 'Xoá món ăn thất bại.');
     }
   };
 
   return (
-    <StaffLayout
-      title="Quản Lý Thực Đơn (Menu Bếp)"
-      subtitle="Thêm, sửa, xoá, cập nhật giá và bật/tắt tình trạng còn hàng / hết hàng của từng món"
-      onRefresh={() => loadData(true)}
-      isRefreshing={isRefreshing}
-    >
-      {/* Alert Banner */}
-      {alert && (
-        <div
-          className={`alert-banner ${alert.type === 'success' ? 'alert-success' : 'alert-error'}`}
-          style={{ marginBottom: '1.25rem' }}
-        >
-          <div>{alert.type === 'success' ? '✅' : '⚠️'} {alert.message}</div>
-          <button type="button" className="alert-close-btn" onClick={() => setAlert(null)}>
-            ✕
-          </button>
+    <>
+      <PageHeader
+        title="Thực đơn của quán"
+        subtitle={`${products.length} món · sửa giá, mô tả và tình trạng còn hàng`}
+        onRefresh={reload}
+        isRefreshing={isRefreshing}
+      />
+
+      {errorMsg && (
+        <div className="alert-banner alert-error page-alert" role="alert">
+          <XCircle size={18} />
+          <div>{errorMsg}</div>
         </div>
       )}
 
-      {/* Control Bar: Categories Filter, Search & Add Button */}
-      <div className="menu-control-bar">
-        {/* Category Tabs */}
-        <div className="category-tabs-row">
-          <button
-            type="button"
-            className={`cat-tab-btn ${selectedCategoryId === null ? 'active' : ''}`}
-            onClick={() => setSelectedCategoryId(null)}
-          >
-            Tất cả ({products.length})
-          </button>
-          {categories.map((c) => {
-            const count = products.filter((p) => p.categoryId === c.id).length;
+      <section className="card">
+        <div className="smenu__controls">
+          <ChipGroup
+            ariaLabel="Lọc theo danh mục"
+            value={selectedCategoryId}
+            onChange={setSelectedCategoryId}
+            options={[
+              { value: null, label: `Tất cả (${products.length})` },
+              ...categories.map((category) => ({
+                value: category.id as number | null,
+                label: `${category.name} (${countInCategory(category.id)})`,
+              })),
+            ]}
+          />
+
+          <div className="smenu__actions">
+            <Input
+              type="search"
+              icon={<Search size={16} />}
+              placeholder="Tìm món theo tên..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+            <Button variant="primary" icon={<Plus size={17} />} onClick={() => setShowCreateModal(true)}>
+              Thêm món mới
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {isLoading && products.length === 0 ? (
+        <section className="card">
+          <div className="card__body">
+            <Skeleton variant="card" count={3} />
+          </div>
+        </section>
+      ) : filteredProducts.length === 0 ? (
+        <section className="card">
+          <div className="card__body">
+            <EmptyState
+              icon={<Sandwich size={30} />}
+              title="Không tìm thấy món ăn nào"
+              description='Thử đổi điều kiện tìm kiếm hoặc bấm "Thêm món mới" để tạo món cho thực đơn.'
+            />
+          </div>
+        </section>
+      ) : (
+        <div className="smenu__grid">
+          {filteredProducts.map((product) => {
+            const isDrink = /nước|trà/.test(product.name.toLowerCase());
+            const busy = busyProductId === product.id;
+
             return (
-              <button
-                key={c.id}
-                type="button"
-                className={`cat-tab-btn ${selectedCategoryId === c.id ? 'active' : ''}`}
-                onClick={() => setSelectedCategoryId(c.id)}
+              <article
+                key={product.id}
+                className={`card smenu__card${product.available ? '' : ' smenu__card--out'}`}
               >
-                {c.name} ({count})
-              </button>
+                <div className="smenu__media">
+                  {product.imageUrl ? (
+                    <img src={product.imageUrl} alt={product.name} loading="lazy" />
+                  ) : (
+                    <span className="smenu__placeholder" aria-hidden="true">
+                      {isDrink ? <CupSoda size={40} /> : <Sandwich size={40} />}
+                    </span>
+                  )}
+                  <span className="smenu__cat">{product.categoryName || 'Món ăn'}</span>
+                  {product.featured && (
+                    <span className="smenu__featured">
+                      <Star size={13} /> Bán chạy
+                    </span>
+                  )}
+                </div>
+
+                <div className="smenu__body">
+                  <div className="smenu__head">
+                    <h3 className="smenu__name">{product.name}</h3>
+                    <span className="smenu__price">{formatCurrency(product.price)}</span>
+                  </div>
+                  <p className="smenu__desc">{product.description || 'Chưa có mô tả cho món này.'}</p>
+
+                  <Button
+                    size="sm"
+                    variant={product.available ? 'secondary' : 'danger'}
+                    loading={busy}
+                    onClick={() => void handleToggleAvailable(product)}
+                  >
+                    {product.available ? 'Đang bán — chuyển hết hàng' : 'Tạm hết hàng — mở bán lại'}
+                  </Button>
+                </div>
+
+                <footer className="smenu__foot">
+                  <Button size="sm" variant="secondary" onClick={() => setEditingProduct(product)}>
+                    Sửa món / giá
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => void handleDelete(product)}>
+                    Xoá
+                  </Button>
+                </footer>
+              </article>
             );
           })}
         </div>
+      )}
 
-        {/* Search & Actions */}
-        <div className="menu-actions-row">
-          <div className="search-input-wrapper" style={{ minWidth: '260px' }}>
-            <span className="search-icon">🔍</span>
-            <input
-              type="text"
-              placeholder="Tìm món theo tên..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="users-search-input"
-            />
-          </div>
+      {showCreateModal && (
+        <ProductFormModal
+          title="Thêm món ăn mới"
+          categories={categories}
+          initial={emptyForm(categories[0]?.id ?? 1)}
+          submitLabel="Thêm vào thực đơn"
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={async (payload) => {
+            const created = await staffCatalogApi.createProduct(payload);
+            setProducts((prev) => [created, ...prev]);
+            setShowCreateModal(false);
+            toast.success(`Đã thêm món ${created.name} vào thực đơn`);
+          }}
+        />
+      )}
 
-          <button
-            type="button"
-            className="btn-primary"
-            style={{ width: 'auto', padding: '0.65rem 1.25rem' }}
-            onClick={() => setShowCreateModal(true)}
+      {editingProduct && (
+        <ProductFormModal
+          title={`Sửa món — ${editingProduct.name}`}
+          categories={categories}
+          initial={{
+            categoryId: editingProduct.categoryId,
+            name: editingProduct.name,
+            description: editingProduct.description ?? '',
+            imageUrl: editingProduct.imageUrl ?? '',
+            price: editingProduct.price,
+            available: editingProduct.available,
+            featured: editingProduct.featured,
+          }}
+          submitLabel="Lưu thay đổi"
+          onClose={() => setEditingProduct(null)}
+          onSubmit={async (payload) => {
+            const updated = await staffCatalogApi.updateProduct(editingProduct.id, payload);
+            replaceProduct(updated);
+            setEditingProduct(null);
+            toast.success(`Đã cập nhật món ${updated.name}`);
+          }}
+        />
+      )}
+    </>
+  );
+};
+
+interface ProductFormModalProps {
+  title: string;
+  categories: CategoryItem[];
+  initial: ProductCreatePayload;
+  submitLabel: string;
+  onClose: () => void;
+  onSubmit: (payload: ProductCreatePayload) => Promise<void>;
+}
+
+/** Form thêm/sửa món — dùng chung cho cả hai modal để đổi ảnh & validate một chỗ. */
+const ProductFormModal = ({
+  title,
+  categories,
+  initial,
+  submitLabel,
+  onClose,
+  onSubmit,
+}: ProductFormModalProps) => {
+  const [form, setForm] = useState(initial);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const toast = useToast();
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    setErrorMsg(null);
+    try {
+      await onSubmit(form);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Lưu món ăn thất bại.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="sm"
+      title={title}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
+            Đóng
+          </Button>
+          <Button
+            variant="primary"
+            loading={isSubmitting}
+            disabled={!form.name.trim() || form.price < 0}
+            onClick={() => void handleSubmit()}
           >
-            ➕ Thêm món mới
-          </button>
+            {submitLabel}
+          </Button>
+        </>
+      }
+    >
+      {errorMsg && (
+        <div className="alert-banner alert-error" role="alert">
+          <XCircle size={17} />
+          <div>{errorMsg}</div>
         </div>
-      </div>
+      )}
 
-      {/* Product Grid */}
-      {isLoading && products.length === 0 ? (
-        <div className="dashboard-loading-skeleton">
-          <div className="spinner-royal"></div>
-          <p>Đang tải danh sách thực đơn...</p>
+      <div className="smenu__form">
+        <Select
+          label="Danh mục"
+          required
+          value={form.categoryId}
+          onChange={(event) => setForm({ ...form, categoryId: Number(event.target.value) })}
+        >
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </Select>
+
+        <Input
+          label="Tên món"
+          required
+          placeholder="Ví dụ: Bánh mì thập cẩm đặc biệt"
+          value={form.name}
+          onChange={(event) => setForm({ ...form, name: event.target.value })}
+        />
+
+        <Input
+          label="Giá bán (VNĐ)"
+          type="number"
+          required
+          min={0}
+          step={1000}
+          value={form.price}
+          onChange={(event) => setForm({ ...form, price: Number(event.target.value) })}
+        />
+
+        <Textarea
+          label="Mô tả"
+          rows={3}
+          placeholder="Thịt xá xíu, pate gan, dưa góp, rau thơm, sốt bơ trứng..."
+          value={form.description}
+          onChange={(event) => setForm({ ...form, description: event.target.value })}
+        />
+
+        <ImageField
+          imageUrl={form.imageUrl ?? ''}
+          onChange={(imageUrl) => setForm({ ...form, imageUrl })}
+          onError={(message) => toast.error(message)}
+        />
+
+        <label className="smenu__check">
+          <input
+            type="checkbox"
+            checked={form.available}
+            onChange={(event) => setForm({ ...form, available: event.target.checked })}
+          />
+          <span>Còn hàng (có thể phục vụ ngay)</span>
+        </label>
+      </div>
+    </Modal>
+  );
+};
+
+interface ImageFieldProps {
+  imageUrl: string;
+  onChange: (imageUrl: string) => void;
+  onError: (message: string) => void;
+}
+
+/** Chọn ảnh món: kéo thả / chọn tệp / dán URL thủ công. */
+const ImageField = ({ imageUrl, onChange, onError }: ImageFieldProps) => {
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [showManualUrl, setShowManualUrl] = useState(false);
+  const [imgFailed, setImgFailed] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const upload = async (file?: File) => {
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      onError('Tệp tải lên phải là ảnh (PNG, JPG, WEBP, GIF).');
+      return;
+    }
+    if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+      onError(`Dung lượng ảnh không được vượt quá ${MAX_IMAGE_MB}MB.`);
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      onChange(await staffCatalogApi.uploadImage(file));
+    } catch (err: unknown) {
+      onError(err instanceof Error ? err.message : 'Tải ảnh lên thất bại.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  return (
+    <div className="ui-field">
+      <span className="ui-field__label">Hình ảnh món ăn</span>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        disabled={isUploading}
+        onChange={(event) => {
+          void upload(event.target.files?.[0]);
+          event.target.value = '';
+        }}
+      />
+
+      {isUploading ? (
+        <div className="smenu__uploading">
+          <Spinner size={20} />
+          <span>Đang tải ảnh lên máy chủ...</span>
         </div>
-      ) : filteredProducts.length === 0 ? (
-        <div className="menu-empty-card">
-          <span style={{ fontSize: '3rem' }}>🥖</span>
-          <h3>Không tìm thấy món ăn nào</h3>
-          <p>Thử đổi điều kiện tìm kiếm hoặc bấm "Thêm món mới" để tạo món cho thực đơn.</p>
+      ) : imageUrl ? (
+        <div className="smenu__preview">
+          {imgFailed ? (
+            <span className="smenu__placeholder" aria-hidden="true">
+              <Sandwich size={28} />
+            </span>
+          ) : (
+            <img
+              src={imageUrl}
+              alt="Ảnh món ăn"
+              className="smenu__preview-img"
+              onError={() => setImgFailed(true)}
+            />
+          )}
+          <div className="smenu__preview-actions">
+            <Button size="sm" variant="secondary" onClick={() => inputRef.current?.click()}>
+              Đổi ảnh khác
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setImgFailed(false);
+                onChange('');
+              }}
+            >
+              Xoá ảnh
+            </Button>
+          </div>
         </div>
       ) : (
-        <div className="menu-product-grid">
-          {filteredProducts.map((prod) => (
-            <div key={prod.id} className={`menu-product-card ${!prod.available ? 'is-sold-out' : ''}`}>
-              {/* Product Card Image */}
-              <div className="menu-card-image-wrap">
-                {prod.imageUrl ? (
-                  <img src={prod.imageUrl} alt={prod.name} className="menu-card-img" />
-                ) : (
-                  <div className="menu-card-placeholder">
-                    {prod.name.toLowerCase().includes('nước') || prod.name.toLowerCase().includes('trà')
-                      ? '🥤'
-                      : '🥖'}
-                  </div>
-                )}
-                <span className="menu-card-cat-badge">{prod.categoryName || 'Món ăn'}</span>
-                {prod.featured && <span className="menu-card-featured-badge">⭐ Bán chạy</span>}
-              </div>
-
-              {/* Product Info */}
-              <div className="menu-card-body">
-                <div className="menu-card-header">
-                  <h4 className="menu-card-title">{prod.name}</h4>
-                  <span className="menu-card-price">{formatCurrency(prod.price)}</span>
-                </div>
-
-                <p className="menu-card-desc" title={prod.description}>
-                  {prod.description || 'Chưa có mô tả chi tiết món ăn.'}
-                </p>
-
-                {/* Instant Availability Toggle Button (1-touch) */}
-                <div className="menu-availability-section">
-                  <button
-                    type="button"
-                    className={`btn-stock-toggle ${prod.available ? 'in-stock' : 'out-of-stock'}`}
-                    onClick={() => handleToggleAvailable(prod)}
-                    title="Bấm để chuyển đổi nhanh tình trạng Còn hàng / Hết hàng"
-                  >
-                    <span className="stock-dot"></span>
-                    <span>{prod.available ? '🟢 Còn hàng (Đang phục vụ)' : '🔴 TẠM HẾT HÀNG'}</span>
-                  </button>
-                </div>
-
-                {/* Card Bottom Actions */}
-                <div className="menu-card-footer">
-                  <button
-                    type="button"
-                    className="btn-menu-action edit"
-                    onClick={() => handleOpenEdit(prod)}
-                  >
-                    ✏️ Sửa món / Giá
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-menu-action delete"
-                    onClick={() => handleDeleteProduct(prod)}
-                    title="Xóa món"
-                  >
-                    🗑️ Xóa
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div
+          className={`smenu__dropzone${isDragOver ? ' smenu__dropzone--over' : ''}`}
+          role="button"
+          tabIndex={0}
+          onClick={() => inputRef.current?.click()}
+          onKeyDown={(event) => event.key === 'Enter' && inputRef.current?.click()}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setIsDragOver(true);
+          }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setIsDragOver(false);
+            void upload(event.dataTransfer.files?.[0]);
+          }}
+        >
+          <ImagePlus size={22} />
+          <span>Bấm hoặc kéo thả ảnh vào đây</span>
+          <em>Hỗ trợ JPG, PNG, WEBP (tối đa {MAX_IMAGE_MB}MB)</em>
+          <Button size="sm" variant="secondary" icon={<Upload size={15} />}>
+            Chọn tệp từ máy
+          </Button>
         </div>
       )}
 
-      {/* ─── MODAL: THÊM MÓN MỚI ─── */}
-      {showCreateModal && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <div className="modal-header">
-              <h3 className="modal-title">➕ Thêm Món Ăn Mới</h3>
-              <button type="button" className="modal-close-btn" onClick={() => setShowCreateModal(false)}>
-                ✕
-              </button>
-            </div>
+      <button
+        type="button"
+        className="smenu__url-toggle"
+        onClick={() => setShowManualUrl((prev) => !prev)}
+      >
+        {showManualUrl ? 'Ẩn nhập URL thủ công' : 'Hoặc dán URL ảnh trực tiếp'}
+      </button>
 
-            <form onSubmit={handleCreateSubmit}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label className="form-label">
-                    Danh mục món ăn <span className="req">*</span>
-                  </label>
-                  <select
-                    value={createForm.categoryId}
-                    onChange={(e) => setCreateForm({ ...createForm, categoryId: Number(e.target.value) })}
-                    className="form-select"
-                  >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">
-                    Tên món ăn <span className="req">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ví dụ: Bánh Mì Thập Cẩm Đặc Biệt"
-                    value={createForm.name}
-                    onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">
-                    Giá bán (VNĐ) <span className="req">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    step={1000}
-                    placeholder="Ví dụ: 35000"
-                    value={createForm.price}
-                    onChange={(e) => setCreateForm({ ...createForm, price: Number(e.target.value) })}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Mô tả món ăn</label>
-                  <textarea
-                    rows={3}
-                    placeholder="Thịt xá xíu, pate gan, dưa góp, rau thơm, sốt bơ trứng đặc trưng..."
-                    value={createForm.description}
-                    onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-                    className="form-input"
-                  />
-                </div>
-
-                {/* Image Upload Control */}
-                <div className="form-group">
-                  <label className="form-label">Hình ảnh món ăn</label>
-                  <div className="image-uploader-wrapper">
-                    <input
-                      id="create-image-file-input"
-                      type="file"
-                      accept="image/*"
-                      style={{ display: 'none' }}
-                      onChange={(e) => {
-                        handleUploadFile(e.target.files?.[0], false);
-                        e.target.value = '';
-                      }}
-                      disabled={isUploadingImage}
-                    />
-
-                    {isUploadingImage ? (
-                      <div className="image-uploading-indicator">
-                        <span className="spinner-mini"></span>
-                        <span>Đang tải tệp ảnh lên máy chủ...</span>
-                      </div>
-                    ) : createForm.imageUrl ? (
-                      <div className="image-preview-card">
-                        <img
-                          src={createForm.imageUrl}
-                          alt="Ảnh món ăn"
-                          className="image-preview-thumb"
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).src =
-                              'https://images.unsplash.com/photo-1626804475297-41608ea09aeb?auto=format&fit=crop&w=200&q=80';
-                          }}
-                        />
-                        <div className="image-preview-info">
-                          <span className="image-preview-status">✅ Đã có ảnh món ăn</span>
-                          <span className="image-preview-url" title={createForm.imageUrl}>
-                            {createForm.imageUrl}
-                          </span>
-                          <div className="image-preview-actions">
-                            <button
-                              type="button"
-                              className="btn-preview-action change"
-                              onClick={() => document.getElementById('create-image-file-input')?.click()}
-                            >
-                              🔄 Đổi ảnh khác
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-preview-action remove"
-                              onClick={() => setCreateForm((prev) => ({ ...prev, imageUrl: '' }))}
-                            >
-                              🗑️ Xóa ảnh
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        className={`image-dropzone ${isDragOverCreate ? 'drag-active' : ''}`}
-                        onClick={() => document.getElementById('create-image-file-input')?.click()}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          setIsDragOverCreate(true);
-                        }}
-                        onDragLeave={() => setIsDragOverCreate(false)}
-                        onDrop={(e) => handleDropFile(e, false)}
-                      >
-                        <span className="dropzone-icon">📸</span>
-                        <span className="dropzone-prompt">Bấm hoặc kéo thả ảnh vào đây để tải lên</span>
-                        <span className="dropzone-hint">Hỗ trợ JPG, PNG, WEBP (Tối đa 5MB)</span>
-                        <button type="button" className="btn-choose-file">
-                          📁 Chọn tệp từ máy tính
-                        </button>
-                      </div>
-                    )}
-
-                    <div style={{ marginTop: '0.4rem' }}>
-                      <button
-                        type="button"
-                        className="image-url-toggle-btn"
-                        onClick={() => setShowManualUrlCreate(!showManualUrlCreate)}
-                      >
-                        {showManualUrlCreate ? 'Ẩn nhập URL thủ công' : '🔗 Hoặc nhập URL ảnh trực tiếp'}
-                      </button>
-                      {showManualUrlCreate && (
-                        <input
-                          type="url"
-                          placeholder="https://images.unsplash.com/..."
-                          value={createForm.imageUrl}
-                          onChange={(e) => setCreateForm({ ...createForm, imageUrl: e.target.value })}
-                          className="form-input"
-                          style={{ marginTop: '0.4rem' }}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={createForm.available}
-                      onChange={(e) => setCreateForm({ ...createForm, available: e.target.checked })}
-                    />
-                    <span>Còn hàng (Có thể phục vụ ngay)</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn-outline"
-                  onClick={() => setShowCreateModal(false)}
-                  disabled={isSubmitting}
-                >
-                  Huỷ bỏ
-                </button>
-                <button type="submit" className="btn-primary" disabled={isSubmitting}>
-                  {isSubmitting ? 'Đang thêm...' : '➕ Thêm vào thực đơn'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {showManualUrl && (
+        <Input
+          type="url"
+          placeholder="https://images.unsplash.com/..."
+          value={imageUrl}
+          onChange={(event) => onChange(event.target.value)}
+        />
       )}
-
-      {/* ─── MODAL: CHỈNH SỬA MÓN ĂN & GIÁ ─── */}
-      {showEditModal && editingProduct && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <div className="modal-header">
-              <h3 className="modal-title">✏️ Chỉnh Sửa Món #{editingProduct.id}</h3>
-              <button type="button" className="modal-close-btn" onClick={() => setShowEditModal(false)}>
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleEditSubmit}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label className="form-label">
-                    Danh mục <span className="req">*</span>
-                  </label>
-                  <select
-                    value={editForm.categoryId}
-                    onChange={(e) => setEditForm({ ...editForm, categoryId: Number(e.target.value) })}
-                    className="form-select"
-                  >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">
-                    Tên món ăn <span className="req">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editForm.name}
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">
-                    Giá bán (VNĐ) <span className="req">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    step={1000}
-                    value={editForm.price}
-                    onChange={(e) => setEditForm({ ...editForm, price: Number(e.target.value) })}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Mô tả món ăn</label>
-                  <textarea
-                    rows={3}
-                    value={editForm.description || ''}
-                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                    className="form-input"
-                  />
-                </div>
-
-                {/* Image Upload Control */}
-                <div className="form-group">
-                  <label className="form-label">Hình ảnh món ăn</label>
-                  <div className="image-uploader-wrapper">
-                    <input
-                      id="edit-image-file-input"
-                      type="file"
-                      accept="image/*"
-                      style={{ display: 'none' }}
-                      onChange={(e) => {
-                        handleUploadFile(e.target.files?.[0], true);
-                        e.target.value = '';
-                      }}
-                      disabled={isUploadingImage}
-                    />
-
-                    {isUploadingImage ? (
-                      <div className="image-uploading-indicator">
-                        <span className="spinner-mini"></span>
-                        <span>Đang tải tệp ảnh lên máy chủ...</span>
-                      </div>
-                    ) : editForm.imageUrl ? (
-                      <div className="image-preview-card">
-                        <img
-                          src={editForm.imageUrl}
-                          alt="Ảnh món ăn"
-                          className="image-preview-thumb"
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).src =
-                              'https://images.unsplash.com/photo-1626804475297-41608ea09aeb?auto=format&fit=crop&w=200&q=80';
-                          }}
-                        />
-                        <div className="image-preview-info">
-                          <span className="image-preview-status">✅ Đã có ảnh món ăn</span>
-                          <span className="image-preview-url" title={editForm.imageUrl}>
-                            {editForm.imageUrl}
-                          </span>
-                          <div className="image-preview-actions">
-                            <button
-                              type="button"
-                              className="btn-preview-action change"
-                              onClick={() => document.getElementById('edit-image-file-input')?.click()}
-                            >
-                              🔄 Đổi ảnh khác
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-preview-action remove"
-                              onClick={() => setEditForm((prev) => ({ ...prev, imageUrl: '' }))}
-                            >
-                              🗑️ Xóa ảnh
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        className={`image-dropzone ${isDragOverEdit ? 'drag-active' : ''}`}
-                        onClick={() => document.getElementById('edit-image-file-input')?.click()}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          setIsDragOverEdit(true);
-                        }}
-                        onDragLeave={() => setIsDragOverEdit(false)}
-                        onDrop={(e) => handleDropFile(e, true)}
-                      >
-                        <span className="dropzone-icon">📸</span>
-                        <span className="dropzone-prompt">Bấm hoặc kéo thả ảnh vào đây để tải lên</span>
-                        <span className="dropzone-hint">Hỗ trợ JPG, PNG, WEBP (Tối đa 5MB)</span>
-                        <button type="button" className="btn-choose-file">
-                          📁 Chọn tệp từ máy tính
-                        </button>
-                      </div>
-                    )}
-
-                    <div style={{ marginTop: '0.4rem' }}>
-                      <button
-                        type="button"
-                        className="image-url-toggle-btn"
-                        onClick={() => setShowManualUrlEdit(!showManualUrlEdit)}
-                      >
-                        {showManualUrlEdit ? 'Ẩn nhập URL thủ công' : '🔗 Hoặc nhập URL ảnh trực tiếp'}
-                      </button>
-                      {showManualUrlEdit && (
-                        <input
-                          type="url"
-                          placeholder="https://images.unsplash.com/..."
-                          value={editForm.imageUrl || ''}
-                          onChange={(e) => setEditForm({ ...editForm, imageUrl: e.target.value })}
-                          className="form-input"
-                          style={{ marginTop: '0.4rem' }}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={editForm.available}
-                      onChange={(e) => setEditForm({ ...editForm, available: e.target.checked })}
-                    />
-                    <span>Còn hàng (Có thể phục vụ ngay)</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn-outline"
-                  onClick={() => setShowEditModal(false)}
-                  disabled={isSubmitting}
-                >
-                  Huỷ bỏ
-                </button>
-                <button type="submit" className="btn-primary" disabled={isSubmitting}>
-                  {isSubmitting ? 'Đang lưu...' : '💾 Lưu thay đổi'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </StaffLayout>
+    </div>
   );
 };

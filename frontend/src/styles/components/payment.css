@@ -1,0 +1,194 @@
+/* PaymentPage — quét VietQR, xác nhận COD, hoá đơn điện tử */
+.pay__grid {
+  display: grid;
+  grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.pay__qr-card {
+  display: grid;
+  place-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  text-align: center;
+}
+
+.pay__qr {
+  width: 248px;
+  max-width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.pay__qr img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pay__amount {
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  color: var(--primary-700);
+  font-variant-numeric: tabular-nums;
+}
+
+.pay__waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--stone-600);
+}
+
+.pay__copy-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pay__copy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 10px var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.pay__copy-text {
+  min-width: 0;
+}
+
+.pay__copy-label {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--stone-500);
+}
+
+.pay__copy-value {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--stone-900);
+  word-break: break-all;
+}
+
+.pay__copy-list + .pay__steps {
+  margin-top: var(--space-4);
+}
+
+.pay__steps {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: var(--text-sm);
+  color: var(--stone-600);
+  line-height: 1.8;
+}
+
+/* Hoá đơn */
+.pay__receipt-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pay__receipt-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.pay__receipt-title {
+  margin: 0;
+  font-size: var(--text-xl);
+  color: var(--stone-900);
+}
+
+.pay__receipt-sub {
+  margin: 2px 0 0;
+  font-size: var(--text-sm);
+  color: var(--stone-500);
+}
+
+.pay__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.pay__meta-label {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--stone-500);
+}
+
+.pay__meta-value {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--stone-900);
+}
+
+.pay__items {
+  margin-top: var(--space-5);
+  border-top: 1px dashed var(--border);
+}
+
+.pay__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--space-4);
+  align-items: baseline;
+  padding: var(--space-3) 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.pay__item-name {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--stone-800);
+}
+
+.pay__item-opts {
+  margin: 2px 0 0;
+  font-size: var(--text-xs);
+  color: var(--primary-700);
+}
+
+.pay__item-qty {
+  font-size: var(--text-sm);
+  color: var(--stone-500);
+  white-space: nowrap;
+}
+
+.pay__item-total {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--stone-900);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pay__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+@media (max-width: 900px) {
+  .pay__grid { grid-template-columns: 1fr; }
+  .pay__meta { grid-template-columns: 1fr; }
+}

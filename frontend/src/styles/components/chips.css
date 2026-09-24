@@ -1,0 +1,33 @@
+/* Dãy chip lọc ngang — dùng chung MenuPage & OrdersPage */
+.ui-chips {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+}
+
+.ui-chip {
+  flex-shrink: 0;
+  height: 38px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--stone-600);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s;
+}
+
+.ui-chip:hover {
+  border-color: var(--primary-400);
+  color: var(--primary-700);
+}
+
+.ui-chip--active {
+  background: var(--primary-600);
+  border-color: var(--primary-600);
+  color: #fff;
+}

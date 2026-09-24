@@ -1,0 +1,125 @@
+/* ==========================================================================
+   Design tokens — Bánh Mỳ King
+   Nguồn duy nhất cho màu / chữ / bo góc / đổ bóng.
+   Tên biến --primary-*, --stone-*, --error-*, --glass-* là chuẩn của dự án.
+   ========================================================================== */
+:root {
+  /* Brand — vàng bánh mì nướng / cam mật ong */
+  --primary-50: #FFFBEB;
+  --primary-100: #FEF3C7;
+  --primary-200: #FDE68A;
+  --primary-300: #FCD34D;
+  --primary-400: #FBBF24;
+  --primary-500: #F59E0B;
+  --primary-600: #D97706;
+  --primary-700: #B45309;
+  --primary-800: #92400E;
+  --primary-900: #78350F;
+  --primary-950: #451A03;
+
+  /* Neutral — stone ấm */
+  --stone-50: #FAFAF9;
+  --stone-100: #F5F5F4;
+  --stone-200: #E7E5E4;
+  --stone-300: #D6D3D1;
+  --stone-400: #A8A29E;
+  --stone-500: #78716C;
+  --stone-600: #57534E;
+  --stone-700: #44403C;
+  --stone-800: #292524;
+  --stone-900: #1C1917;
+
+  /* Ngữ nghĩa */
+  --success: #059669;
+  --success-bg: #ECFDF5;
+  --danger: #DC2626;
+  --danger-bg: #FEF2F2;
+  --warning: #D97706;
+  --warning-bg: #FFFBEB;
+  --info: #2563EB;
+  --info-bg: #EFF6FF;
+
+  /* Ngữ nghĩa */
+  --error-bg: #FEF2F2;
+  --error-border: #FCA5A5;
+  --error-text: #DC2626;
+  --success-border: #86EFAC;
+  --success-text: #16A34A;
+
+  /* Nền */
+  --bg-page: #FAF8F5;
+  --surface: #FFFFFF;
+  --border: #E7E5E4;
+  --bg-subtle: #F8FAFC;
+
+  /* Trạng thái đơn hàng */
+  --status-pending: #D97706;
+  --status-confirmed: #2563EB;
+  --status-preparing: #7C3AED;
+  --status-ready: #059669;
+  --status-delivering: #0891B2;
+  --status-delivered: #15803D;
+  --status-cancelled: #DC2626;
+  --status-failed: #B91C1C;
+
+  /* Chữ */
+  --font-body: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Baloo 2', 'Be Vietnam Pro', system-ui, cursive;
+
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 32px;
+
+  /* Bo góc & đổ bóng */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
+  --card-radius: 24px; /* tên cũ */
+
+  --shadow-sm: 0 1px 2px rgba(28, 25, 23, .06), 0 1px 3px rgba(28, 25, 23, .08);
+  --shadow-md: 0 4px 12px -2px rgba(28, 25, 23, .12), 0 2px 6px -2px rgba(28, 25, 23, .08);
+  --shadow-lg: 0 12px 32px -8px rgba(120, 53, 15, .24);
+
+  /* Glassmorphism — tên cũ */
+  --glass-bg: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(217, 119, 6, 0.22);
+  --glass-shadow: 0 20px 45px -15px rgba(120, 53, 15, 0.15), 0 0 0 1px rgba(217, 119, 6, 0.08);
+
+  /* Khoảng cách (bội số 4) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  --transition-smooth: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Keyframe dùng chung cho mọi component (spinner, toast, modal) */
+@keyframes ui-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes ui-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ui-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes ui-slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes ui-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}

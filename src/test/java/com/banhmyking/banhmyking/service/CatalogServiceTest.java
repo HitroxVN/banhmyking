@@ -218,6 +218,9 @@ class CatalogServiceTest {
         assertThat(result).isNotNull();
         assertThat(result).startsWith("/uploads/products/");
         assertThat(result).endsWith(".png");
+    }
+
+    @Test
     @DisplayName("request không gửi options (null) → không NPE, đồng bộ xóa hết option không tham chiếu")
     void updateProductWithNullOptionsDoesNotThrow() {
         Product product = new Product();

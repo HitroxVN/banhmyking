@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Sandwich } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 
 import { tokenStorage } from '../utils/tokenStorage';
+import '../styles/components/auth.css';
 
 export const LoginPage: React.FC = () => {
   const { login, isAuthenticated, user } = useAuth();
@@ -105,7 +107,7 @@ export const LoginPage: React.FC = () => {
         {/* Brand Header */}
         <div className="brand-header">
           <div className="brand-logo-badge" title="Bánh Mỳ King">
-            🥖
+            <Sandwich size={26} />
           </div>
           <h1 className="brand-title">BÁNH MỲ KING</h1>
           <p className="brand-tagline">Hương vị đỉnh cao - Đẳng cấp hoàng gia</p>
@@ -202,22 +204,19 @@ export const LoginPage: React.FC = () => {
 
             {/* Helper Row: Remember me */}
             <div className="form-helper-row">
-              <label className="checkbox-label">
+              <label className="ui-check">
                 <input
                   type="checkbox"
-                  className="checkbox-input"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
                 />
                 Ghi nhớ đăng nhập
               </label>
-              <span className="link-text" style={{ cursor: 'pointer' }} onClick={() => alert('Vui lòng liên hệ quản trị viên để khôi phục mật khẩu')}>
-                Quên mật khẩu?
-              </span>
+              <span className="helper-note">Quên mật khẩu? Liên hệ quản trị viên để được cấp lại.</span>
             </div>
 
             {/* Submit Button */}
-            <button id="btn-login-submit" type="submit" className="btn-primary" disabled={isSubmitting}>
+            <button id="btn-login-submit" type="submit" className="auth-submit" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <span className="spinner-mini"></span>
@@ -237,52 +236,6 @@ export const LoginPage: React.FC = () => {
             </Link>
           </div>
 
-          {/* Quick Demo Logins */}
-          <div className="quick-demo-container">
-            <div className="quick-demo-title">Tài khoản trải nghiệm nhanh:</div>
-            <div className="quick-demo-buttons">
-              <button
-                type="button"
-                className="btn-demo-chip"
-                onClick={() => {
-                  setEmail('shipper@banhmyking.vn');
-                  setPassword('123456');
-                }}
-              >
-                🛵 Tài Xế (Shipper)
-              </button>
-              <button
-                type="button"
-                className="btn-demo-chip"
-                onClick={() => {
-                  setEmail('staff@banhmyking.vn');
-                  setPassword('123456');
-                }}
-              >
-                👨‍🍳 Bếp / Nhân Viên
-              </button>
-              <button
-                type="button"
-                className="btn-demo-chip"
-                onClick={() => {
-                  setEmail('admin@banhmyking.vn');
-                  setPassword('123456');
-                }}
-              >
-                👑 Quản Trị Viên
-              </button>
-              <button
-                type="button"
-                className="btn-demo-chip"
-                onClick={() => {
-                  setEmail('test@banhmyking.vn');
-                  setPassword('123456');
-                }}
-              >
-                🥖 Khách Hàng
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>

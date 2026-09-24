@@ -1,15 +1,7 @@
 import type { ApiResponse } from '../types/auth';
-import type { CreateOrderRequest, OrderResponse } from '../types/order';
+import type { PageResponse } from '../types/admin';
+import type { CreateOrderRequest, OrderResponse, OrderStatusHistoryItem } from '../types/order';
 import { axiosClient } from './axiosClient';
-
-export interface PageResponse<T> {
-  content: T[];
-  pageNumber: number;
-  pageSize: number;
-  totalElements: number;
-  totalPages: number;
-  last: boolean;
-}
 
 export const orderApi = {
   /**
@@ -34,6 +26,26 @@ export const orderApi = {
   async getUserOrders(page = 0, size = 10): Promise<PageResponse<OrderResponse>> {
     const response = await axiosClient.get<ApiResponse<PageResponse<OrderResponse>>>('/orders', {
       params: { page, size },
+    });
+    return response.data.data;
+  },
+
+  /**
+   * Lịch sử chuyển trạng thái của một đơn (ai đổi, từ gì sang gì, lúc nào)
+   */
+  async getOrderHistory(orderCode: string): Promise<OrderStatusHistoryItem[]> {
+    const response = await axiosClient.get<ApiResponse<OrderStatusHistoryItem[]>>(
+      `/orders/${orderCode}/history`
+    );
+    return response.data.data ?? [];
+  },
+
+  /**
+   * Khách tự huỷ đơn — backend chỉ cho phép khi đơn đang PENDING/CONFIRMED
+   */
+  async cancelOrder(orderCode: string, cancelReason?: string): Promise<OrderResponse> {
+    const response = await axiosClient.put<ApiResponse<OrderResponse>>(`/orders/${orderCode}/cancel`, {
+      cancelReason,
     });
     return response.data.data;
   },

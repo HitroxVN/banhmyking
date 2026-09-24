@@ -1,25 +1,51 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ShipperLayout } from '../../components/shipper/ShipperLayout';
-import { shipperOrderApi, type OrderStatusHistoryItem } from '../../api/shipperOrderApi';
-import type { OrderResponse } from '../../types/order';
-import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  orderSyncChannel,
-  broadcastOrderChange,
-  playNotificationSound,
-} from '../../utils/orderSyncChannel';
+  Bike,
+  CheckCircle2,
+  History,
+  MapPin,
+  Package,
+  PackageCheck,
+  Phone,
+  Search,
+  StickyNote,
+  TriangleAlert,
+  Wallet,
+  XCircle,
+} from 'lucide-react';
+import {
+  Badge,
+  Button,
+  EmptyState,
+  Input,
+  Modal,
+  PageHeader,
+  Skeleton,
+  StatusBadge,
+  Tabs,
+  Textarea,
+  useToast,
+} from '../../components/ui';
+import { shipperOrderApi, type OrderStatusHistoryItem } from '../../api/shipperOrderApi';
+import { isFinalStatus, type OrderResponse } from '../../types/order';
+import { PAYMENT_METHOD_LABEL } from '../../utils/payment';
+import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { broadcastOrderChange, orderSyncChannel, playNotificationSound } from '../../utils/orderSyncChannel';
+import '../../styles/components/shipper-orders.css';
 
-type TabType = 'ALL' | 'DELIVERING' | 'READY_FOR_PICKUP' | 'DELIVERED' | 'FAILED';
+type TabType = 'DELIVERING' | 'READY_FOR_PICKUP' | 'ALL' | 'DELIVERED' | 'FAILED';
 
-const PRESET_FAILURE_REASONS = [
+const POLL_MS = 3000;
+
+const FAILURE_REASONS = [
   'Khách không nhấc máy sau 3 lần gọi',
-  'Sai địa chỉ / Không tìm thấy nhà khách',
+  'Sai địa chỉ / không tìm thấy nhà khách',
   'Khách từ chối nhận hàng',
   'Khách hẹn giao lại vào thời gian khác',
   'Không thể liên lạc được với khách hàng',
 ];
 
-const PRESET_REJECT_REASONS = [
+const REJECT_REASONS = [
   'Xe gặp sự cố hỏng hóc giữa đường',
   'Khoảng cách giao hàng quá xa khu vực',
   'Đang chở nhiều đơn cồng kềnh, quá tải',
@@ -27,1267 +53,762 @@ const PRESET_REJECT_REASONS = [
   'Thời tiết xấu / mưa ngập không thể di chuyển',
 ];
 
-export const ShipperOrdersPage: React.FC = () => {
+interface NewOrderNotice {
+  orderCode: string;
+  receiverName: string;
+  shippingAddress: string;
+}
+
+export const ShipperOrdersPage = () => {
   const [orders, setOrders] = useState<OrderResponse[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('DELIVERING');
+  const [searchQuery, setSearchQuery] = useState('');
+
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-
-  // Expanded items in cards
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
-  const [startingOrderCode, setStartingOrderCode] = useState<string | null>(null);
+  const [busyOrderCode, setBusyOrderCode] = useState<string | null>(null);
+  const [newNotice, setNewNotice] = useState<NewOrderNotice | null>(null);
 
-  // Modal states
   const [deliveringOrder, setDeliveringOrder] = useState<OrderResponse | null>(null);
-  const [deliveryNote, setDeliveryNote] = useState('');
-  const [isSubmittingDelivery, setIsSubmittingDelivery] = useState(false);
-
   const [failingOrder, setFailingOrder] = useState<OrderResponse | null>(null);
-  const [failureReason, setFailureReason] = useState('');
-  const [isSubmittingFailure, setIsSubmittingFailure] = useState(false);
-
-  // Modal từ chối nhận đơn
   const [rejectingOrder, setRejectingOrder] = useState<OrderResponse | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
-  const [isSubmittingReject, setIsSubmittingReject] = useState(false);
-
-  // Theo dõi đơn hàng chờ lấy để phát hiện ngay khi có đơn mới được quán gán
-  const isInitialFetchDoneRef = useRef(false);
-  const knownReadyOrderCodesRef = useRef<Set<string>>(new Set());
-  const [newAssignedNotice, setNewAssignedNotice] = useState<{
-    orderCode: string;
-    receiverName: string;
-    shippingAddress: string;
-  } | null>(null);
-
-  // History modal
   const [historyOrder, setHistoryOrder] = useState<OrderResponse | null>(null);
-  const [orderHistory, setOrderHistory] = useState<OrderStatusHistoryItem[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
-    setToastMessage({ text, type });
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 4000);
-  };
+  // Chỉ báo đơn mới cho những đơn xuất hiện SAU lần tải đầu tiên
+  const isInitialFetchDoneRef = useRef(false);
+  const knownReadyCodesRef = useRef<Set<string>>(new Set());
 
-  // Tải danh sách đơn hàng được gán cho shipper (tự động đồng bộ thời gian thực)
+  const toast = useToast();
+
   const fetchOrders = useCallback(async (isSilent = false) => {
     if (!isSilent) setIsLoading(true);
-    setErrorMessage(null);
     try {
-      const res = await shipperOrderApi.getAssignedOrders(undefined, 0, 100);
-      const fetchedOrders = res.content || [];
-      setOrders(fetchedOrders);
+      const data = await shipperOrderApi.getAssignedOrders(undefined, 0, 100);
+      const fetched = data.content ?? [];
+      setOrders(fetched);
+      setErrorMsg(null);
 
-      // Phân tích đơn hàng READY_FOR_PICKUP
-      const currentReadyOrders = fetchedOrders.filter((o) => o.status === 'READY_FOR_PICKUP');
-      const currentReadyCodes = new Set(currentReadyOrders.map((o) => o.orderCode));
+      const readyOrders = fetched.filter((order) => order.status === 'READY_FOR_PICKUP');
+      const readyCodes = new Set(readyOrders.map((order) => order.orderCode));
 
       if (isInitialFetchDoneRef.current) {
-        // Tìm đơn mới được quán phân công
-        const newlyAssigned = currentReadyOrders.filter(
-          (o) => !knownReadyOrderCodesRef.current.has(o.orderCode)
-        );
+        const newlyAssigned = readyOrders.filter((order) => !knownReadyCodesRef.current.has(order.orderCode));
 
         if (newlyAssigned.length > 0) {
           const newest = newlyAssigned[0];
-          // 1. Phát chuông âm thanh báo đơn mới
           playNotificationSound();
-
-          // 2. Thông báo Toast nổi bật
-          showToast(
-            `🔔 CÓ ĐƠN HÀNG MỚI! Quán vừa phân công đơn #${newest.orderCode} cho bạn.`,
-            'success'
-          );
-
-          // 3. Hiển thị banner cảnh báo đầu trang
-          setNewAssignedNotice({
+          toast.success(`Đơn ${newest.orderCode} vừa được phân công cho bạn`);
+          setNewNotice({
             orderCode: newest.orderCode,
             receiverName: newest.receiverName,
             shippingAddress: newest.shippingAddress,
           });
-
-          // 4. Tự động chuyển tab sang 'READY_FOR_PICKUP' nếu không có đơn nào đang giao
-          const deliveringList = fetchedOrders.filter((o) => o.status === 'DELIVERING');
-          if (deliveringList.length === 0) {
+          // Không có đơn nào đang giao thì nhảy thẳng sang tab chờ lấy bánh
+          if (!fetched.some((order) => order.status === 'DELIVERING')) {
             setActiveTab('READY_FOR_PICKUP');
           }
         }
       } else {
         isInitialFetchDoneRef.current = true;
-        // Lần đầu mở: Nếu chưa có đơn đang giao nhưng có đơn chờ lấy bánh, chuyển ngay sang tab chờ lấy
-        const deliveringList = fetchedOrders.filter((o) => o.status === 'DELIVERING');
-        if (deliveringList.length === 0 && currentReadyOrders.length > 0) {
+        if (!fetched.some((order) => order.status === 'DELIVERING') && readyOrders.length > 0) {
           setActiveTab('READY_FOR_PICKUP');
         }
       }
 
-      knownReadyOrderCodesRef.current = currentReadyCodes;
+      knownReadyCodesRef.current = readyCodes;
     } catch (err: unknown) {
-      const errObj = err as Error;
-      setErrorMessage(errObj.message || 'Không thể tải danh sách đơn hàng. Vui lòng thử lại!');
+      setErrorMsg(err instanceof Error ? err.message : 'Không tải được danh sách đơn hàng.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
-    fetchOrders();
+    void fetchOrders();
 
-    // 1. Polling chu kỳ 3 giây siêu nhanh
-    const interval = setInterval(() => {
-      fetchOrders(true);
-    }, 3000);
+    const intervalId = setInterval(() => void fetchOrders(true), POLL_MS);
 
-    // 2. Lắng nghe BroadcastChannel tức thời (0ms) khi có bất kỳ thay đổi nào từ Staff
-    const handleBroadcastMessage = () => {
-      fetchOrders(true);
-    };
-    if (orderSyncChannel) {
-      orderSyncChannel.addEventListener('message', handleBroadcastMessage);
-    }
+    const handleSync = () => void fetchOrders(true);
+    orderSyncChannel?.addEventListener('message', handleSync);
 
-    // 3. Tự động làm mới ngay khi tài xế quay lại tab trình duyệt
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        fetchOrders(true);
-      }
+      if (document.visibilityState === 'visible') void fetchOrders(true);
     };
-    const handleFocus = () => {
-      fetchOrders(true);
-    };
-
     document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', handleFocus);
+    window.addEventListener('focus', handleSync);
 
     return () => {
-      clearInterval(interval);
-      if (orderSyncChannel) {
-        orderSyncChannel.removeEventListener('message', handleBroadcastMessage);
-      }
+      clearInterval(intervalId);
+      orderSyncChannel?.removeEventListener('message', handleSync);
       document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('focus', handleSync);
     };
   }, [fetchOrders]);
 
-  const handleManualRefresh = () => {
+  const reload = () => {
     setIsRefreshing(true);
-    fetchOrders(true);
+    void fetchOrders(true);
   };
 
-  // Toggle xem món ăn trong thẻ đơn hàng
-  const toggleExpand = (orderCode: string) => {
-    setExpandedOrders((prev) => ({
-      ...prev,
-      [orderCode]: !prev[orderCode],
-    }));
+  const replaceOrder = (updated: OrderResponse) => {
+    setOrders((prev) => prev.map((order) => (order.orderCode === updated.orderCode ? updated : order)));
   };
 
-  // Thống kê nhanh KPI ca làm việc
-  const stats = useMemo(() => {
-    const deliveringCount = orders.filter((o) => o.status === 'DELIVERING').length;
-    const readyCount = orders.filter((o) => o.status === 'READY_FOR_PICKUP').length;
-    const deliveredCount = orders.filter((o) => o.status === 'DELIVERED').length;
-    const failedCount = orders.filter((o) => o.status === 'FAILED').length;
-
-    // Tổng tiền COD đã thu từ các đơn giao thành công
-    const totalCodCollected = orders
-      .filter((o) => o.status === 'DELIVERED' && o.paymentMethod === 'COD')
-      .reduce((sum, o) => sum + Number(o.total || 0), 0);
-
-    return {
-      deliveringCount,
-      readyCount,
-      deliveredCount,
-      failedCount,
-      totalCodCollected,
-    };
-  }, [orders]);
-
-  // Lọc đơn hàng theo Tab và Tìm kiếm
-  const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
-      // Lọc theo Tab
-      if (activeTab === 'DELIVERING' && order.status !== 'DELIVERING') return false;
-      if (activeTab === 'READY_FOR_PICKUP' && order.status !== 'READY_FOR_PICKUP') return false;
-      if (activeTab === 'DELIVERED' && order.status !== 'DELIVERED') return false;
-      if (activeTab === 'FAILED' && order.status !== 'FAILED') return false;
-
-      // Lọc theo tìm kiếm (mã đơn, sđt, tên khách, địa chỉ)
-      if (searchQuery.trim()) {
-        const query = searchQuery.trim().toLowerCase();
-        const codeMatch = order.orderCode.toLowerCase().includes(query);
-        const phoneMatch = order.receiverPhone?.toLowerCase().includes(query);
-        const nameMatch = order.receiverName?.toLowerCase().includes(query);
-        const addressMatch = order.shippingAddress?.toLowerCase().includes(query);
-        return codeMatch || phoneMatch || nameMatch || addressMatch;
-      }
-
-      return true;
-    });
-  }, [orders, activeTab, searchQuery]);
-
-  // Thao tác: Nhận bánh tại quán & Bắt đầu đi giao (READY_FOR_PICKUP -> DELIVERING)
   const handleStartDelivering = async (order: OrderResponse) => {
-    setStartingOrderCode(order.orderCode);
+    setBusyOrderCode(order.orderCode);
     try {
       const updated = await shipperOrderApi.startDelivering(order.orderCode);
       broadcastOrderChange('ORDER_ACCEPTED', { orderCode: order.orderCode });
-      setOrders((prev) =>
-        prev.map((o) => (o.orderCode === updated.orderCode ? updated : o))
-      );
-      setNewAssignedNotice(null);
-      showToast(`Đã nhận đơn #${order.orderCode} tại quán và bắt đầu đi giao! 🛵`, 'success');
+      replaceOrder(updated);
+      setNewNotice(null);
+      toast.success(`Đã nhận đơn ${order.orderCode}, bắt đầu đi giao`);
     } catch (err: unknown) {
-      const errObj = err as Error;
-      showToast(errObj.message || 'Không thể bắt đầu đi giao. Vui lòng thử lại!', 'error');
+      toast.error(err instanceof Error ? err.message : 'Không thể bắt đầu đi giao.');
     } finally {
-      setStartingOrderCode(null);
+      setBusyOrderCode(null);
     }
   };
 
-  // Thao tác: Mở modal Giao thành công
-  const handleOpenDeliverModal = (order: OrderResponse) => {
-    setDeliveringOrder(order);
-    setDeliveryNote('');
-  };
-
-  // Thao tác: Xác nhận Giao thành công
-  const handleConfirmDelivery = async () => {
+  const handleConfirmDelivery = async (note: string) => {
     if (!deliveringOrder) return;
-    setIsSubmittingDelivery(true);
-    try {
-      const updated = await shipperOrderApi.confirmDelivery(
-        deliveringOrder.orderCode,
-        deliveryNote
-      );
-      broadcastOrderChange('ORDER_STATUS_CHANGED', { orderCode: deliveringOrder.orderCode });
-      setOrders((prev) =>
-        prev.map((o) => (o.orderCode === updated.orderCode ? updated : o))
-      );
-      showToast(`Đã giao thành công đơn hàng #${deliveringOrder.orderCode}! 🎉`, 'success');
-      setDeliveringOrder(null);
-    } catch (err: unknown) {
-      const errObj = err as Error;
-      showToast(errObj.message || 'Xác nhận giao hàng thất bại. Vui lòng thử lại!', 'error');
-    } finally {
-      setIsSubmittingDelivery(false);
-    }
+
+    const updated = await shipperOrderApi.confirmDelivery(deliveringOrder.orderCode, note);
+    broadcastOrderChange('ORDER_STATUS_CHANGED', { orderCode: deliveringOrder.orderCode });
+    replaceOrder(updated);
+    setDeliveringOrder(null);
+    toast.success(`Đã giao thành công đơn ${updated.orderCode}`);
   };
 
-  // Thao tác: Mở modal Báo giao thất bại
-  const handleOpenFailModal = (order: OrderResponse) => {
-    setFailingOrder(order);
-    setFailureReason('');
-  };
-
-  // Thao tác: Xác nhận Báo giao thất bại
-  const handleConfirmFail = async () => {
+  const handleFailDelivery = async (reason: string) => {
     if (!failingOrder) return;
-    if (!failureReason.trim()) {
-      showToast('Vui lòng chọn hoặc nhập lý do giao hàng thất bại!', 'error');
-      return;
-    }
-    setIsSubmittingFailure(true);
-    try {
-      const updated = await shipperOrderApi.failDelivery(
-        failingOrder.orderCode,
-        failureReason.trim()
-      );
-      broadcastOrderChange('ORDER_STATUS_CHANGED', { orderCode: failingOrder.orderCode });
-      setOrders((prev) =>
-        prev.map((o) => (o.orderCode === updated.orderCode ? updated : o))
-      );
-      showToast(`Đã ghi nhận giao thất bại đơn hàng #${failingOrder.orderCode}`, 'success');
-      setFailingOrder(null);
-    } catch (err: unknown) {
-      const errObj = err as Error;
-      showToast(errObj.message || 'Không thể cập nhật thất bại. Vui lòng thử lại!', 'error');
-    } finally {
-      setIsSubmittingFailure(false);
-    }
+
+    const updated = await shipperOrderApi.failDelivery(failingOrder.orderCode, reason);
+    broadcastOrderChange('ORDER_STATUS_CHANGED', { orderCode: failingOrder.orderCode });
+    replaceOrder(updated);
+    setFailingOrder(null);
+    toast.success(`Đã ghi nhận giao thất bại đơn ${updated.orderCode}`);
   };
 
-  // Thao tác: Mở modal Từ chối nhận đơn
-  const handleOpenRejectModal = (order: OrderResponse) => {
-    setRejectingOrder(order);
-    setRejectReason('');
-  };
-
-  // Thao tác: Xác nhận Từ chối nhận đơn
-  const handleConfirmReject = async () => {
+  const handleRejectOrder = async (reason: string) => {
     if (!rejectingOrder) return;
-    if (!rejectReason.trim()) {
-      showToast('Vui lòng chọn hoặc nhập lý do từ chối nhận đơn!', 'error');
-      return;
-    }
-    setIsSubmittingReject(true);
-    try {
-      await shipperOrderApi.rejectOrder(
-        rejectingOrder.orderCode,
-        rejectReason.trim()
-      );
-      broadcastOrderChange('ORDER_REJECTED', { orderCode: rejectingOrder.orderCode });
-      // Gỡ đơn khỏi danh sách local của tài xế
-      setOrders((prev) => prev.filter((o) => o.orderCode !== rejectingOrder.orderCode));
-      setNewAssignedNotice(null);
-      showToast(
-        `Đã từ chối đơn hàng #${rejectingOrder.orderCode}. Đơn được chuyển về quán để điều phối shipper khác.`,
-        'success'
-      );
-      setRejectingOrder(null);
-    } catch (err: unknown) {
-      const errObj = err as Error;
-      showToast(errObj.message || 'Không thể từ chối đơn hàng. Vui lòng thử lại!', 'error');
-    } finally {
-      setIsSubmittingReject(false);
-    }
+
+    await shipperOrderApi.rejectOrder(rejectingOrder.orderCode, reason);
+    broadcastOrderChange('ORDER_REJECTED', { orderCode: rejectingOrder.orderCode });
+    // Đơn đã trả về quán nên gỡ khỏi danh sách của tài xế
+    setOrders((prev) => prev.filter((order) => order.orderCode !== rejectingOrder.orderCode));
+    setNewNotice(null);
+    setRejectingOrder(null);
+    toast.success(`Đã từ chối đơn ${rejectingOrder.orderCode}, đơn trả về quán`);
   };
 
-  // Xem lịch sử đơn hàng
-  const handleViewHistory = async (order: OrderResponse) => {
-    setHistoryOrder(order);
-    setOrderHistory([]);
-    setIsLoadingHistory(true);
-    try {
-      const history = await shipperOrderApi.getOrderHistory(order.orderCode);
-      setOrderHistory(history);
-    } catch (err: unknown) {
-      const errObj = err as Error;
-      showToast(errObj.message || 'Không thể tải lịch sử đơn hàng', 'error');
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
+  const stats = useMemo(
+    () => ({
+      delivering: orders.filter((order) => order.status === 'DELIVERING').length,
+      ready: orders.filter((order) => order.status === 'READY_FOR_PICKUP').length,
+      delivered: orders.filter((order) => order.status === 'DELIVERED').length,
+      failed: orders.filter((order) => order.status === 'FAILED').length,
+      codCollected: orders
+        .filter((order) => order.status === 'DELIVERED' && order.paymentMethod === 'COD')
+        .reduce((sum, order) => sum + Number(order.total || 0), 0),
+    }),
+    [orders]
+  );
+
+  const filteredOrders = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return orders.filter((order) => {
+      if (activeTab !== 'ALL' && order.status !== activeTab) return false;
+      if (!query) return true;
+      return (
+        order.orderCode.toLowerCase().includes(query) ||
+        (order.receiverName?.toLowerCase().includes(query) ?? false) ||
+        (order.receiverPhone?.toLowerCase().includes(query) ?? false) ||
+        (order.shippingAddress?.toLowerCase().includes(query) ?? false)
+      );
+    });
+  }, [orders, activeTab, searchQuery]);
 
   return (
-    <ShipperLayout
-      title="Bảng Điều Phối Giao Hàng (Shipper Portal)"
-      subtitle="Theo dõi đơn hàng được phân công, thực hiện dẫn đường, liên lạc khách và cập nhật tiến trình"
-      onRefresh={handleManualRefresh}
-      isRefreshing={isRefreshing}
-    >
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className={`shipper-web-toast toast-${toastMessage.type}`} role="status">
-          <span className="toast-icon">
-            {toastMessage.type === 'success' ? '✅' : '⚠️'}
-          </span>
-          <span className="toast-text">{toastMessage.text}</span>
+    <>
+      <PageHeader
+        title="Đơn hàng của tôi"
+        subtitle="Theo dõi đơn được phân công, gọi khách, dẫn đường và cập nhật tiến trình giao"
+        onRefresh={reload}
+        isRefreshing={isRefreshing}
+      />
+
+      {newNotice && (
+        <div className="alert-banner alert-success shipper__notice" role="alert">
+          <TriangleAlert size={18} />
+          <div>
+            <strong>Đơn {newNotice.orderCode} vừa được phân công cho bạn.</strong> Giao tới{' '}
+            {newNotice.shippingAddress} (khách {newNotice.receiverName}).
+          </div>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => {
+              setActiveTab('READY_FOR_PICKUP');
+              setNewNotice(null);
+            }}
+          >
+            Xem ngay
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setNewNotice(null)}>
+            Đóng
+          </Button>
         </div>
       )}
 
-      {/* Floating Notice: Cảnh báo có đơn mới được phân công */}
-      {newAssignedNotice && (
-        <div className="shipper-new-order-alert-banner" role="alert">
-          <div className="alert-content-left">
-            <span className="bell-pulse-icon">🔔</span>
-            <div className="alert-text-meta">
-              <strong>CÓ ĐƠN HÀNG MỚI ĐƯỢC PHÂN CÔNG!</strong>
-              <p>
-                Đơn <strong>#{newAssignedNotice.orderCode}</strong> giao tới {newAssignedNotice.shippingAddress} (Khách: {newAssignedNotice.receiverName}) đang chờ bạn phản hồi.
-              </p>
-            </div>
-          </div>
-          <div className="alert-actions-right">
-            <button
-              type="button"
-              className="btn-alert-view-now"
-              onClick={() => {
-                setActiveTab('READY_FOR_PICKUP');
-                setNewAssignedNotice(null);
-              }}
-            >
-              Xem & Nhận Đơn Ngay ⚡
-            </button>
-            <button
-              type="button"
-              className="btn-alert-dismiss"
-              onClick={() => setNewAssignedNotice(null)}
-              title="Đóng thông báo"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
+      <section className="shipper__stats">
+        <KpiCard icon={<Bike size={18} />} value={String(stats.delivering)} label="Đang giao trên đường" />
+        <KpiCard icon={<PackageCheck size={18} />} value={String(stats.ready)} label="Chờ lấy tại quán" />
+        <KpiCard icon={<CheckCircle2 size={18} />} value={String(stats.delivered)} label="Giao thành công" />
+        <KpiCard icon={<Wallet size={18} />} value={formatCurrency(stats.codCollected)} label="Tiền COD đã thu" />
+      </section>
 
-      {/* KPI Metric Cards Row */}
-      <section className="shipper-web-kpi-grid" aria-label="Thống kê ca làm việc">
-        <div className="shipper-web-kpi-card card-delivering">
-          <div className="kpi-icon-box">🛵</div>
-          <div className="kpi-info-box">
-            <span className="kpi-label">Đang Giao Trên Đường</span>
-            <span className="kpi-val">{stats.deliveringCount}</span>
-            <span className="kpi-subtext">Cần hoàn thành giao khách</span>
-          </div>
-        </div>
+      <section className="card">
+        <div className="shipper__controls">
+          <Tabs
+            value={activeTab}
+            onChange={setActiveTab}
+            tabs={[
+              { key: 'DELIVERING', label: 'Đang giao', count: stats.delivering },
+              { key: 'READY_FOR_PICKUP', label: 'Chờ lấy bánh', count: stats.ready },
+              { key: 'ALL', label: 'Tất cả đơn', count: orders.length },
+              { key: 'DELIVERED', label: 'Đã giao', count: stats.delivered },
+              { key: 'FAILED', label: 'Giao thất bại', count: stats.failed },
+            ]}
+          />
 
-        <div className="shipper-web-kpi-card card-pickup">
-          <div className="kpi-icon-box">🏪</div>
-          <div className="kpi-info-box">
-            <span className="kpi-label">Chờ Lấy Tại Quán</span>
-            <span className="kpi-val">{stats.readyCount}</span>
-            <span className="kpi-subtext">Bánh đã sẵn sàng giao</span>
-          </div>
-        </div>
-
-        <div className="shipper-web-kpi-card card-delivered">
-          <div className="kpi-icon-box">✅</div>
-          <div className="kpi-info-box">
-            <span className="kpi-label">Giao Thành Công</span>
-            <span className="kpi-val">{stats.deliveredCount}</span>
-            <span className="kpi-subtext">Đơn đã hoàn tất</span>
-          </div>
-        </div>
-
-        <div className="shipper-web-kpi-card card-cod">
-          <div className="kpi-icon-box">💰</div>
-          <div className="kpi-info-box">
-            <span className="kpi-label">Tổng Tiền COD Đã Thu</span>
-            <span className="kpi-val cod-amount">{formatCurrency(stats.totalCodCollected)}</span>
-            <span className="kpi-subtext">Tiền mặt cần nộp lại</span>
+          <div className="shipper__search">
+            <Input
+              type="search"
+              icon={<Search size={16} />}
+              placeholder="Tìm mã đơn, SĐT, tên khách..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
           </div>
         </div>
       </section>
 
-      {/* Control Bar: Filter Tabs & Search Box */}
-      <div className="shipper-web-control-bar">
-        <nav className="shipper-web-tabs" aria-label="Bộ lọc đơn hàng">
-          <button
-            type="button"
-            className={`shipper-web-tab-btn ${activeTab === 'DELIVERING' ? 'active' : ''}`}
-            onClick={() => setActiveTab('DELIVERING')}
-          >
-            <span>🛵 Đang giao</span>
-            {stats.deliveringCount > 0 && (
-              <span className="tab-badge primary">{stats.deliveringCount}</span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            className={`shipper-web-tab-btn ${activeTab === 'READY_FOR_PICKUP' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('READY_FOR_PICKUP');
-              setNewAssignedNotice(null);
-            }}
-          >
-            <span>🏪 Chờ lấy bánh</span>
-            {stats.readyCount > 0 && (
-              <span className="tab-badge warning pulse-badge">{stats.readyCount} mới</span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            className={`shipper-web-tab-btn ${activeTab === 'ALL' ? 'active' : ''}`}
-            onClick={() => setActiveTab('ALL')}
-          >
-            <span>📦 Tất cả đơn</span>
-            <span className="tab-badge neutral">{orders.length}</span>
-          </button>
-
-          <button
-            type="button"
-            className={`shipper-web-tab-btn ${activeTab === 'DELIVERED' ? 'active' : ''}`}
-            onClick={() => setActiveTab('DELIVERED')}
-          >
-            <span>✅ Đã giao thành công</span>
-            <span className="tab-badge success">{stats.deliveredCount}</span>
-          </button>
-
-          <button
-            type="button"
-            className={`shipper-web-tab-btn ${activeTab === 'FAILED' ? 'active' : ''}`}
-            onClick={() => setActiveTab('FAILED')}
-          >
-            <span>❌ Giao thất bại</span>
-            {stats.failedCount > 0 && (
-              <span className="tab-badge danger">{stats.failedCount}</span>
-            )}
-          </button>
-        </nav>
-
-        {/* Search Box */}
-        <div className="shipper-web-search-box">
-          <span className="search-icon">🔍</span>
-          <input
-            id="shipper-web-search-input"
-            type="text"
-            className="search-input"
-            placeholder="Tìm theo mã đơn, SĐT khách, tên hoặc địa chỉ giao..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              className="search-clear-btn"
-              onClick={() => setSearchQuery('')}
-              aria-label="Xóa từ khóa tìm kiếm"
-            >
-              ✕
-            </button>
-          )}
+      {isLoading && orders.length === 0 ? (
+        <section className="card">
+          <div className="card__body">
+            <Skeleton variant="card" count={3} />
+          </div>
+        </section>
+      ) : errorMsg ? (
+        <section className="card">
+          <div className="card__body">
+            <EmptyState
+              icon={<XCircle size={30} />}
+              title="Không tải được dữ liệu"
+              description={errorMsg}
+              action={<Button onClick={() => void fetchOrders(false)}>Thử lại</Button>}
+            />
+          </div>
+        </section>
+      ) : filteredOrders.length === 0 ? (
+        <section className="card">
+          <div className="card__body">
+            <EmptyState
+              icon={<Package size={30} />}
+              title="Chưa có đơn nào ở mục này"
+              description="Đơn được quán phân công sẽ tự hiện tại đây theo thời gian thực."
+              action={<Button onClick={reload}>Tải lại dữ liệu</Button>}
+            />
+          </div>
+        </section>
+      ) : (
+        <div className="shipper__grid">
+          {filteredOrders.map((order) => (
+            <OrderCard
+              key={order.id}
+              order={order}
+              expanded={!!expandedOrders[order.orderCode]}
+              busy={busyOrderCode === order.orderCode}
+              onToggleExpand={() =>
+                setExpandedOrders((prev) => ({ ...prev, [order.orderCode]: !prev[order.orderCode] }))
+              }
+              onHistory={() => setHistoryOrder(order)}
+              onAccept={() => void handleStartDelivering(order)}
+              onReject={() => setRejectingOrder(order)}
+              onDeliver={() => setDeliveringOrder(order)}
+              onFail={() => setFailingOrder(order)}
+            />
+          ))}
         </div>
-      </div>
+      )}
 
-      {/* Main Orders Display Area */}
-      <div className="shipper-web-orders-wrapper">
-        {/* Error Alert */}
-        {errorMessage && (
-          <div className="shipper-web-error-card">
-            <span className="error-icon">⚠️</span>
-            <div className="error-content">
-              <strong>Có lỗi xảy ra khi tải dữ liệu</strong>
-              <p>{errorMessage}</p>
-              <button
-                type="button"
-                className="btn-retry"
-                onClick={() => fetchOrders(false)}
-              >
-                Thử lại ngay
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Loading Spinner */}
-        {isLoading ? (
-          <div className="shipper-web-loading-state">
-            <div className="spinner-royal"></div>
-            <p className="loading-text">Đang đồng bộ danh sách đơn hàng...</p>
-          </div>
-        ) : filteredOrders.length === 0 ? (
-          /* Empty State */
-          <div className="shipper-web-empty-state">
-            <div className="empty-icon-circle">
-              {activeTab === 'DELIVERING'
-                ? '🛵'
-                : activeTab === 'READY_FOR_PICKUP'
-                ? '🏪'
-                : activeTab === 'DELIVERED'
-                ? '🎉'
-                : activeTab === 'FAILED'
-                ? '📦'
-                : '📭'}
-            </div>
-            <h3 className="empty-title">
-              {activeTab === 'DELIVERING'
-                ? 'Không có đơn nào đang trên đường giao'
-                : activeTab === 'READY_FOR_PICKUP'
-                ? 'Không có đơn nào chờ lấy bánh tại quán'
-                : activeTab === 'DELIVERED'
-                ? 'Chưa có đơn giao thành công nào'
-                : activeTab === 'FAILED'
-                ? 'Không có đơn giao thất bại nào'
-                : 'Không tìm thấy đơn hàng phù hợp'}
-            </h3>
-            <p className="empty-desc">
-              {activeTab === 'DELIVERING'
-                ? 'Các đơn hàng đã nhận sẽ hiển thị ở đây để bạn cập nhật trạng thái khi giao tới khách.'
-                : 'Nhấn nút "Làm mới" góc phải để cập nhật dữ liệu thời gian thực từ cửa hàng.'}
-            </p>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={handleManualRefresh}
-            >
-              🔄 Tải lại dữ liệu
-            </button>
-          </div>
-        ) : (
-          /* Web Orders Grid */
-          <div className="shipper-web-cards-grid">
-            {filteredOrders.map((order) => {
-              const isCOD = order.paymentMethod === 'COD';
-              const isPaid = order.paymentStatus === 'PAID';
-              const isDelivering = order.status === 'DELIVERING';
-              const isReady = order.status === 'READY_FOR_PICKUP';
-              const isExpanded = !!expandedOrders[order.orderCode];
-
-              return (
-                <article
-                  key={order.orderCode}
-                  className={`shipper-web-order-card ${
-                    isDelivering ? 'status-active-delivering' : isReady ? 'status-active-pickup' : ''
-                  }`}
-                  id={`web-order-card-${order.orderCode}`}
-                >
-                  {/* Card Header */}
-                  <div className="web-card-header">
-                    <div className="header-left-info">
-                      <span className="order-badge-tag">MÃ ĐƠN HÀNG</span>
-                      <strong className="order-code-title">#{order.orderCode}</strong>
-                      <span className="order-time-text">
-                        🕒 {formatDateTime(order.createdAt)}
-                      </span>
-                    </div>
-
-                    <div className="header-right-status">
-                      {order.status === 'READY_FOR_PICKUP' && (
-                        <span className="status-badge badge-pickup">
-                          🏪 Chờ lấy bánh
-                        </span>
-                      )}
-                      {order.status === 'DELIVERING' && (
-                        <span className="status-badge badge-delivering">
-                          <span className="pulse-dot"></span> Đang giao hàng
-                        </span>
-                      )}
-                      {order.status === 'DELIVERED' && (
-                        <span className="status-badge badge-delivered">
-                          ✅ Giao thành công
-                        </span>
-                      )}
-                      {order.status === 'FAILED' && (
-                        <span className="status-badge badge-failed">
-                          ❌ Giao thất bại
-                        </span>
-                      )}
-                      {order.status !== 'READY_FOR_PICKUP' &&
-                        order.status !== 'DELIVERING' &&
-                        order.status !== 'DELIVERED' &&
-                        order.status !== 'FAILED' && (
-                          <span className="status-badge badge-neutral">
-                            {order.status}
-                          </span>
-                        )}
-
-                      <button
-                        type="button"
-                        className="btn-view-history"
-                        onClick={() => handleViewHistory(order)}
-                        title="Xem lịch sử thay đổi trạng thái"
-                      >
-                        📜 Lịch sử
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Customer Information Block */}
-                  <div className="web-customer-block">
-                    <div className="customer-info-row">
-                      <div className="customer-name-group">
-                        <span className="avatar-chip">👤</span>
-                        <div className="customer-text-meta">
-                          <span className="meta-label">Người nhận hàng</span>
-                          <strong className="meta-name">{order.receiverName}</strong>
-                        </div>
-                      </div>
-
-                      {/* Direct Phone Call Button */}
-                      <a
-                        href={`tel:${order.receiverPhone}`}
-                        id={`btn-call-web-${order.orderCode}`}
-                        className="btn-action-call"
-                        title="Gọi điện trực tiếp cho khách hàng"
-                      >
-                        <span className="icon">📞</span>
-                        <span className="phone-num">{order.receiverPhone}</span>
-                        <span className="call-hint">(Gọi ngay)</span>
-                      </a>
-                    </div>
-
-                    {/* Delivery Address Row */}
-                    <div className="address-info-row">
-                      <div className="address-text-group">
-                        <span className="pin-icon">📍</span>
-                        <div className="address-text-meta">
-                          <span className="meta-label">Địa chỉ giao tận nơi</span>
-                          <span className="meta-address">{order.shippingAddress}</span>
-                        </div>
-                      </div>
-
-                      {/* Google Maps Link */}
-                      <a
-                        href={`https://maps.google.com/?q=${encodeURIComponent(
-                          order.shippingAddress
-                        )}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        id={`btn-map-web-${order.orderCode}`}
-                        className="btn-action-map"
-                        title="Mở Google Maps dẫn đường"
-                      >
-                        <span className="icon">🗺️</span>
-                        <span>Mở Bản Đồ Chỉ Đường</span>
-                      </a>
-                    </div>
-
-                    {/* Customer Note (if any) */}
-                    {order.note && (
-                      <div className="customer-note-alert">
-                        <span className="note-icon">📝</span>
-                        <div className="note-body">
-                          <strong>Ghi chú của khách:</strong> {order.note}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* COD & Payment Prominent Box */}
-                  <div
-                    className={`web-payment-highlight-box ${
-                      isCOD && !isPaid ? 'box-cod-pending' : 'box-prepaid'
-                    }`}
-                  >
-                    <div className="box-top-row">
-                      <span className="box-header-title">
-                        {isCOD && !isPaid
-                          ? '💵 SỐ TIỀN CẦN THU (COD):'
-                          : isPaid
-                          ? '✅ ĐÃ THANH TOÁN TRỰC TUYẾN:'
-                          : '💳 PHƯƠNG THỨC THANH TOÁN:'}
-                      </span>
-                      <span className="payment-method-tag">
-                        {order.paymentMethod === 'COD'
-                          ? 'Tiền mặt khi nhận hàng (COD)'
-                          : order.paymentMethod === 'BANK_TRANSFER'
-                          ? 'Chuyển khoản ngân hàng'
-                          : 'Ví điện tử'}
-                      </span>
-                    </div>
-
-                    <div className="box-amount-row">
-                      {isCOD && !isPaid ? (
-                        <>
-                          <span className="amount-val-cod">
-                            {formatCurrency(order.total)}
-                          </span>
-                          <span className="amount-desc-warning">
-                            ⚠️ Tài xế cần thu đủ số tiền mặt này từ khách trước khi bàn giao bánh.
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="amount-val-zero">0 đ CẦN THU</span>
-                          <span className="amount-desc-success">
-                            Khách đã thanh toán trước. Tuyệt đối không thu thêm bất kỳ chi phí nào.
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Food Items Preview / Collapsible */}
-                  <div className="web-items-section">
-                    <button
-                      type="button"
-                      className="btn-toggle-items"
-                      onClick={() => toggleExpand(order.orderCode)}
-                      aria-expanded={isExpanded}
-                    >
-                      <span className="label">
-                        🥖 Danh sách món ăn ({order.items?.length || 0} món)
-                      </span>
-                      <span className="chevron">
-                        {isExpanded ? '▲ Thu gọn chi tiết' : '▼ Xem chi tiết topping & món'}
-                      </span>
-                    </button>
-
-                    {isExpanded && (
-                      <div className="items-table-wrapper">
-                        <table className="web-items-table">
-                          <thead>
-                            <tr>
-                              <th>Tên món & Tùy chọn</th>
-                              <th className="text-center">Số lượng</th>
-                              <th className="text-right">Thành tiền</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {order.items?.map((item, idx) => (
-                              <tr key={item.id || idx}>
-                                <td>
-                                  <strong className="item-name">{item.productName}</strong>
-                                  {item.options && item.options.length > 0 && (
-                                    <div className="item-options-subtext">
-                                      + {item.options.map((opt) => opt.optionName).join(', ')}
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="text-center font-bold">x{item.quantity}</td>
-                                <td className="text-right font-bold text-stone-700">
-                                  {formatCurrency(item.lineTotal)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Result Box if DELIVERED or FAILED */}
-                  {order.status === 'DELIVERED' && (
-                    <div className="web-delivered-note">
-                      <span>✅ Đã giao thành công lúc: <strong>{formatDateTime(order.deliveredAt || order.updatedAt)}</strong></span>
-                    </div>
-                  )}
-
-                  {order.status === 'FAILED' && (
-                    <div className="web-failed-note">
-                      <span className="icon">⚠️</span>
-                      <div className="text">
-                        <strong>Lý do giao hàng thất bại:</strong>
-                        <p>{order.cancelReason || 'Không có ghi chú cụ thể'}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Action Footer */}
-                  {isReady && (
-                    <div className="ready-order-dispatch-section">
-                      <div className="ready-order-prompt-box">
-                        <span className="prompt-icon">⚡</span>
-                        <div className="prompt-content">
-                          <strong>Đơn hàng được quán phân công cho bạn:</strong>
-                          <p>Vui lòng xác nhận nhận đơn để đến quán lấy bánh đi giao, hoặc bấm từ chối nếu không thể nhận đơn.</p>
-                        </div>
-                      </div>
-
-                      <div className="web-card-actions dual-actions">
-                        <button
-                          type="button"
-                          id={`btn-reject-web-${order.orderCode}`}
-                          className="btn-web-action-reject"
-                          onClick={() => handleOpenRejectModal(order)}
-                          disabled={startingOrderCode === order.orderCode}
-                        >
-                          ❌ Từ Chối Đơn
-                        </button>
-
-                        <button
-                          type="button"
-                          id={`btn-pickup-web-${order.orderCode}`}
-                          className="btn-web-action-accept"
-                          onClick={() => handleStartDelivering(order)}
-                          disabled={startingOrderCode === order.orderCode}
-                        >
-                          {startingOrderCode === order.orderCode ? (
-                            <>
-                              <span className="spinner-mini"></span>
-                              Đang xử lý nhận đơn...
-                            </>
-                          ) : (
-                            '🛵 Nhận Đơn & Bắt Đầu Giao'
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {isDelivering && (
-                    <div className="web-card-actions dual-actions">
-                      <button
-                        type="button"
-                        id={`btn-fail-web-${order.orderCode}`}
-                        className="btn-web-action-fail"
-                        onClick={() => handleOpenFailModal(order)}
-                      >
-                        ⚠️ Báo Giao Thất Bại
-                      </button>
-
-                      <button
-                        type="button"
-                        id={`btn-deliver-web-${order.orderCode}`}
-                        className="btn-web-action-success"
-                        onClick={() => handleOpenDeliverModal(order)}
-                      >
-                        ✅ Xác Nhận Giao Thành Công
-                      </button>
-                    </div>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Modal: Xác nhận Giao thành công */}
       {deliveringOrder && (
-        <div className="web-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="web-modal-dialog">
-            <div className="modal-header-success">
-              <div className="modal-title-group">
-                <span className="title-icon">🎉</span>
-                <h3>Xác Nhận Giao Hàng Thành Công</h3>
-              </div>
-              <button
-                type="button"
-                className="modal-btn-close"
-                onClick={() => setDeliveringOrder(null)}
-                aria-label="Đóng"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="web-modal-content">
-              <div className="modal-order-summary-box">
-                <div className="row">
-                  <span className="label">Mã đơn hàng:</span>
-                  <strong className="val">#{deliveringOrder.orderCode}</strong>
-                </div>
-                <div className="row">
-                  <span className="label">Khách hàng nhận:</span>
-                  <strong className="val">{deliveringOrder.receiverName}</strong>
-                </div>
-                <div className="row">
-                  <span className="label">Số điện thoại:</span>
-                  <span className="val">{deliveringOrder.receiverPhone}</span>
-                </div>
-                <div className="row">
-                  <span className="label">Địa chỉ giao:</span>
-                  <span className="val">{deliveringOrder.shippingAddress}</span>
-                </div>
-              </div>
-
-              {/* COD Reminder Box */}
-              <div
-                className={`modal-cod-banner ${
-                  deliveringOrder.paymentMethod === 'COD' &&
-                  deliveringOrder.paymentStatus !== 'PAID'
-                    ? 'banner-cod'
-                    : 'banner-prepaid'
-                }`}
-              >
-                {deliveringOrder.paymentMethod === 'COD' &&
-                deliveringOrder.paymentStatus !== 'PAID' ? (
-                  <>
-                    <span className="icon">💵</span>
-                    <div className="info">
-                      <div className="title">Xác nhận đã thu tiền mặt (COD):</div>
-                      <div className="amount">{formatCurrency(deliveringOrder.total)}</div>
-                      <p>Vui lòng đảm bảo đã nhận đủ tiền mặt từ khách hàng trước khi bấm hoàn tất.</p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <span className="icon">✅</span>
-                    <div className="info">
-                      <div className="title">Đơn hàng đã thanh toán trực tuyến:</div>
-                      <div className="amount">0 đ CẦN THU</div>
-                      <p>Khách đã thanh toán trước qua cổng ngân hàng/ví điện tử.</p>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Delivery Note */}
-              <div className="modal-input-group">
-                <label htmlFor="modal-delivery-note" className="input-label">
-                  Ghi chú giao hàng (tùy chọn):
-                </label>
-                <input
-                  id="modal-delivery-note"
-                  type="text"
-                  className="modal-input-text"
-                  placeholder="Ví dụ: Giao trực tiếp cho khách, gửi bảo vệ tòa nhà..."
-                  value={deliveryNote}
-                  onChange={(e) => setDeliveryNote(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="web-modal-footer">
-              <button
-                type="button"
-                className="btn-cancel"
-                onClick={() => setDeliveringOrder(null)}
-                disabled={isSubmittingDelivery}
-              >
-                Hủy bỏ
-              </button>
-              <button
-                type="button"
-                id="btn-confirm-deliver-web-submit"
-                className="btn-submit-success"
-                onClick={handleConfirmDelivery}
-                disabled={isSubmittingDelivery}
-              >
-                {isSubmittingDelivery ? (
-                  <>
-                    <span className="spinner-mini"></span>
-                    Đang đồng bộ về hệ thống...
-                  </>
-                ) : (
-                  '✅ Hoàn Tất Đơn Hàng'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeliveryConfirmModal order={deliveringOrder} onClose={() => setDeliveringOrder(null)} onConfirm={handleConfirmDelivery} />
       )}
 
-      {/* Modal: Báo Giao hàng Thất bại */}
       {failingOrder && (
-        <div className="web-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="web-modal-dialog">
-            <div className="modal-header-danger">
-              <div className="modal-title-group">
-                <span className="title-icon">⚠️</span>
-                <h3>Báo Cáo Giao Hàng Thất Bại</h3>
-              </div>
-              <button
-                type="button"
-                className="modal-btn-close"
-                onClick={() => setFailingOrder(null)}
-                aria-label="Đóng"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="web-modal-content">
-              <div className="modal-danger-alert">
-                Đơn hàng <strong>#{failingOrder.orderCode}</strong> sẽ chuyển sang trạng thái
-                <strong> THẤT BẠI (FAILED)</strong> và thông báo ngay về cho nhân viên quản lý quán.
-              </div>
-
-              <div className="modal-input-group">
-                <label className="input-label">Chọn nhanh lý do không giao được:</label>
-                <div className="preset-chips-flex">
-                  {PRESET_FAILURE_REASONS.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      className={`preset-chip-btn ${
-                        failureReason === preset ? 'active' : ''
-                      }`}
-                      onClick={() => setFailureReason(preset)}
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="modal-input-group">
-                <label htmlFor="modal-failure-reason" className="input-label">
-                  Chi tiết lý do thất bại: <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  id="modal-failure-reason"
-                  rows={3}
-                  className="modal-textarea"
-                  placeholder="Nhập chi tiết cụ thể (vd: Đã gọi điện 3 lần nhưng khách thuê bao, bảo vệ không cho gửi...)"
-                  value={failureReason}
-                  onChange={(e) => setFailureReason(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="web-modal-footer">
-              <button
-                type="button"
-                className="btn-cancel"
-                onClick={() => setFailingOrder(null)}
-                disabled={isSubmittingFailure}
-              >
-                Quay lại
-              </button>
-              <button
-                type="button"
-                id="btn-confirm-fail-web-submit"
-                className="btn-submit-danger"
-                onClick={handleConfirmFail}
-                disabled={isSubmittingFailure || !failureReason.trim()}
-              >
-                {isSubmittingFailure ? (
-                  <>
-                    <span className="spinner-mini"></span>
-                    Đang lưu trạng thái...
-                  </>
-                ) : (
-                  'Xác Nhận Thất Bại'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ReasonModal
+          title={`Báo giao thất bại — ${failingOrder.orderCode}`}
+          intro="Đơn sẽ chuyển sang trạng thái Giao thất bại và báo ngay về cho quán."
+          label="Lý do giao thất bại"
+          presets={FAILURE_REASONS}
+          placeholder="Ví dụ: đã gọi 3 lần nhưng khách thuê bao, bảo vệ không cho gửi..."
+          confirmText="Xác nhận thất bại"
+          onClose={() => setFailingOrder(null)}
+          onConfirm={handleFailDelivery}
+        />
       )}
 
-      {/* Modal: Từ Chối Nhận Đơn Hàng */}
       {rejectingOrder && (
-        <div className="web-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="web-modal-dialog">
-            <div className="modal-header-warning">
-              <div className="modal-title-group">
-                <span className="title-icon">⚠️</span>
-                <h3>Từ Chối Nhận Đơn Hàng</h3>
-              </div>
-              <button
-                type="button"
-                className="modal-btn-close"
-                onClick={() => setRejectingOrder(null)}
-                aria-label="Đóng"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="web-modal-content">
-              <div className="modal-warning-alert">
-                Bạn đang từ chối nhận đơn hàng <strong>#{rejectingOrder.orderCode}</strong>.
-                Đơn hàng sẽ được gỡ gán và hoàn về cho nhân viên quán điều phối lại cho tài xế khác.
-              </div>
-
-              <div className="modal-order-summary-box">
-                <div className="row">
-                  <span className="label">Mã đơn hàng:</span>
-                  <strong className="val">#{rejectingOrder.orderCode}</strong>
-                </div>
-                <div className="row">
-                  <span className="label">Khách nhận:</span>
-                  <strong className="val">{rejectingOrder.receiverName} ({rejectingOrder.receiverPhone})</strong>
-                </div>
-                <div className="row">
-                  <span className="label">Địa chỉ giao:</span>
-                  <span className="val">{rejectingOrder.shippingAddress}</span>
-                </div>
-                <div className="row">
-                  <span className="label">Tổng tiền COD:</span>
-                  <strong className="val text-amber-600 font-bold">
-                    {rejectingOrder.paymentMethod === 'COD' ? formatCurrency(rejectingOrder.total) : 'Đã thanh toán online'}
-                  </strong>
-                </div>
-              </div>
-
-              <div className="modal-input-group">
-                <label className="input-label">Chọn nhanh lý do từ chối:</label>
-                <div className="preset-chips-flex">
-                  {PRESET_REJECT_REASONS.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      className={`preset-chip-btn ${
-                        rejectReason === preset ? 'active' : ''
-                      }`}
-                      onClick={() => setRejectReason(preset)}
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="modal-input-group">
-                <label htmlFor="modal-reject-reason" className="input-label">
-                  Chi tiết lý do từ chối: <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  id="modal-reject-reason"
-                  rows={3}
-                  className="modal-textarea"
-                  placeholder="Nhập chi tiết lý do (vd: Xe bị thủng xăm đang sửa, kẹt mưa bão không đi được, hết ca làm...)"
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="web-modal-footer">
-              <button
-                type="button"
-                className="btn-cancel"
-                onClick={() => setRejectingOrder(null)}
-                disabled={isSubmittingReject}
-              >
-                Quay lại
-              </button>
-              <button
-                type="button"
-                id="btn-confirm-reject-web-submit"
-                className="btn-submit-danger"
-                onClick={handleConfirmReject}
-                disabled={isSubmittingReject || !rejectReason.trim()}
-              >
-                {isSubmittingReject ? (
-                  <>
-                    <span className="spinner-mini"></span>
-                    Đang xử lý...
-                  </>
-                ) : (
-                  'Xác Nhận Từ Chối Đơn'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ReasonModal
+          title={`Từ chối nhận đơn — ${rejectingOrder.orderCode}`}
+          intro="Đơn sẽ được gỡ khỏi danh sách của bạn và trả về quán để điều phối tài xế khác."
+          label="Lý do từ chối"
+          presets={REJECT_REASONS}
+          placeholder="Ví dụ: xe thủng xăm đang sửa, kẹt mưa bão, hết ca làm..."
+          confirmText="Xác nhận từ chối"
+          onClose={() => setRejectingOrder(null)}
+          onConfirm={handleRejectOrder}
+        />
       )}
 
-      {/* Modal: Lịch sử đơn hàng */}
-      {historyOrder && (
-        <div className="web-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="web-modal-dialog">
-            <div className="modal-header-neutral">
-              <div className="modal-title-group">
-                <span className="title-icon">📜</span>
-                <h3>Lịch Sử Đơn Hàng #{historyOrder.orderCode}</h3>
-              </div>
-              <button
-                type="button"
-                className="modal-btn-close"
-                onClick={() => setHistoryOrder(null)}
-                aria-label="Đóng"
-              >
-                ✕
-              </button>
-            </div>
+      {historyOrder && <HistoryModal order={historyOrder} onClose={() => setHistoryOrder(null)} />}
+    </>
+  );
+};
 
-            <div className="web-modal-content">
-              {isLoadingHistory ? (
-                <div className="modal-loading-box">
-                  <div className="spinner-royal"></div>
-                  <p>Đang tải tiến trình chuyển trạng thái...</p>
-                </div>
-              ) : orderHistory.length === 0 ? (
-                <p className="no-history-text">Chưa có lịch sử trạng thái cho đơn hàng này.</p>
-              ) : (
-                <div className="web-timeline-list">
-                  {orderHistory.map((item, idx) => (
-                    <div key={item.id || idx} className="timeline-item">
-                      <div className="timeline-dot"></div>
-                      <div className="timeline-box">
-                        <div className="top-row">
-                          <span className="status-chip">{item.toStatus}</span>
-                          <span className="time">{formatDateTime(item.createdAt)}</span>
-                        </div>
-                        {item.changedByName && (
-                          <div className="actor">
-                            Thực hiện bởi: <strong>{item.changedByName}</strong> ({item.changedByRole})
-                          </div>
-                        )}
-                        {item.note && <div className="note">{item.note}</div>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+const KpiCard = ({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) => (
+  <div className="card shipper__kpi">
+    <span className="shipper__kpi-icon" aria-hidden="true">
+      {icon}
+    </span>
+    <span>
+      <strong>{value}</strong>
+      <em>{label}</em>
+    </span>
+  </div>
+);
 
-            <div className="web-modal-footer">
-              <button
-                type="button"
-                className="btn-cancel full-width"
-                onClick={() => setHistoryOrder(null)}
-              >
-                Đóng
-              </button>
-            </div>
+interface OrderCardProps {
+  order: OrderResponse;
+  expanded: boolean;
+  busy: boolean;
+  onToggleExpand: () => void;
+  onHistory: () => void;
+  onAccept: () => void;
+  onReject: () => void;
+  onDeliver: () => void;
+  onFail: () => void;
+}
+
+const OrderCard = ({
+  order,
+  expanded,
+  busy,
+  onToggleExpand,
+  onHistory,
+  onAccept,
+  onReject,
+  onDeliver,
+  onFail,
+}: OrderCardProps) => {
+  const isReady = order.status === 'READY_FOR_PICKUP';
+  const isDelivering = order.status === 'DELIVERING';
+  const isCod = order.paymentMethod === 'COD';
+  const isPaid = order.paymentStatus === 'PAID';
+
+  return (
+    <article className={`card shipper__card${isDelivering ? ' shipper__card--active' : ''}`}>
+      <header className="shipper__head">
+        <div className="shipper__ident">
+          <span className="shipper__code">#{order.orderCode}</span>
+          <StatusBadge status={order.status} />
+        </div>
+        <div className="shipper__head-right">
+          <span className="shipper__time">{formatDateTime(order.createdAt)}</span>
+          <Button size="sm" variant="ghost" icon={<History size={15} />} onClick={onHistory}>
+            Lịch sử
+          </Button>
+        </div>
+      </header>
+
+      <div className="shipper__body">
+        <div className="shipper__contact">
+          <p className="shipper__recv">
+            {order.receiverName}
+            <span>{order.receiverPhone}</span>
+          </p>
+          <div className="shipper__contact-actions">
+            <a className="shipper__tel" href={`tel:${order.receiverPhone}`}>
+              <Phone size={15} /> Gọi ngay
+            </a>
+            <a
+              className="shipper__map"
+              href={`https://maps.google.com/?q=${encodeURIComponent(order.shippingAddress)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <MapPin size={15} /> Chỉ đường
+            </a>
           </div>
         </div>
+
+        <p className="shipper__address">
+          <MapPin size={15} />
+          <span>{order.shippingAddress}</span>
+        </p>
+
+        {order.note && (
+          <p className="shipper__note">
+            <StickyNote size={15} />
+            <span>Ghi chú: “{order.note}”</span>
+          </p>
+        )}
+
+        <div className={`shipper__money${isCod && !isPaid ? ' shipper__money--due' : ''}`}>
+          <span className="shipper__money-label">
+            {isCod && !isPaid ? 'Số tiền cần thu (COD)' : isPaid ? 'Đã thanh toán trực tuyến' : 'Thanh toán'}
+          </span>
+          <strong>{isCod && !isPaid ? formatCurrency(order.total) : formatCurrency(0)}</strong>
+          <em>
+            {isCod && !isPaid
+              ? `Thu đủ tiền mặt trước khi bàn giao · ${PAYMENT_METHOD_LABEL[order.paymentMethod]}`
+              : 'Khách đã trả trước, không thu thêm.'}
+          </em>
+        </div>
+
+        <button type="button" className="shipper__items-toggle" aria-expanded={expanded} onClick={onToggleExpand}>
+          {expanded ? 'Thu gọn chi tiết món' : `Xem ${order.items.length} món & topping`}
+        </button>
+
+        {expanded && (
+          <ul className="shipper__items">
+            {order.items.map((item) => (
+              <li key={item.id}>
+                <span className="shipper__item-qty">{item.quantity}×</span>
+                <span className="shipper__item-body">
+                  <strong>{item.productName}</strong>
+                  {item.options && item.options.length > 0 && (
+                    <em>{item.options.map((option) => `+ ${option.optionName}`).join(' · ')}</em>
+                  )}
+                </span>
+                <span className="shipper__item-price">{formatCurrency(item.lineTotal)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {order.status === 'DELIVERED' && (
+          <p className="shipper__done">
+            <CheckCircle2 size={16} />
+            Đã giao lúc {formatDateTime(order.deliveredAt || order.updatedAt)}
+          </p>
+        )}
+
+        {order.status === 'FAILED' && (
+          <p className="shipper__failed">
+            <TriangleAlert size={16} />
+            {order.cancelReason || 'Không ghi rõ lý do thất bại.'}
+          </p>
+        )}
+      </div>
+
+      {!isFinalStatus(order.status) && (
+        <footer className="shipper__foot">
+          {isReady && (
+            <>
+              <Button variant="ghost" disabled={busy} onClick={onReject}>
+                Từ chối đơn
+              </Button>
+              <Button variant="primary" icon={<Bike size={17} />} loading={busy} onClick={onAccept}>
+                Nhận đơn & bắt đầu giao
+              </Button>
+            </>
+          )}
+
+          {isDelivering && (
+            <>
+              <Button variant="ghost" onClick={onFail}>
+                Báo giao thất bại
+              </Button>
+              <Button variant="success" icon={<CheckCircle2 size={17} />} onClick={onDeliver}>
+                Xác nhận đã giao
+              </Button>
+            </>
+          )}
+        </footer>
       )}
-    </ShipperLayout>
+    </article>
+  );
+};
+
+/** Xác nhận đã giao — nhắc tài xế thu đủ tiền COD trước khi hoàn tất. */
+const DeliveryConfirmModal = ({
+  order,
+  onClose,
+  onConfirm,
+}: {
+  order: OrderResponse;
+  onClose: () => void;
+  onConfirm: (note: string) => Promise<void>;
+}) => {
+  const [note, setNote] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const needsCash = order.paymentMethod === 'COD' && order.paymentStatus !== 'PAID';
+
+  const handleConfirm = async () => {
+    setIsSubmitting(true);
+    setErrorMsg(null);
+    try {
+      await onConfirm(note.trim());
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Xác nhận giao hàng thất bại.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="sm"
+      title={`Xác nhận đã giao đơn ${order.orderCode}`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
+            Đóng
+          </Button>
+          <Button variant="success" loading={isSubmitting} onClick={() => void handleConfirm()}>
+            Hoàn tất đơn hàng
+          </Button>
+        </>
+      }
+    >
+      <div className="shipper__modal">
+        {errorMsg && (
+          <div className="alert-banner alert-error" role="alert">
+            <XCircle size={17} />
+            <div>{errorMsg}</div>
+          </div>
+        )}
+
+        <dl className="shipper__summary">
+          <div>
+            <dt>Khách nhận</dt>
+            <dd>
+              {order.receiverName} · {order.receiverPhone}
+            </dd>
+          </div>
+          <div>
+            <dt>Địa chỉ</dt>
+            <dd>{order.shippingAddress}</dd>
+          </div>
+        </dl>
+
+        <div className={`shipper__cash${needsCash ? ' shipper__cash--due' : ''}`}>
+          <span>{needsCash ? 'Thu tiền mặt (COD)' : 'Đã thanh toán trước'}</span>
+          <strong>{needsCash ? formatCurrency(order.total) : '0 đ'}</strong>
+          <em>
+            {needsCash
+              ? 'Kiểm tra kỹ trước khi bấm hoàn tất đơn hàng.'
+              : 'Không thu thêm bất kỳ khoản nào từ khách.'}
+          </em>
+        </div>
+
+        <Textarea
+          label="Ghi chú giao hàng (không bắt buộc)"
+          rows={2}
+          placeholder="Ví dụ: đã gửi cho bảo vệ tòa nhà..."
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+        />
+      </div>
+    </Modal>
+  );
+};
+
+/** Modal lý do dùng chung cho "giao thất bại" và "từ chối nhận đơn". */
+const ReasonModal = ({
+  title,
+  intro,
+  label,
+  presets,
+  placeholder,
+  confirmText,
+  onClose,
+  onConfirm,
+}: {
+  title: string;
+  intro: string;
+  label: string;
+  presets: string[];
+  placeholder: string;
+  confirmText: string;
+  onClose: () => void;
+  onConfirm: (reason: string) => Promise<void>;
+}) => {
+  const [reason, setReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleConfirm = async () => {
+    const trimmed = reason.trim();
+    if (!trimmed) {
+      setErrorMsg('Vui lòng chọn hoặc nhập lý do.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMsg(null);
+    try {
+      await onConfirm(trimmed);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Không gửi được lý do.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="sm"
+      title={title}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
+            Quay lại
+          </Button>
+          <Button
+            variant="danger"
+            loading={isSubmitting}
+            disabled={!reason.trim()}
+            onClick={() => void handleConfirm()}
+          >
+            {confirmText}
+          </Button>
+        </>
+      }
+    >
+      <div className="shipper__modal">
+        {errorMsg && (
+          <div className="alert-banner alert-error" role="alert">
+            <XCircle size={17} />
+            <div>{errorMsg}</div>
+          </div>
+        )}
+
+        <p className="shipper__intro">{intro}</p>
+
+        <div className="ui-field">
+          <span className="ui-field__label">Chọn nhanh lý do</span>
+          <div className="shipper__presets">
+            {presets.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                className={`ui-chip${reason === preset ? ' ui-chip--active' : ''}`}
+                onClick={() => setReason(preset)}
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Textarea
+          label={label}
+          required
+          rows={3}
+          placeholder={placeholder}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </div>
+    </Modal>
+  );
+};
+
+const HistoryModal = ({ order, onClose }: { order: OrderResponse; onClose: () => void }) => {
+  const [history, setHistory] = useState<OrderStatusHistoryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    shipperOrderApi
+      .getOrderHistory(order.orderCode)
+      .then((data) => {
+        if (!cancelled) setHistory(data);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setErrorMsg(err instanceof Error ? err.message : 'Không tải được lịch sử đơn hàng.');
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [order.orderCode]);
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="sm"
+      title={`Lịch sử đơn ${order.orderCode}`}
+      footer={
+        <Button variant="secondary" onClick={onClose}>
+          Đóng
+        </Button>
+      }
+    >
+      <div className="shipper__modal">
+        {errorMsg && (
+          <div className="alert-banner alert-error" role="alert">
+            <XCircle size={17} />
+            <div>{errorMsg}</div>
+          </div>
+        )}
+
+        {isLoading ? (
+          <Skeleton variant="row" count={3} />
+        ) : history.length === 0 ? (
+          <p className="shipper__intro">Chưa có lịch sử trạng thái cho đơn này.</p>
+        ) : (
+          <ol className="shipper__timeline">
+            {history.map((item) => (
+              <li key={item.id}>
+                <span className="shipper__timeline-dot" aria-hidden="true" />
+                <div>
+                  <div className="shipper__timeline-top">
+                    <Badge tone="neutral">{item.toStatus}</Badge>
+                    <span>{formatDateTime(item.createdAt)}</span>
+                  </div>
+                  {item.changedByName && (
+                    <p>
+                      Thực hiện bởi <strong>{item.changedByName}</strong>
+                      {item.changedByRole ? ` (${item.changedByRole})` : ''}
+                    </p>
+                  )}
+                  {item.note && <p className="shipper__timeline-note">{item.note}</p>}
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </Modal>
   );
 };

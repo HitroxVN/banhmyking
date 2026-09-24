@@ -7,6 +7,12 @@ import type {
   ProductUpdatePayload,
 } from '../types/staff';
 
+export interface CategoryPayload {
+  name: string;
+  description?: string;
+  sortOrder?: number;
+}
+
 export const staffCatalogApi = {
   /**
    * Lấy danh sách toàn bộ danh mục món ăn
@@ -19,12 +25,24 @@ export const staffCatalogApi = {
   /**
    * Tạo danh mục mới
    */
-  async createCategory(name: string, description?: string): Promise<CategoryItem> {
-    const res = await axiosClient.post<ApiResponse<CategoryItem>>('/catalog/categories', {
-      name,
-      description,
-    });
+  async createCategory(payload: CategoryPayload): Promise<CategoryItem> {
+    const res = await axiosClient.post<ApiResponse<CategoryItem>>('/catalog/categories', payload);
     return res.data.data;
+  },
+
+  /**
+   * Cập nhật danh mục (tên, mô tả, thứ tự hiển thị)
+   */
+  async updateCategory(id: number, payload: CategoryPayload): Promise<CategoryItem> {
+    const res = await axiosClient.put<ApiResponse<CategoryItem>>(`/catalog/categories/${id}`, payload);
+    return res.data.data;
+  },
+
+  /**
+   * Xoá danh mục (backend đánh dấu đã xoá, không xoá cứng)
+   */
+  async deleteCategory(id: number): Promise<void> {
+    await axiosClient.delete<ApiResponse<void>>(`/catalog/categories/${id}`);
   },
 
   /**

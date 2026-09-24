@@ -1,5 +1,6 @@
 import type { RoleName } from './auth';
 
+/** Khớp DashboardMetricsResponse của backend */
 export interface DashboardMetrics {
   totalRevenue: number;
   todayRevenue: number;
@@ -9,28 +10,28 @@ export interface DashboardMetrics {
   processingOrders: number;
   deliveredOrders: number;
   cancelledOrders: number;
-  orderSuccessRate: number;
+  successRate: number;
   totalUsers: number;
-  activeUsers: number;
-  bannedUsers: number;
   customerCount: number;
   staffCount: number;
   shipperCount: number;
-  adminCount: number;
 }
 
+/** Khớp DailyRevenueResponse */
 export interface DailyRevenue {
+  /** yyyy-MM-dd */
   date: string;
-  dayOfWeek: string;
   revenue: number;
   orderCount: number;
 }
 
+/** Khớp OrderStatusStatResponse */
 export interface OrderStatusStat {
   status: string;
-  label: string;
+  statusLabel: string;
   count: number;
   percentage: number;
+  totalAmount: number;
 }
 
 export interface AdminUser {
@@ -70,8 +71,8 @@ export interface UserFilterParams {
 
 export interface PageResponse<T> {
   content: T[];
-  pageNumber: number;
-  pageSize: number;
+  page: number;
+  size: number;
   totalElements: number;
   totalPages: number;
   last: boolean;

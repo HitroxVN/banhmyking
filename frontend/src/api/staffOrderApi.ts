@@ -1,8 +1,17 @@
 import { axiosClient } from './axiosClient';
 import type { ApiResponse } from '../types/auth';
 import type { PageResponse } from '../types/admin';
-import type { OrderResponse, OrderStatus } from '../types/order';
+import type { OrderResponse, OrderStatus, OrderStatusHistoryItem } from '../types/order';
 import type { ShipperAvailability } from '../types/staff';
+
+export interface AdminOrderFilter {
+  status?: OrderStatus;
+  /** yyyy-MM-dd */
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  size?: number;
+}
 
 export const staffOrderApi = {
   /**
@@ -13,11 +22,20 @@ export const staffOrderApi = {
     page: number = 0,
     size: number = 50
   ): Promise<PageResponse<OrderResponse>> {
+    return this.getOrders({ status, page, size });
+  },
+
+  /**
+   * Danh sách đơn toàn hệ thống có lọc theo trạng thái + khoảng ngày (Staff/Admin)
+   */
+  async getOrders(filter: AdminOrderFilter = {}): Promise<PageResponse<OrderResponse>> {
     const res = await axiosClient.get<ApiResponse<PageResponse<OrderResponse>>>('/admin/orders', {
       params: {
-        status,
-        page,
-        size,
+        status: filter.status,
+        fromDate: filter.fromDate,
+        toDate: filter.toDate,
+        page: filter.page ?? 0,
+        size: filter.size ?? 10,
       },
     });
     return res.data.data;
@@ -110,8 +128,19 @@ export const staffOrderApi = {
     const res = await axiosClient.put<ApiResponse<OrderResponse>>(
       `/admin/orders/${orderCode}/cancel`,
       {
-        reason,
+        // Backend nhận CancelOrderRequest.cancelReason (trước đây gửi sai khoá "reason")
+        cancelReason: reason,
       }
+    );
+    return res.data.data;
+  },
+
+  /**
+   * Lịch sử chuyển trạng thái của một đơn (dành cho Staff/Admin)
+   */
+  async getOrderHistory(orderCode: string): Promise<OrderStatusHistoryItem[]> {
+    const res = await axiosClient.get<ApiResponse<OrderStatusHistoryItem[]>>(
+      `/admin/orders/${orderCode}/history`
     );
     return res.data.data;
   },

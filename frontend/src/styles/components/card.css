@@ -1,0 +1,70 @@
+/* Thẻ nội dung + thanh tiêu đề trang — dùng chung cho mọi khu vực (khách, staff, admin) */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.card + .card {
+  margin-top: var(--space-4);
+}
+
+.card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-lg);
+  color: var(--stone-900);
+}
+
+.card__body {
+  padding: var(--space-5);
+}
+
+.card__foot {
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+/* Thanh tiêu đề + hành động ở đầu trang */
+.page-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.page-bar__title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  color: var(--stone-900);
+}
+
+.page-bar__crumb {
+  margin: 0 0 4px;
+  font-size: var(--text-sm);
+  color: var(--stone-500);
+}
+
+.page-bar__crumb a {
+  color: var(--primary-700);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.page-bar__crumb a:hover {
+  text-decoration: underline;
+}

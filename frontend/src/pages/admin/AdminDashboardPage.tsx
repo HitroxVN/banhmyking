@@ -1,13 +1,15 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { AdminLayout } from '../../components/admin/AdminLayout';
+import { useCallback, useEffect, useState } from 'react';
+import { Banknote, ShoppingBag, Target, TrendingUp, XCircle } from 'lucide-react';
+import { Button, PageHeader, Skeleton } from '../../components/ui';
 import { RevenueChart } from '../../components/admin/RevenueChart';
 import { OrderStatusBreakdown } from '../../components/admin/OrderStatusBreakdown';
 import { UserBreakdownCard } from '../../components/admin/UserBreakdownCard';
 import { adminDashboardApi } from '../../api/adminDashboardApi';
 import type { DashboardMetrics, DailyRevenue, OrderStatusStat } from '../../types/admin';
 import { formatCurrency } from '../../utils/formatters';
+import '../../styles/components/dashboard.css';
 
-export const AdminDashboardPage: React.FC = () => {
+export const AdminDashboardPage = () => {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [revenueData, setRevenueData] = useState<DailyRevenue[]>([]);
   const [orderStats, setOrderStats] = useState<OrderStatusStat[]>([]);
@@ -31,9 +33,7 @@ export const AdminDashboardPage: React.FC = () => {
       setOrderStats(s);
       setLastUpdated(new Date());
     } catch (err: unknown) {
-      const error = err as Error;
-      console.error('Error refreshing admin dashboard data:', error);
-      setErrorMsg(error.message || 'Không thể tải dữ liệu thống kê từ máy chủ.');
+      setErrorMsg(err instanceof Error ? err.message : 'Không thể tải dữ liệu thống kê từ máy chủ.');
     } finally {
       setIsRefreshing(false);
     }
@@ -47,20 +47,17 @@ export const AdminDashboardPage: React.FC = () => {
       adminDashboardApi.getOrderStatusStats(),
     ])
       .then(([m, r, s]) => {
-        if (isMounted) {
-          setMetrics(m);
-          setRevenueData(r);
-          setOrderStats(s);
-          setLastUpdated(new Date());
-          setIsLoading(false);
-        }
+        if (!isMounted) return;
+        setMetrics(m);
+        setRevenueData(r);
+        setOrderStats(s);
+        setLastUpdated(new Date());
+        setIsLoading(false);
       })
       .catch((err: unknown) => {
-        if (isMounted) {
-          const error = err as Error;
-          setErrorMsg(error.message || 'Không thể tải dữ liệu thống kê từ máy chủ.');
-          setIsLoading(false);
-        }
+        if (!isMounted) return;
+        setErrorMsg(err instanceof Error ? err.message : 'Không thể tải dữ liệu thống kê từ máy chủ.');
+        setIsLoading(false);
       });
 
     return () => {
@@ -68,129 +65,118 @@ export const AdminDashboardPage: React.FC = () => {
     };
   }, [chartDays]);
 
-  // Handle Chart Days Change
   const handleDaysChange = async (days: number) => {
     setChartDays(days);
     try {
-      const data = await adminDashboardApi.getRevenueChart(days);
-      setRevenueData(data);
-    } catch (err) {
-      console.error('Error fetching revenue chart for days:', days, err);
+      setRevenueData(await adminDashboardApi.getRevenueChart(days));
+    } catch {
+      setErrorMsg('Không tải được dữ liệu biểu đồ doanh thu.');
     }
   };
 
   return (
-    <AdminLayout
-      title="Bảng Điều Khiển Tổng Quan (Dashboard)"
-      subtitle={`Cập nhật số liệu kinh doanh và vận hành lúc ${lastUpdated.toLocaleTimeString('vi-VN')}`}
-      onRefresh={handleRefresh}
-      isRefreshing={isRefreshing}
-    >
+    <>
+      <PageHeader
+        title="Bảng điều khiển tổng quan"
+        subtitle={`Cập nhật lúc ${lastUpdated.toLocaleTimeString('vi-VN')}`}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+      />
+
       {errorMsg && (
-        <div className="alert-banner alert-error" style={{ marginBottom: '1.5rem' }}>
-          <div>⚠️ {errorMsg}</div>
-          <button
-            type="button"
-            className="btn-outline"
-            style={{ marginLeft: 'auto', padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}
-            onClick={handleRefresh}
-          >
+        <div className="alert-banner alert-error page-alert" role="alert">
+          <XCircle size={18} />
+          <div>{errorMsg}</div>
+          <Button size="sm" variant="secondary" onClick={handleRefresh}>
             Thử lại
-          </button>
+          </Button>
         </div>
       )}
 
       {isLoading && !metrics ? (
-        <div className="dashboard-loading-skeleton">
-          <div className="spinner-royal"></div>
-          <p>Đang tổng hợp dữ liệu doanh thu và đơn hàng...</p>
+        <div className="adash">
+          <Skeleton variant="card" count={2} />
         </div>
       ) : metrics ? (
-        <div className="dashboard-grid-container">
-          {/* Top KPI Cards Row */}
-          <section className="kpi-metrics-grid">
-            {/* Card 1: Doanh thu hôm nay */}
-            <div className="kpi-card revenue-today">
-              <div className="kpi-card-header">
-                <span className="kpi-title">Doanh thu hôm nay</span>
-                <span className="kpi-icon">💰</span>
+        <div className="adash">
+          <section className="adash__kpis">
+            <article className="kpi">
+              <div className="kpi__top">
+                <span className="kpi__label">Doanh thu hôm nay</span>
+                <span className="kpi__icon">
+                  <Banknote size={19} />
+                </span>
               </div>
-              <div className="kpi-value">{formatCurrency(metrics.todayRevenue)}</div>
-              <div className="kpi-footer">
-                <span className="kpi-badge today">Hôm nay</span>
-                <span className="kpi-subtext">Doanh số phát sinh thực tế</span>
+              <span className="kpi__value">{formatCurrency(metrics.todayRevenue)}</span>
+              <div className="kpi__foot">
+                <span className="kpi__hint">Doanh số phát sinh trong ngày</span>
               </div>
-            </div>
+            </article>
 
-            {/* Card 2: Tổng doanh thu lũy kế */}
-            <div className="kpi-card revenue-total">
-              <div className="kpi-card-header">
-                <span className="kpi-title">Tổng doanh thu lũy kế</span>
-                <span className="kpi-icon">📈</span>
+            <article className="kpi">
+              <div className="kpi__top">
+                <span className="kpi__label">Tổng doanh thu luỹ kế</span>
+                <span className="kpi__icon">
+                  <TrendingUp size={19} />
+                </span>
               </div>
-              <div className="kpi-value">{formatCurrency(metrics.totalRevenue)}</div>
-              <div className="kpi-footer">
-                <span className="kpi-badge total">Toàn thời gian</span>
-                <span className="kpi-subtext">Tổng tiền từ đơn giao thành công</span>
+              <span className="kpi__value">{formatCurrency(metrics.totalRevenue)}</span>
+              <div className="kpi__foot">
+                <span className="kpi__hint">Từ các đơn đã giao thành công</span>
               </div>
-            </div>
+            </article>
 
-            {/* Card 3: Đơn hàng hôm nay */}
-            <div className="kpi-card orders-today">
-              <div className="kpi-card-header">
-                <span className="kpi-title">Đơn hàng hôm nay</span>
-                <span className="kpi-icon">🛒</span>
+            <article className="kpi">
+              <div className="kpi__top">
+                <span className="kpi__label">Đơn hàng hôm nay</span>
+                <span className="kpi__icon">
+                  <ShoppingBag size={19} />
+                </span>
               </div>
-              <div className="kpi-value">{metrics.todayOrders} <span className="kpi-unit">đơn</span></div>
-              <div className="kpi-footer">
-                <span className="kpi-badge orders">Hoạt động</span>
-                <span className="kpi-subtext">Đơn tạo mới trong ngày</span>
+              <span className="kpi__value">
+                {metrics.todayOrders} <span className="kpi__unit">đơn</span>
+              </span>
+              <div className="kpi__foot">
+                <span className="kpi__hint">{metrics.pendingOrders} đơn đang chờ xử lý</span>
               </div>
-            </div>
+            </article>
 
-            {/* Card 4: Tổng đơn hàng & Tỷ lệ hoàn thành */}
-            <div className="kpi-card orders-total">
-              <div className="kpi-card-header">
-                <span className="kpi-title">Tổng đơn & Tỷ lệ thành công</span>
-                <span className="kpi-icon">🎯</span>
+            <article className="kpi">
+              <div className="kpi__top">
+                <span className="kpi__label">Tổng đơn &amp; tỷ lệ thành công</span>
+                <span className="kpi__icon">
+                  <Target size={19} />
+                </span>
               </div>
-              <div className="kpi-value">
-                {metrics.totalOrders} <span className="kpi-unit">đơn</span>
-                <span className="kpi-sub-rate">({metrics.orderSuccessRate}%)</span>
+              <span className="kpi__value">
+                {metrics.totalOrders} <span className="kpi__unit">đơn</span>
+                <span className="kpi__rate">{metrics.successRate}%</span>
+              </span>
+              <div className="kpi__foot">
+                <span className="kpi__hint">
+                  {metrics.deliveredOrders} giao xong · {metrics.cancelledOrders} đã huỷ
+                </span>
               </div>
-              <div className="kpi-footer">
-                <span className="kpi-badge success">{metrics.deliveredOrders} giao xong</span>
-                <span className="kpi-badge cancelled">{metrics.cancelledOrders} đã huỷ</span>
-              </div>
-            </div>
+            </article>
           </section>
 
-          {/* Middle Row: Revenue Chart & Order Status Breakdown */}
-          <section className="dashboard-charts-row">
-            <div className="dashboard-chart-main">
-              <RevenueChart
-                data={revenueData}
-                days={chartDays}
-                onDaysChange={handleDaysChange}
-                isLoading={isLoading}
-              />
-            </div>
-
-            <div className="dashboard-chart-side">
-              <OrderStatusBreakdown
-                stats={orderStats}
-                totalOrders={metrics.totalOrders}
-                successRate={metrics.orderSuccessRate}
-              />
-            </div>
+          <section className="adash__row">
+            <RevenueChart
+              data={revenueData}
+              days={chartDays}
+              onDaysChange={handleDaysChange}
+              isLoading={isLoading}
+            />
+            <OrderStatusBreakdown
+              stats={orderStats}
+              totalOrders={metrics.totalOrders}
+              successRate={metrics.successRate}
+            />
           </section>
 
-          {/* Bottom Row: User Breakdown & Quick Actions */}
-          <section className="dashboard-bottom-row">
-            <UserBreakdownCard metrics={metrics} />
-          </section>
+          <UserBreakdownCard metrics={metrics} />
         </div>
       ) : null}
-    </AdminLayout>
+    </>
   );
 };

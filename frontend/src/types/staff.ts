@@ -10,7 +10,8 @@ export interface CategoryItem {
   id: number;
   name: string;
   description?: string;
-  displayOrder?: number;
+  /** Thứ tự hiển thị trong thực đơn (CategoryResponse.sortOrder) */
+  sortOrder?: number;
 }
 
 export interface ProductItem {

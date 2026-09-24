@@ -1,0 +1,38 @@
+/* EmptyState — thay cho mỗi trang tự vẽ một kiểu "danh sách trống" */
+.ui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-12) var(--space-6);
+  text-align: center;
+  color: var(--stone-500);
+}
+
+.ui-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--primary-50);
+  color: var(--primary-600);
+}
+
+.ui-empty__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  color: var(--stone-800);
+}
+
+.ui-empty__desc {
+  margin: 0;
+  max-width: 420px;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.ui-empty__action {
+  margin-top: var(--space-3);
+}

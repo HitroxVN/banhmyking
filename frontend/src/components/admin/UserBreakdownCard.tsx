@@ -1,74 +1,73 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Bike, ChevronRight, ChefHat, Crown, Users } from 'lucide-react';
+import { Button } from '../ui';
 import type { DashboardMetrics } from '../../types/admin';
+import '../../styles/components/dashboard.css';
 
 interface UserBreakdownCardProps {
   metrics: DashboardMetrics;
 }
 
-export const UserBreakdownCard: React.FC<UserBreakdownCardProps> = ({ metrics }) => {
+const ROLES = [
+  { key: 'customerCount', label: 'Khách hàng', icon: <Users size={18} /> },
+  { key: 'staffCount', label: 'Nhân viên', icon: <ChefHat size={18} /> },
+  { key: 'shipperCount', label: 'Tài xế giao hàng', icon: <Bike size={18} /> },
+] as const;
+
+export const UserBreakdownCard = ({ metrics }: UserBreakdownCardProps) => {
   const navigate = useNavigate();
+  // Backend không trả riêng số admin — suy ra từ tổng tài khoản trừ 3 vai trò còn lại
+  const adminCount = Math.max(
+    0,
+    metrics.totalUsers - metrics.customerCount - metrics.staffCount - metrics.shipperCount
+  );
 
   return (
-    <div className="user-breakdown-card">
-      <div className="breakdown-header">
+    <section className="card">
+      <div className="card__head">
         <div>
-          <h3 className="breakdown-title">Cơ cấu người dùng & Phân quyền</h3>
-          <p className="breakdown-subtitle">Tổng số tài khoản trong hệ thống: {metrics.totalUsers}</p>
+          <h3 className="chart__title">Cơ cấu người dùng</h3>
+          <p className="chart__sub">Tổng {metrics.totalUsers} tài khoản trong hệ thống</p>
         </div>
-        <button
-          type="button"
-          className="btn-link-action"
+        <Button
+          size="sm"
+          variant="secondary"
+          icon={<ChevronRight size={16} />}
           onClick={() => navigate('/admin/users')}
         >
-          Quản lý tài khoản →
-        </button>
+          Quản lý tài khoản
+        </Button>
       </div>
 
-      <div className="role-distribution-grid">
-        <div className="role-stat-tile customer">
-          <div className="role-tile-icon">🛒</div>
-          <div className="role-tile-body">
-            <span className="role-tile-count">{metrics.customerCount}</span>
-            <span className="role-tile-label">Khách hàng (CUSTOMER)</span>
+      <div className="card__body">
+        <div className="roles__grid">
+          {ROLES.map((role) => (
+            <div key={role.key} className="role-tile">
+              <span className="role-tile__icon">{role.icon}</span>
+              <span>
+                <span className="role-tile__count">{metrics[role.key]}</span>
+                <span className="role-tile__label">{role.label}</span>
+              </span>
+            </div>
+          ))}
+
+          <div className="role-tile">
+            <span className="role-tile__icon">
+              <Crown size={18} />
+            </span>
+            <span>
+              <span className="role-tile__count">{adminCount}</span>
+              <span className="role-tile__label">Quản trị viên</span>
+            </span>
           </div>
         </div>
 
-        <div className="role-stat-tile staff">
-          <div className="role-tile-icon">👨‍🍳</div>
-          <div className="role-tile-body">
-            <span className="role-tile-count">{metrics.staffCount}</span>
-            <span className="role-tile-label">Nhân viên bếp/bán hàng (STAFF)</span>
-          </div>
-        </div>
-
-        <div className="role-stat-tile shipper">
-          <div className="role-tile-icon">🛵</div>
-          <div className="role-tile-body">
-            <span className="role-tile-count">{metrics.shipperCount}</span>
-            <span className="role-tile-label">Giao hàng (SHIPPER)</span>
-          </div>
-        </div>
-
-        <div className="role-stat-tile admin">
-          <div className="role-tile-icon">👑</div>
-          <div className="role-tile-body">
-            <span className="role-tile-count">{metrics.adminCount}</span>
-            <span className="role-tile-label">Quản trị viên (ADMIN)</span>
-          </div>
+        <div className="roles__foot">
+          <span className="roles__foot-item">
+            <Users size={15} /> Tổng tài khoản: <strong>{metrics.totalUsers}</strong>
+          </span>
         </div>
       </div>
-
-      <div className="account-status-summary">
-        <div className="status-summary-item active">
-          <span className="status-indicator-dot green"></span>
-          <span>Đang hoạt động: <strong>{metrics.activeUsers}</strong></span>
-        </div>
-        <div className="status-summary-item banned">
-          <span className="status-indicator-dot red"></span>
-          <span>Đã bị khóa: <strong>{metrics.bannedUsers}</strong></span>
-        </div>
-      </div>
-    </div>
+    </section>
   );
 };

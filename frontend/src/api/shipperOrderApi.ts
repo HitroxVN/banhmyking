@@ -1,7 +1,9 @@
 import { axiosClient } from './axiosClient';
 import type { ApiResponse } from '../types/auth';
 import type { PageResponse } from '../types/admin';
-import type { OrderResponse, OrderStatus } from '../types/order';
+import type { OrderResponse, OrderStatus, OrderStatusHistoryItem } from '../types/order';
+
+export type { OrderStatusHistoryItem };
 
 export interface ConfirmDeliveryRequest {
   note?: string;
@@ -13,17 +15,6 @@ export interface FailDeliveryRequest {
 
 export interface RejectOrderRequest {
   reason: string;
-}
-
-export interface OrderStatusHistoryItem {
-  id: number;
-  orderCode: string;
-  fromStatus?: OrderStatus;
-  toStatus: OrderStatus;
-  changedByName?: string;
-  changedByRole?: string;
-  note?: string;
-  createdAt: string;
 }
 
 export const shipperOrderApi = {

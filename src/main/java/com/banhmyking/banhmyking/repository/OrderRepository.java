@@ -1,6 +1,7 @@
 package com.banhmyking.banhmyking.repository;
 
 import com.banhmyking.banhmyking.entity.Order;
+import com.banhmyking.banhmyking.enums.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

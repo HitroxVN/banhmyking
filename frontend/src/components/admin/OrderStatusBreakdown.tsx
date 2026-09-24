@@ -1,5 +1,6 @@
-import React from 'react';
+import { Badge } from '../ui';
 import type { OrderStatusStat } from '../../types/admin';
+import '../../styles/components/dashboard.css';
 
 interface OrderStatusBreakdownProps {
   stats: OrderStatusStat[];
@@ -7,79 +8,62 @@ interface OrderStatusBreakdownProps {
   successRate: number;
 }
 
-export const OrderStatusBreakdown: React.FC<OrderStatusBreakdownProps> = ({
-  stats,
-  totalOrders,
-  successRate,
-}) => {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'DELIVERED':
-        return '#10b981'; // green
-      case 'DELIVERING':
-        return '#3b82f6'; // blue
-      case 'PROCESSING':
-        return '#f59e0b'; // amber
-      case 'PENDING':
-        return '#8b5cf6'; // purple
-      case 'CANCELLED':
-        return '#ef4444'; // red
-      default:
-        return '#94a3b8'; // gray
-    }
-  };
+/** Màu theo trạng thái đơn — dùng token --status-* chung với StatusBadge */
+const STATUS_COLOR: Record<string, string> = {
+  PENDING: 'var(--status-pending)',
+  CONFIRMED: 'var(--status-confirmed)',
+  PREPARING: 'var(--status-preparing)',
+  PROCESSING: 'var(--status-preparing)',
+  READY_FOR_PICKUP: 'var(--status-ready)',
+  DELIVERING: 'var(--status-delivering)',
+  DELIVERED: 'var(--status-delivered)',
+  CANCELLED: 'var(--status-cancelled)',
+  FAILED: 'var(--status-failed)',
+};
 
-  return (
-    <div className="status-breakdown-card">
-      <div className="status-breakdown-header">
-        <h3 className="breakdown-title">Phân bố trạng thái đơn hàng</h3>
-        <span className="breakdown-badge">Tổng {totalOrders} đơn</span>
+const colorOf = (status: string) => STATUS_COLOR[status] ?? 'var(--stone-400)';
+
+export const OrderStatusBreakdown = ({ stats, totalOrders, successRate }: OrderStatusBreakdownProps) => (
+  <section className="card">
+    <div className="card__head">
+      <h3 className="chart__title">Phân bố trạng thái đơn hàng</h3>
+      <Badge tone="neutral">{totalOrders} đơn</Badge>
+    </div>
+
+    <div className="card__body">
+      <div className="brk__rate">
+        <span>
+          <span className="brk__rate-label">Tỷ lệ hoàn thành</span>
+          <span className="brk__rate-sub">Đơn giao thành công / tổng đơn</span>
+        </span>
+        <span className="brk__rate-value">{successRate}%</span>
       </div>
 
-      {/* Success Rate Highlight */}
-      <div className="success-rate-banner">
-        <div className="success-rate-info">
-          <span className="success-rate-label">Tỷ lệ hoàn thành đơn</span>
-          <span className="success-rate-sub">Đơn giao thành công / Tổng đơn</span>
-        </div>
-        <div className="success-rate-value">
-          <span className="rate-num">{successRate}%</span>
-        </div>
-      </div>
-
-      {/* Multi-segment Progress Bar */}
-      <div className="multi-progress-bar">
+      <div className="brk__bar" role="img" aria-label={`Phân bố ${totalOrders} đơn theo trạng thái`}>
         {stats.map((item) => (
           <div
             key={item.status}
-            className="progress-segment"
-            style={{
-              width: `${Math.max(item.percentage, 0)}%`,
-              backgroundColor: getStatusColor(item.status),
-            }}
-            title={`${item.label}: ${item.count} đơn (${item.percentage}%)`}
+            className="brk__seg"
+            style={{ width: `${Math.max(item.percentage, 0)}%`, backgroundColor: colorOf(item.status) }}
+            title={`${item.statusLabel}: ${item.count} đơn (${item.percentage}%)`}
           />
         ))}
       </div>
 
-      {/* Status Detailed Items List */}
-      <div className="status-items-list">
-        {stats.map((item) => {
-          const color = getStatusColor(item.status);
-          return (
-            <div key={item.status} className="status-item-row">
-              <div className="status-item-left">
-                <span className="status-dot" style={{ backgroundColor: color }}></span>
-                <span className="status-label">{item.label}</span>
-              </div>
-              <div className="status-item-right">
-                <span className="status-count">{item.count} đơn</span>
-                <span className="status-percent">({item.percentage}%)</span>
-              </div>
-            </div>
-          );
-        })}
+      <div className="brk__list">
+        {stats.map((item) => (
+          <div key={item.status} className="brk__row">
+            <span className="brk__row-left">
+              <span className="brk__dot" style={{ backgroundColor: colorOf(item.status) }} />
+              {item.statusLabel}
+            </span>
+            <span>
+              <span className="brk__count">{item.count} đơn</span>
+              <span className="brk__pct">({item.percentage}%)</span>
+            </span>
+          </div>
+        ))}
       </div>
     </div>
-  );
-};
+  </section>
+);

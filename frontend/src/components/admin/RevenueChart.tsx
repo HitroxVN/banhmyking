@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { Banknote, BarChart3, Package } from 'lucide-react';
 import type { DailyRevenue } from '../../types/admin';
+import { ChipGroup, EmptyState, Skeleton } from '../ui';
 import { formatCurrency } from '../../utils/formatters';
+import '../../styles/components/dashboard.css';
 
 interface RevenueChartProps {
   data: DailyRevenue[];
@@ -9,37 +12,20 @@ interface RevenueChartProps {
   isLoading?: boolean;
 }
 
-export const RevenueChart: React.FC<RevenueChartProps> = ({
-  data,
-  days,
-  onDaysChange,
-  isLoading = false,
-}) => {
+const DAY_OPTIONS = [
+  { value: 7, label: '7 ngày gần nhất' },
+  { value: 30, label: '30 ngày gần nhất' },
+];
+
+/** Biểu đồ doanh thu (đường + vùng) kèm cột số đơn thành công, vẽ thuần SVG. */
+export const RevenueChart = ({ data, days, onDaysChange, isLoading = false }: RevenueChartProps) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  if (isLoading) {
-    return (
-      <div className="chart-card">
-        <div className="chart-header">
-          <div>
-            <h3 className="chart-title">Biểu đồ doanh thu & đơn hàng</h3>
-            <p className="chart-subtitle">Đang cập nhật dữ liệu...</p>
-          </div>
-        </div>
-        <div className="chart-loading-container">
-          <div className="spinner-royal"></div>
-          <p>Đang vẽ biểu đồ thống kê...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Safe checks
   const chartData = data && data.length > 0 ? data : [];
   const maxRevenue = Math.max(...chartData.map((d) => d.revenue), 100000);
   const maxOrders = Math.max(...chartData.map((d) => d.orderCount), 5);
 
-  // SVG dimensions
+  // Kích thước hệ toạ độ ảo — SVG tự co giãn theo bề rộng thẻ
   const svgWidth = 720;
   const svgHeight = 280;
   const paddingLeft = 65;
@@ -49,231 +35,168 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({
 
   const chartWidth = svgWidth - paddingLeft - paddingRight;
   const chartHeight = svgHeight - paddingTop - paddingBottom;
-
   const stepX = chartData.length > 1 ? chartWidth / (chartData.length - 1) : chartWidth / 2;
-
-  // Grid steps (4 horizontal guide lines)
   const ySteps = [0, 0.25, 0.5, 0.75, 1];
 
-  // Coordinates for revenue area/line
   const points = chartData.map((d, index) => {
     const x = paddingLeft + (chartData.length > 1 ? index * stepX : chartWidth / 2);
     const y = paddingTop + chartHeight - (d.revenue / maxRevenue) * chartHeight;
     return { x, y, data: d };
   });
 
-  // SVG Area path
-  const areaPath = points.length > 0
-    ? `M ${points[0].x},${paddingTop + chartHeight} ` +
+  const baseline = paddingTop + chartHeight;
+  const areaPath = points.length
+    ? `M ${points[0].x},${baseline} ` +
       points.map((p) => `L ${p.x},${p.y}`).join(' ') +
-      ` L ${points[points.length - 1].x},${paddingTop + chartHeight} Z`
+      ` L ${points[points.length - 1].x},${baseline} Z`
+    : '';
+  const linePath = points.length
+    ? `M ${points[0].x},${points[0].y} ` + points.slice(1).map((p) => `L ${p.x},${p.y}`).join(' ')
     : '';
 
-  // SVG Line path
-  const linePath = points.length > 0
-    ? `M ${points[0].x},${points[0].y} ` +
-      points.slice(1).map((p) => `L ${p.x},${p.y}`).join(' ')
-    : '';
-
-  const hoveredPoint = hoveredIndex !== null && points[hoveredIndex] ? points[hoveredIndex] : null;
+  const hoveredPoint = hoveredIndex !== null ? points[hoveredIndex] : null;
 
   return (
-    <div className="chart-card">
-      <div className="chart-header">
+    <section className="card">
+      <div className="card__head">
         <div>
-          <h3 className="chart-title">Biểu đồ doanh thu & đơn hàng thực tế</h3>
-          <p className="chart-subtitle">
-            Doanh thu thực nhận từ các đơn hàng thành công theo mốc thời gian
-          </p>
+          <h3 className="chart__title">Biểu đồ doanh thu &amp; đơn hàng</h3>
+          <p className="chart__sub">Doanh thu thực nhận từ các đơn hàng giao thành công</p>
         </div>
-
-        <div className="chart-toggle-group">
-          <button
-            type="button"
-            className={`chart-toggle-btn ${days === 7 ? 'active' : ''}`}
-            onClick={() => onDaysChange(7)}
-          >
-            7 ngày gần nhất
-          </button>
-          <button
-            type="button"
-            className={`chart-toggle-btn ${days === 30 ? 'active' : ''}`}
-            onClick={() => onDaysChange(30)}
-          >
-            30 ngày gần nhất
-          </button>
-        </div>
+        <ChipGroup<number> options={DAY_OPTIONS} value={days} onChange={onDaysChange} ariaLabel="Khoảng thời gian" />
       </div>
 
-      <div className="chart-svg-container">
-        {chartData.length === 0 ? (
-          <div className="chart-empty-state">
-            <span>📊 Chưa có dữ liệu doanh thu trong khoảng thời gian này</span>
-          </div>
-        ) : (
-          <svg
-            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-            className="chart-svg"
-            preserveAspectRatio="none"
-          >
-            <defs>
-              <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.35" />
-                <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0" />
-              </linearGradient>
-            </defs>
+      <div className="card__body">
+        {isLoading && <Skeleton variant="chart" />}
 
-            {/* Horizontal Grid lines */}
-            {ySteps.map((fraction, idx) => {
-              const yVal = paddingTop + chartHeight - fraction * chartHeight;
-              const labelAmount = maxRevenue * fraction;
-              return (
-                <g key={idx} className="chart-grid-row">
-                  <line
-                    x1={paddingLeft}
-                    y1={yVal}
-                    x2={svgWidth - paddingRight}
-                    y2={yVal}
-                    stroke="#e2e8f0"
-                    strokeDasharray="4 4"
-                  />
-                  <text
-                    x={paddingLeft - 8}
-                    y={yVal + 4}
-                    textAnchor="end"
-                    className="chart-axis-label"
-                  >
-                    {fraction === 0 ? '0 đ' : formatCurrency(labelAmount)}
-                  </text>
-                </g>
-              );
-            })}
+        {!isLoading && chartData.length === 0 && (
+          <EmptyState
+            icon={<BarChart3 size={30} />}
+            title="Chưa có dữ liệu doanh thu"
+            description="Không có đơn giao thành công nào trong khoảng thời gian này."
+          />
+        )}
 
-            {/* Area fill */}
-            <path d={areaPath} fill="url(#revenueGradient)" />
+        {!isLoading && chartData.length > 0 && (
+          <>
+            <div className="chart__body">
+              <svg
+                viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                className="chart__svg"
+                preserveAspectRatio="none"
+                role="img"
+                aria-label={`Biểu đồ doanh thu ${days} ngày gần nhất`}
+              >
+                <defs>
+                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" className="chart__grad-top" />
+                    <stop offset="100%" className="chart__grad-bottom" />
+                  </linearGradient>
+                </defs>
 
-            {/* Revenue Trend Line */}
-            <path
-              d={linePath}
-              fill="none"
-              stroke="#d97706"
-              strokeWidth="3.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+                {/* Lưới ngang + nhãn trục tung */}
+                {ySteps.map((fraction) => {
+                  const yVal = baseline - fraction * chartHeight;
+                  return (
+                    <g key={fraction}>
+                      <line
+                        className="chart__grid"
+                        x1={paddingLeft}
+                        y1={yVal}
+                        x2={svgWidth - paddingRight}
+                        y2={yVal}
+                      />
+                      <text className="chart__axis" x={paddingLeft - 8} y={yVal + 4} textAnchor="end">
+                        {fraction === 0 ? '0 đ' : formatCurrency(maxRevenue * fraction)}
+                      </text>
+                    </g>
+                  );
+                })}
 
-            {/* Order Bars (in background) */}
-            {points.map((p, idx) => {
-              const barWidth = Math.max(12, Math.min(28, (chartWidth / chartData.length) * 0.45));
-              const barHeight = (p.data.orderCount / maxOrders) * (chartHeight * 0.7);
-              const barX = p.x - barWidth / 2;
-              const barY = paddingTop + chartHeight - barHeight;
+                <path d={areaPath} fill="url(#revenueGradient)" />
+                <path className="chart__line" d={linePath} />
 
-              return (
-                <g key={`bar-${idx}`}>
-                  <rect
-                    x={barX}
-                    y={barY}
-                    width={barWidth}
-                    height={barHeight}
-                    rx="4"
-                    className={`chart-order-bar ${hoveredIndex === idx ? 'hovered' : ''}`}
-                  />
-                </g>
-              );
-            })}
-
-            {/* Data point circles and X-axis labels */}
-            {points.map((p, idx) => {
-              // Display label for every point if <= 7, else every few points
-              const showLabel = chartData.length <= 10 || idx % Math.ceil(chartData.length / 8) === 0 || idx === chartData.length - 1;
-              const displayDate = p.data.date.substring(5); // MM-DD
-
-              return (
-                <g key={`pt-${idx}`}>
-                  {/* Vertical hover guide line */}
-                  {hoveredIndex === idx && (
-                    <line
-                      x1={p.x}
-                      y1={paddingTop}
-                      x2={p.x}
-                      y2={paddingTop + chartHeight}
-                      stroke="#f59e0b"
-                      strokeWidth="1.5"
-                      strokeDasharray="3 3"
+                {/* Cột số đơn thành công */}
+                {points.map((p, idx) => {
+                  const barWidth = Math.max(12, Math.min(28, (chartWidth / chartData.length) * 0.45));
+                  const barHeight = (p.data.orderCount / maxOrders) * (chartHeight * 0.7);
+                  return (
+                    <rect
+                      key={`bar-${p.data.date}`}
+                      className={`chart__bar${hoveredIndex === idx ? ' chart__bar--on' : ''}`}
+                      x={p.x - barWidth / 2}
+                      y={baseline - barHeight}
+                      width={barWidth}
+                      height={barHeight}
+                      rx="4"
                     />
-                  )}
+                  );
+                })}
 
-                  {/* Circle dot on line */}
-                  <circle
-                    cx={p.x}
-                    cy={p.y}
-                    r={hoveredIndex === idx ? 7 : 4.5}
-                    className={`chart-data-point ${hoveredIndex === idx ? 'hovered' : ''}`}
-                  />
+                {points.map((p, idx) => {
+                  const showLabel =
+                    chartData.length <= 10 ||
+                    idx % Math.ceil(chartData.length / 8) === 0 ||
+                    idx === chartData.length - 1;
 
-                  {/* Transparent hover hit target */}
-                  <rect
-                    x={p.x - stepX / 2}
-                    y={paddingTop}
-                    width={stepX}
-                    height={chartHeight + paddingBottom}
-                    fill="transparent"
-                    onMouseEnter={() => setHoveredIndex(idx)}
-                    onMouseLeave={() => setHoveredIndex(null)}
-                    style={{ cursor: 'pointer' }}
-                  />
+                  return (
+                    <g key={`pt-${p.data.date}`}>
+                      {hoveredIndex === idx && (
+                        <line className="chart__guide" x1={p.x} y1={paddingTop} x2={p.x} y2={baseline} />
+                      )}
 
-                  {/* X Axis Label */}
-                  {showLabel && (
-                    <text
-                      x={p.x}
-                      y={svgHeight - 12}
-                      textAnchor="middle"
-                      className="chart-axis-label-x"
-                    >
-                      {displayDate}
-                    </text>
-                  )}
-                </g>
-              );
-            })}
-          </svg>
-        )}
+                      <circle className="chart__dot" cx={p.x} cy={p.y} r={hoveredIndex === idx ? 7 : 4.5} />
 
-        {/* Floating Tooltip */}
-        {hoveredPoint && (
-          <div
-            className="chart-tooltip"
-            style={{
-              left: `${(hoveredPoint.x / svgWidth) * 100}%`,
-              top: `${(hoveredPoint.y / svgHeight) * 100 - 15}%`,
-            }}
-          >
-            <div className="tooltip-date">
-              📅 {hoveredPoint.data.dayOfWeek}, {hoveredPoint.data.date}
+                      <rect
+                        className="chart__hit"
+                        x={p.x - stepX / 2}
+                        y={paddingTop}
+                        width={stepX}
+                        height={chartHeight + paddingBottom}
+                        onMouseEnter={() => setHoveredIndex(idx)}
+                        onMouseLeave={() => setHoveredIndex(null)}
+                      />
+
+                      {showLabel && (
+                        <text className="chart__axis" x={p.x} y={svgHeight - 12} textAnchor="middle">
+                          {p.data.date.substring(5)}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </svg>
+
+              {hoveredPoint && (
+                <div
+                  className="chart__tooltip"
+                  style={{
+                    left: `${(hoveredPoint.x / svgWidth) * 100}%`,
+                    top: `${(hoveredPoint.y / svgHeight) * 100 - 15}%`,
+                  }}
+                >
+                  <span className="chart__tooltip-title">{hoveredPoint.data.date}</span>
+                  <span className="chart__tooltip-row">
+                    <Banknote size={13} /> {formatCurrency(hoveredPoint.data.revenue)}
+                  </span>
+                  <span className="chart__tooltip-row">
+                    <Package size={13} /> {hoveredPoint.data.orderCount} đơn
+                  </span>
+                </div>
+              )}
             </div>
-            <div className="tooltip-revenue">
-              💰 Doanh thu: <strong>{formatCurrency(hoveredPoint.data.revenue)}</strong>
+
+            <div className="chart__legend">
+              <span className="legend-item">
+                <span className="legend__line" /> Doanh thu (VND)
+              </span>
+              <span className="legend-item">
+                <span className="legend__bar" /> Số đơn thành công
+              </span>
             </div>
-            <div className="tooltip-orders">
-              📦 Số đơn hàng: <strong>{hoveredPoint.data.orderCount} đơn</strong>
-            </div>
-          </div>
+          </>
         )}
       </div>
-
-      {/* Chart Legend */}
-      <div className="chart-legend-row">
-        <div className="legend-item">
-          <span className="legend-badge-line"></span>
-          <span>Doanh thu (VND)</span>
-        </div>
-        <div className="legend-item">
-          <span className="legend-badge-bar"></span>
-          <span>Số đơn thành công (Đơn)</span>
-        </div>
-      </div>
-    </div>
+    </section>
   );
 };

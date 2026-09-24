@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Sandwich } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
+import '../styles/components/auth.css';
 
 export const RegisterPage: React.FC = () => {
   const { register, isAuthenticated } = useAuth();
@@ -121,7 +123,7 @@ export const RegisterPage: React.FC = () => {
         {/* Brand Header */}
         <div className="brand-header">
           <div className="brand-logo-badge" title="Bánh Mỳ King">
-            🥖
+            <Sandwich size={26} />
           </div>
           <h1 className="brand-title">BÁNH MỲ KING</h1>
           <p className="brand-tagline">Tạo tài khoản để nhận ngàn ưu đãi hấp dẫn</p>
@@ -139,7 +141,7 @@ export const RegisterPage: React.FC = () => {
             </button>
           </div>
 
-          <h2 className="auth-card-title">Tạo tài khoản mới 👑</h2>
+          <h2 className="auth-card-title">Tạo tài khoản mới</h2>
           <p className="auth-card-subtitle">Điền thông tin bên dưới để trở thành thành viên Bánh Mỳ King</p>
 
           {/* Error Banner */}
@@ -301,7 +303,7 @@ export const RegisterPage: React.FC = () => {
             </div>
 
             {/* Submit Button */}
-            <button id="btn-register-submit" type="submit" className="btn-primary" disabled={isSubmitting}>
+            <button id="btn-register-submit" type="submit" className="auth-submit" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <span className="spinner-mini"></span>
