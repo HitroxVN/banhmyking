@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Sandwich } from 'lucide-react';
+import { CircleCheck, Eye, EyeOff, Hand, Lock, Mail, Sandwich, TriangleAlert } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 
 import { tokenStorage } from '../utils/tokenStorage';
@@ -125,13 +125,15 @@ export const LoginPage: React.FC = () => {
             </Link>
           </div>
 
-          <h2 className="auth-card-title">Chào mừng trở lại! 👋</h2>
+          <h2 className="auth-card-title">
+            Chào mừng trở lại! <Hand size={20} aria-hidden="true" />
+          </h2>
           <p className="auth-card-subtitle">Nhập email và mật khẩu của bạn để truy cập tài khoản</p>
 
           {/* Thông báo lỗi */}
           {activeError && (
             <div className="alert-banner alert-error" role="alert">
-              <span className="alert-icon">⚠️</span>
+              <TriangleAlert size={17} aria-hidden="true" />
               <div>{activeError}</div>
             </div>
           )}
@@ -139,7 +141,7 @@ export const LoginPage: React.FC = () => {
           {/* Thông báo thông tin / thành công */}
           {activeSuccess && (
             <div className="alert-banner alert-success" role="status">
-              <span className="alert-icon">✅</span>
+              <CircleCheck size={17} aria-hidden="true" />
               <div>{activeSuccess}</div>
             </div>
           )}
@@ -164,7 +166,9 @@ export const LoginPage: React.FC = () => {
                   autoComplete="email"
                   disabled={isSubmitting}
                 />
-                <span className="input-prefix-icon">✉️</span>
+                <span className="input-prefix-icon" aria-hidden="true">
+                  <Mail size={17} />
+                </span>
               </div>
               {fieldErrors.email && <span className="field-error-text">{fieldErrors.email}</span>}
             </div>
@@ -188,7 +192,9 @@ export const LoginPage: React.FC = () => {
                   autoComplete="current-password"
                   disabled={isSubmitting}
                 />
-                <span className="input-prefix-icon">🔒</span>
+                <span className="input-prefix-icon" aria-hidden="true">
+                  <Lock size={17} />
+                </span>
                 <button
                   type="button"
                   className="input-suffix-btn"
@@ -196,7 +202,7 @@ export const LoginPage: React.FC = () => {
                   aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                   tabIndex={-1}
                 >
-                  {showPassword ? '🙈' : '👁️'}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
               {fieldErrors.password && <span className="field-error-text">{fieldErrors.password}</span>}

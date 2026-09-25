@@ -116,6 +116,21 @@ public class ReviewServiceImpl implements ReviewService {
                 .build();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ReviewResponse> getAllReviews(Long productId, Integer rating, Pageable pageable) {
+        return PageResponse.from(reviewRepository.search(productId, rating, pageable).map(this::toReviewResponse));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteReview(Long reviewId) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá với ID: " + reviewId));
+        reviewRepository.delete(review);
+        log.info("Deleted review ID {}", reviewId);
+    }
+
     private ReviewResponse toReviewResponse(Review review) {
         return ReviewResponse.builder()
                 .id(review.getId())

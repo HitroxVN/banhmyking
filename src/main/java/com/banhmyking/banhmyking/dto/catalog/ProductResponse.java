@@ -18,5 +18,8 @@ public class ProductResponse {
     private BigDecimal price;
     private boolean available;
     private boolean featured;
+    /** Điểm trung bình cộng của các đánh giá (0.0 khi chưa có đánh giá nào) */
+    private Double averageRating;
+    private Long totalReviews;
     private List<ProductOptionResponse> options;
 }

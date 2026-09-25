@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Sandwich } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, Sandwich, ShieldCheck, Smartphone, TriangleAlert, User } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import '../styles/components/auth.css';
 
@@ -147,7 +147,7 @@ export const RegisterPage: React.FC = () => {
           {/* Error Banner */}
           {errorMessage && (
             <div className="alert-banner alert-error" role="alert">
-              <span className="alert-icon">⚠️</span>
+              <TriangleAlert size={17} aria-hidden="true" />
               <div>{errorMessage}</div>
             </div>
           )}
@@ -171,7 +171,9 @@ export const RegisterPage: React.FC = () => {
                   }}
                   disabled={isSubmitting}
                 />
-                <span className="input-prefix-icon">👤</span>
+                <span className="input-prefix-icon" aria-hidden="true">
+                  <User size={17} />
+                </span>
               </div>
               {fieldErrors.fullName && <span className="field-error-text">{fieldErrors.fullName}</span>}
             </div>
@@ -195,7 +197,9 @@ export const RegisterPage: React.FC = () => {
                   autoComplete="email"
                   disabled={isSubmitting}
                 />
-                <span className="input-prefix-icon">✉️</span>
+                <span className="input-prefix-icon" aria-hidden="true">
+                  <Mail size={17} />
+                </span>
               </div>
               {fieldErrors.email && <span className="field-error-text">{fieldErrors.email}</span>}
             </div>
@@ -219,7 +223,9 @@ export const RegisterPage: React.FC = () => {
                   autoComplete="tel"
                   disabled={isSubmitting}
                 />
-                <span className="input-prefix-icon">📱</span>
+                <span className="input-prefix-icon" aria-hidden="true">
+                  <Smartphone size={17} />
+                </span>
               </div>
               {fieldErrors.phone && <span className="field-error-text">{fieldErrors.phone}</span>}
             </div>
@@ -243,7 +249,9 @@ export const RegisterPage: React.FC = () => {
                   autoComplete="new-password"
                   disabled={isSubmitting}
                 />
-                <span className="input-prefix-icon">🔒</span>
+                <span className="input-prefix-icon" aria-hidden="true">
+                  <Lock size={17} />
+                </span>
                 <button
                   type="button"
                   className="input-suffix-btn"
@@ -251,7 +259,7 @@ export const RegisterPage: React.FC = () => {
                   aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                   tabIndex={-1}
                 >
-                  {showPassword ? '🙈' : '👁️'}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
               {fieldErrors.password && <span className="field-error-text">{fieldErrors.password}</span>}
@@ -288,7 +296,9 @@ export const RegisterPage: React.FC = () => {
                   autoComplete="new-password"
                   disabled={isSubmitting}
                 />
-                <span className="input-prefix-icon">🛡️</span>
+                <span className="input-prefix-icon" aria-hidden="true">
+                  <ShieldCheck size={17} />
+                </span>
                 <button
                   type="button"
                   className="input-suffix-btn"
@@ -296,7 +306,7 @@ export const RegisterPage: React.FC = () => {
                   aria-label={showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                   tabIndex={-1}
                 >
-                  {showConfirmPassword ? '🙈' : '👁️'}
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
               {fieldErrors.confirmPassword && <span className="field-error-text">{fieldErrors.confirmPassword}</span>}

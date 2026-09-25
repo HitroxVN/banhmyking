@@ -1,0 +1,36 @@
+/* AdminPromotionsPage — mã giảm giá */
+@import './card.css';
+@import './table.css';
+
+.apromo__form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* 2 cột cho các cặp field; về 1 cột khi modal hẹp */
+.apromo__row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.apromo__value {
+  display: block;
+  font-weight: 700;
+  color: var(--primary-700);
+  font-variant-numeric: tabular-nums;
+}
+
+.apromo__dates {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--stone-700);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .apromo__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

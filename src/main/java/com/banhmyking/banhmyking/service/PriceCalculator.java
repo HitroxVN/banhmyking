@@ -137,7 +137,12 @@ public class PriceCalculator {
         }
     }
 
-    private BigDecimal computeDiscount(Promotion promotion, BigDecimal subtotal, BigDecimal shippingFee) {
+    /**
+     * Công thức giảm giá duy nhất của hệ thống — cả lúc tạo đơn lẫn lúc kiểm tra mã
+     * ({@code POST /promotions/validate}) đều phải gọi hàm này, nếu không khách sẽ thấy
+     * số tiền giảm khác với số tiền thực bị trừ.
+     */
+    public BigDecimal computeDiscount(Promotion promotion, BigDecimal subtotal, BigDecimal shippingFee) {
         DiscountType type = promotion.getDiscountType();
         BigDecimal value = promotion.getValue() != null ? promotion.getValue() : BigDecimal.ZERO;
 

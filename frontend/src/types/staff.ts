@@ -24,6 +24,9 @@ export interface ProductItem {
   price: number;
   available: boolean;
   featured: boolean;
+  /** Điểm trung bình từ đánh giá khách (0 khi chưa có đánh giá nào) */
+  averageRating?: number;
+  totalReviews?: number;
   options?: ProductOption[];
 }
 

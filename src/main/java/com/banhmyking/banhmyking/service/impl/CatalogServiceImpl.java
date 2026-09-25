@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,7 @@ import com.banhmyking.banhmyking.repository.CartItemOptionRepository;
 import com.banhmyking.banhmyking.repository.CategoryRepository;
 import com.banhmyking.banhmyking.repository.ProductOptionRepository;
 import com.banhmyking.banhmyking.repository.ProductRepository;
+import com.banhmyking.banhmyking.repository.ReviewRepository;
 import com.banhmyking.banhmyking.service.CatalogService;
 
 import lombok.RequiredArgsConstructor;
@@ -44,6 +46,7 @@ public class CatalogServiceImpl implements CatalogService {
     private final ProductRepository productRepository;
     private final ProductOptionRepository productOptionRepository;
     private final CartItemOptionRepository cartItemOptionRepository;
+    private final ReviewRepository reviewRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -93,7 +96,23 @@ public class CatalogServiceImpl implements CatalogService {
         } else {
             products = productRepository.findByDeletedFalseOrderByFeaturedDescNameAsc();
         }
-        return products.stream().map(this::toProductResponse).toList();
+        if (products.isEmpty()) {
+            return List.of();
+        }
+
+        // 1 query gộp cho cả lưới món — không gọi rating/count cho từng món (N+1)
+        Map<Long, Object[]> summaryByProductId = new HashMap<>();
+        for (Object[] row : reviewRepository.summarizeByProductIds(
+                products.stream().map(Product::getId).toList())) {
+            summaryByProductId.put((Long) row[0], row);
+        }
+
+        return products.stream().map(product -> {
+            Object[] summary = summaryByProductId.get(product.getId());
+            Double averageRating = summary != null ? ((Number) summary[1]).doubleValue() : 0.0;
+            Long totalReviews = summary != null ? ((Number) summary[2]).longValue() : 0L;
+            return toProductResponse(product, averageRating, totalReviews);
+        }).toList();
     }
 
     @Override
@@ -257,6 +276,13 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     private ProductResponse toProductResponse(Product product) {
+        Long productId = product.getId();
+        Double averageRating = productId != null ? reviewRepository.findAverageRatingByProductId(productId) : null;
+        Long totalReviews = productId != null ? reviewRepository.countByProductId(productId) : null;
+        return toProductResponse(product, averageRating, totalReviews);
+    }
+
+    private ProductResponse toProductResponse(Product product, Double averageRating, Long totalReviews) {
         return ProductResponse.builder()
                 .id(product.getId())
                 .categoryId(product.getCategory().getId())
@@ -267,6 +293,8 @@ public class CatalogServiceImpl implements CatalogService {
                 .price(product.getPrice())
                 .available(product.isAvailable())
                 .featured(product.isFeatured())
+                .averageRating(averageRating != null ? averageRating : 0.0)
+                .totalReviews(totalReviews != null ? totalReviews : 0L)
                 .options(product.getOptions().stream().map(option -> ProductOptionResponse.builder()
                         .id(option.getId())
                         .name(option.getName())

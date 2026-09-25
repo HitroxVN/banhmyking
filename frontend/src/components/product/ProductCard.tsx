@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Flame, Plus, Sandwich } from 'lucide-react';
+import { Flame, Plus, Sandwich, Star } from 'lucide-react';
 import type { ProductItem } from '../../types/staff';
 import { formatCurrency } from '../../utils/formatters';
 import '../../styles/components/product-card.css';
@@ -18,6 +18,8 @@ export const ProductCard = ({ product, onOpen, onQuickAdd, isQuickAdding = false
 
   const hasOptions = (product.options?.length ?? 0) > 0;
   const disabled = !product.available;
+  const averageRating = product.averageRating ?? 0;
+  const totalReviews = product.totalReviews ?? 0;
 
   // Món có topping thì nút + mở modal để khách không vô tình bỏ quên lựa chọn
   const handleAdd = () => {
@@ -52,6 +54,15 @@ export const ProductCard = ({ product, onOpen, onQuickAdd, isQuickAdding = false
           <span className="pcard__flag pcard__flag--hot">
             <Flame size={12} />
             Nổi bật
+          </span>
+        )}
+
+        {/* Món chưa có đánh giá thì không hiện — tránh chip "0.0 (0)" vô nghĩa */}
+        {!disabled && totalReviews > 0 && (
+          <span className="pcard__rating">
+            <Star size={12} />
+            {averageRating.toFixed(1)}
+            <span className="pcard__rating-count">({totalReviews})</span>
           </span>
         )}
       </div>

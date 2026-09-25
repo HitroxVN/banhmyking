@@ -201,12 +201,24 @@ public class PaymentServiceImpl implements PaymentService {
         payment.setMethod(method);
 
         if (method == PaymentMethod.BANK_TRANSFER || method == PaymentMethod.E_WALLET) {
+            // Chuyển khoản/ví điện tử: khách và shipper KHÔNG được tự xác nhận đã trả tiền.
+            // Tiền vào chỉ được ghi nhận bởi webhook SePay đã xác thực (processSepayWebhook)
+            // hoặc do STAFF/ADMIN đối soát tay (tiền về tài khoản khác, SePay chưa cấu hình...).
+            boolean canReconcileManually = actor.getRole() == RoleName.STAFF
+                    || actor.getRole() == RoleName.ADMIN;
+            if (!canReconcileManually) {
+                throw new BusinessException(ErrorCode.FORBIDDEN,
+                        "Đơn chuyển khoản được xác nhận tự động khi hệ thống nhận đủ tiền. "
+                                + "Vui lòng chuyển khoản đúng số tiền và nội dung, đơn sẽ tự cập nhật.");
+            }
+
             payment.setStatus(PaymentStatus.PAID);
             payment.setPaidAt(LocalDateTime.now());
             String txnId = (request != null && request.getTransactionRef() != null
                     && !request.getTransactionRef().trim().isEmpty())
                             ? request.getTransactionRef().trim()
-                            : "TXN-" + System.currentTimeMillis();
+                            // Đối soát tay: ghi rõ tiền tố MANUAL để không nhầm với mã giao dịch ngân hàng
+                            : "MANUAL-" + System.currentTimeMillis();
             payment.setGatewayTxnId(txnId);
 
             // Cập nhật trạng thái đơn hàng sang CONFIRMED nếu đang PENDING
@@ -235,18 +247,21 @@ public class PaymentServiceImpl implements PaymentService {
                 request != null ? request.getTransferAmount() : "null",
                 request != null ? request.getContent() : "null");
 
-        // 1. Kiểm tra API Key SePay nếu có cấu hình (hỗ trợ case-insensitive tiền tố
-        // Apikey/Bearer)
-        if (sepayApiKey != null && !sepayApiKey.trim().isEmpty()) {
-            String expectedKey = sepayApiKey.trim();
-            String cleanAuth = authHeader != null ? authHeader.trim() : "";
-            boolean validHeader = cleanAuth.equalsIgnoreCase("Apikey " + expectedKey)
-                    || cleanAuth.equalsIgnoreCase("Bearer " + expectedKey)
-                    || cleanAuth.equals(expectedKey);
-            if (!validHeader) {
-                log.warn("SePay webhook rejected: Invalid Authorization header: {}", authHeader);
-                throw new BusinessException(ErrorCode.UNAUTHORIZED, "API Key SePay không hợp lệ");
-            }
+        // 1. Xác thực API Key SePay — FAIL-CLOSED: chưa cấu hình key thì TỪ CHỐI,
+        // tuyệt đối không bỏ qua kiểm tra (nếu bỏ qua, webhook giả mạo sẽ đánh dấu đơn là PAID).
+        // Hỗ trợ case-insensitive tiền tố Apikey/Bearer.
+        if (sepayApiKey == null || sepayApiKey.trim().isEmpty()) {
+            log.error("SePay webhook bị từ chối: chưa cấu hình sepay.api-key (biến môi trường SEPAY_API_KEY)");
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Webhook SePay chưa được cấu hình API Key");
+        }
+        String expectedKey = sepayApiKey.trim();
+        String cleanAuth = authHeader != null ? authHeader.trim() : "";
+        boolean validHeader = cleanAuth.equalsIgnoreCase("Apikey " + expectedKey)
+                || cleanAuth.equalsIgnoreCase("Bearer " + expectedKey)
+                || cleanAuth.equals(expectedKey);
+        if (!validHeader) {
+            log.warn("SePay webhook rejected: Invalid Authorization header: {}", authHeader);
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "API Key SePay không hợp lệ");
         }
 
         if (request == null) {

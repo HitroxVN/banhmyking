@@ -3,6 +3,7 @@ import { ShoppingCart, Sandwich } from 'lucide-react';
 import { catalogApi } from '../../api/catalogApi';
 import { useCart } from '../../context/useCart';
 import { Button, Modal, QuantityStepper, Spinner, useToast } from '../ui';
+import { ProductReviews } from '../review/ProductReviews';
 import { formatCurrency } from '../../utils/formatters';
 import type { ProductItem, ProductOption } from '../../types/staff';
 import '../../styles/components/product-modal.css';
@@ -167,6 +168,8 @@ export const ProductModal = ({ productId, onClose }: ProductModalProps) => {
               </>
             )}
           </div>
+
+          <ProductReviews productId={product.id} />
         </div>
       )}
     </Modal>

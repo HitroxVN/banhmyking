@@ -14,6 +14,7 @@ import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
 import com.banhmyking.banhmyking.repository.PromotionRepository;
 import com.banhmyking.banhmyking.repository.PromotionUsageRepository;
+import com.banhmyking.banhmyking.service.PriceCalculator;
 import com.banhmyking.banhmyking.service.PromotionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +22,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -33,6 +33,7 @@ public class PromotionServiceImpl implements PromotionService {
 
     private final PromotionRepository promotionRepository;
     private final PromotionUsageRepository promotionUsageRepository;
+    private final PriceCalculator priceCalculator;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -115,7 +116,11 @@ public class PromotionServiceImpl implements PromotionService {
 
         Promotion promotion = validateForOrder(request.getCode(), userId, request.getOrderAmount());
 
-        BigDecimal discountApplied = computeDiscount(promotion, request.getOrderAmount());
+        // Dùng chung công thức với lúc tạo đơn, nếu không số tiền xem trước sẽ lệch số tiền thực trừ
+        BigDecimal shippingFee = request.getShippingFee() != null
+                ? request.getShippingFee()
+                : PriceCalculator.DEFAULT_SHIPPING_FEE;
+        BigDecimal discountApplied = priceCalculator.computeDiscount(promotion, request.getOrderAmount(), shippingFee);
 
         PromotionResponse response = toPromotionResponse(promotion);
         response.setDiscountApplied(discountApplied);
@@ -282,27 +287,6 @@ public class PromotionServiceImpl implements PromotionService {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Phần trăm giảm giá không thể vượt quá 100%");
             }
         }
-    }
-
-    private BigDecimal computeDiscount(Promotion promotion, BigDecimal orderAmount) {
-        DiscountType type = promotion.getDiscountType();
-        BigDecimal value = promotion.getValue() != null ? promotion.getValue() : BigDecimal.ZERO;
-
-        if (type == null) {
-            return BigDecimal.ZERO;
-        }
-
-        return switch (type) {
-            case PERCENTAGE -> {
-                BigDecimal discount = orderAmount.multiply(value).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-                if (promotion.getMaxDiscountAmount() != null && discount.compareTo(promotion.getMaxDiscountAmount()) > 0) {
-                    yield promotion.getMaxDiscountAmount();
-                }
-                yield discount;
-            }
-            case FIXED_AMOUNT -> value.min(orderAmount);
-            case FREE_SHIP -> value;
-        };
     }
 
     private PromotionResponse toPromotionResponse(Promotion promotion) {

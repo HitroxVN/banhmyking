@@ -26,4 +26,11 @@ public class ValidatePromotionRequest {
     private BigDecimal orderAmount;
 
     private Long userId;
+
+    /**
+     * Phí giao hàng dự kiến — chỉ cần cho mã FREE_SHIP (số tiền được giảm không vượt quá phí ship).
+     * Bỏ trống thì dùng mức mặc định của {@link com.banhmyking.banhmyking.service.PriceCalculator}.
+     */
+    @DecimalMin(value = "0.0", message = "Phí giao hàng không được nhỏ hơn 0")
+    private BigDecimal shippingFee;
 }

@@ -40,8 +40,9 @@ public class PromotionController {
         return ResponseEntity.ok(ApiResponse.ok("Mã giảm giá hợp lệ", response));
     }
 
-    @Operation(summary = "Test Atomic Redemption (PROMO-01)", description = "Chạy thử nghiệm trừ lượt sử dụng mã giảm giá bằng UPDATE nguyên tử trên DB. Trả lỗi nếu hết lượt.")
-    @PostMapping("/promotions/{id}/redeem-atomic")
+    @Operation(summary = "Test Atomic Redemption (PROMO-01, ADMIN)", description = "Chạy thử nghiệm trừ lượt sử dụng mã giảm giá bằng UPDATE nguyên tử trên DB. Trả lỗi nếu hết lượt. Endpoint này ghi dữ liệu nên chỉ ADMIN gọi được.")
+    @PostMapping("/admin/promotions/{id}/redeem-atomic")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<PromotionResponse>> testRedeemAtomic(
             @PathVariable Long id) {
         PromotionResponse response = promotionService.testRedeemAtomic(id);

@@ -25,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -50,14 +51,21 @@ class PaymentServiceTest {
     @InjectMocks
     private PaymentServiceImpl paymentService;
 
+    /** Key SePay giả lập — webhook là fail-closed nên test phải cấu hình key và gửi kèm header. */
+    private static final String SEPAY_KEY = "test-sepay-key";
+    private static final String SEPAY_AUTH = "Apikey " + SEPAY_KEY;
+
     private User customer;
     private User otherCustomer;
     private User shipper;
     private User otherShipper;
+    private User staff;
     private Order testOrder;
 
     @BeforeEach
     void setUp() {
+        // Webhook SePay là fail-closed: phải có key cấu hình mới nhận request
+        ReflectionTestUtils.setField(paymentService, "sepayApiKey", SEPAY_KEY);
         customer = new User();
         customer.setId(10L);
         customer.setRole(RoleName.CUSTOMER);
@@ -77,6 +85,11 @@ class PaymentServiceTest {
         otherShipper.setId(30L);
         otherShipper.setRole(RoleName.SHIPPER);
         otherShipper.setFullName("Tài Xế Khác");
+
+        staff = new User();
+        staff.setId(40L);
+        staff.setRole(RoleName.STAFF);
+        staff.setFullName("Nhân Viên C");
 
         testOrder = new Order();
         testOrder.setId(100L);
@@ -267,8 +280,40 @@ class PaymentServiceTest {
     }
 
     @Test
-    @DisplayName("processPayment: Chuyển khoản thành công -> Payment PAID và Order CONFIRMED")
-    void processPayment_withBankTransfer_success() {
+    @DisplayName("processPayment: STAFF đối soát chuyển khoản -> Payment PAID và Order CONFIRMED")
+    void processPayment_withBankTransfer_byStaff_success() {
+        Payment payment = new Payment();
+        payment.setId(1L);
+        payment.setOrder(testOrder);
+        payment.setMethod(PaymentMethod.BANK_TRANSFER);
+        payment.setStatus(PaymentStatus.PENDING);
+        payment.setAmount(BigDecimal.valueOf(115000));
+        testOrder.setPayment(payment);
+        testOrder.setStatus(OrderStatus.PENDING);
+
+        when(userRepository.findById(40L)).thenReturn(Optional.of(staff));
+        when(orderRepository.findByOrderCodeWithDetails("BMK-20260912-TEST1")).thenReturn(Optional.of(testOrder));
+        when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.of(payment));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(i -> i.getArgument(0));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+
+        com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest req =
+                com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest.builder()
+                        .method(PaymentMethod.BANK_TRANSFER)
+                        .transactionRef("TXN-TEST-12345")
+                        .build();
+
+        PaymentResponse res = paymentService.processPayment(40L, "BMK-20260912-TEST1", req);
+
+        assertThat(res).isNotNull();
+        assertThat(res.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(res.getGatewayTxnId()).isEqualTo("TXN-TEST-12345");
+        assertThat(testOrder.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+    }
+
+    @Test
+    @DisplayName("processPayment: KHÁCH tự xác nhận chuyển khoản -> 403, tiền chưa vào thì đơn không được đánh PAID")
+    void processPayment_withBankTransfer_byCustomer_forbidden() {
         Payment payment = new Payment();
         payment.setId(1L);
         payment.setOrder(testOrder);
@@ -281,21 +326,21 @@ class PaymentServiceTest {
         when(userRepository.findById(10L)).thenReturn(Optional.of(customer));
         when(orderRepository.findByOrderCodeWithDetails("BMK-20260912-TEST1")).thenReturn(Optional.of(testOrder));
         when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.of(payment));
-        when(paymentRepository.save(any(Payment.class))).thenAnswer(i -> i.getArgument(0));
-        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
 
         com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest req =
                 com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest.builder()
                         .method(PaymentMethod.BANK_TRANSFER)
-                        .transactionRef("TXN-TEST-12345")
+                        .transactionRef("TXN-KHAI-MAN-99999")
                         .build();
 
-        PaymentResponse res = paymentService.processPayment(10L, "BMK-20260912-TEST1", req);
+        assertThatThrownBy(() -> paymentService.processPayment(10L, "BMK-20260912-TEST1", req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("chuyển khoản");
 
-        assertThat(res).isNotNull();
-        assertThat(res.getStatus()).isEqualTo(PaymentStatus.PAID);
-        assertThat(res.getGatewayTxnId()).isEqualTo("TXN-TEST-12345");
-        assertThat(testOrder.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(payment.getPaidAt()).isNull();
+        assertThat(testOrder.getStatus()).isEqualTo(OrderStatus.PENDING);
+        verify(paymentRepository, never()).save(any(Payment.class));
     }
 
     @Test
@@ -358,13 +403,52 @@ class PaymentServiceTest {
                 .referenceCode("FT26258012345678")
                 .build();
 
-        PaymentResponse res = paymentService.processSepayWebhook(null, req);
+        PaymentResponse res = paymentService.processSepayWebhook(SEPAY_AUTH, req);
 
         assertThat(res).isNotNull();
         assertThat(res.getStatus()).isEqualTo(PaymentStatus.PAID);
         assertThat(res.getMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
         assertThat(res.getGatewayTxnId()).isEqualTo("FT26258012345678");
         assertThat(testOrder.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+    }
+
+    @Test
+    @DisplayName("processSepayWebhook: Chưa cấu hình API Key -> từ chối (fail-closed, không được bỏ qua kiểm tra)")
+    void processSepayWebhook_missingApiKeyConfig_rejected() {
+        ReflectionTestUtils.setField(paymentService, "sepayApiKey", "");
+
+        SepayWebhookRequest req = SepayWebhookRequest.builder()
+                .id(92707L)
+                .gateway("Techcombank")
+                .content("BMK-20260912-TEST1")
+                .transferType("in")
+                .transferAmount(BigDecimal.valueOf(115000))
+                .referenceCode("FT26258012345678")
+                .build();
+
+        assertThatThrownBy(() -> paymentService.processSepayWebhook(SEPAY_AUTH, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("API Key");
+
+        verifyNoInteractions(orderRepository, paymentRepository);
+    }
+
+    @Test
+    @DisplayName("processSepayWebhook: Sai API Key -> từ chối, không đụng tới đơn hàng")
+    void processSepayWebhook_wrongApiKey_rejected() {
+        SepayWebhookRequest req = SepayWebhookRequest.builder()
+                .id(92708L)
+                .gateway("Techcombank")
+                .content("BMK-20260912-TEST1")
+                .transferType("in")
+                .transferAmount(BigDecimal.valueOf(115000))
+                .build();
+
+        assertThatThrownBy(() -> paymentService.processSepayWebhook("Apikey key-sai", req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("API Key");
+
+        verifyNoInteractions(orderRepository, paymentRepository);
     }
 
     @Test
@@ -383,7 +467,7 @@ class PaymentServiceTest {
                 .referenceCode("FT26999")
                 .build();
 
-        PaymentResponse res = paymentService.processSepayWebhook(null, req);
+        PaymentResponse res = paymentService.processSepayWebhook(SEPAY_AUTH, req);
 
         assertThat(res).isNotNull();
         assertThat(res.getStatus()).isEqualTo(PaymentStatus.PAID);
@@ -403,7 +487,7 @@ class PaymentServiceTest {
                 .transferAmount(BigDecimal.valueOf(50000)) // Đơn cần 115k nhưng chỉ chuyển 50k
                 .build();
 
-        assertThatThrownBy(() -> paymentService.processSepayWebhook(null, req))
+        assertThatThrownBy(() -> paymentService.processSepayWebhook(SEPAY_AUTH, req))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("không đủ cho đơn hàng");
     }
@@ -417,7 +501,7 @@ class PaymentServiceTest {
                 .transferAmount(BigDecimal.valueOf(100000))
                 .build();
 
-        PaymentResponse res = paymentService.processSepayWebhook(null, req);
+        PaymentResponse res = paymentService.processSepayWebhook(SEPAY_AUTH, req);
         assertThat(res).isNull();
     }
 
@@ -437,7 +521,7 @@ class PaymentServiceTest {
                 .referenceCode("FT998877")
                 .build();
 
-        PaymentResponse res = paymentService.processSepayWebhook(null, req);
+        PaymentResponse res = paymentService.processSepayWebhook(SEPAY_AUTH, req);
 
         assertThat(res).isNotNull();
         assertThat(res.getStatus()).isEqualTo(PaymentStatus.PAID);
@@ -514,7 +598,7 @@ class PaymentServiceTest {
                 .referenceCode("FT26258012345678")
                 .build();
 
-        PaymentResponse res = paymentService.processSepayWebhook(null, req);
+        PaymentResponse res = paymentService.processSepayWebhook(SEPAY_AUTH, req);
 
         assertThat(res).isNotNull();
         assertThat(res.getStatus()).isEqualTo(PaymentStatus.PAID);

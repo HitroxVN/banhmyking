@@ -108,6 +108,12 @@
   margin-bottom: 0.5rem;
 }
 
+/* Icon lucide nằm trong tiêu đề — hạ xuống cho thẳng chân chữ */
+.auth-card-title svg {
+  vertical-align: -0.2em;
+  color: var(--primary-500);
+}
+
 .auth-card-subtitle {
   font-size: 0.875rem;
   color: var(--stone-500);

@@ -5,6 +5,8 @@ import {
   Crown,
   FolderTree,
   LayoutDashboard,
+  Star,
+  Ticket,
   Users,
   UtensilsCrossed,
 } from 'lucide-react';
@@ -42,6 +44,7 @@ export const STAFF_BRAND: BrandConfig = {
 export const STAFF_NAV: NavItem[] = [
   { to: '/staff/orders', label: 'Hàng đợi Đơn hàng (POS)', icon: ClipboardList },
   { to: '/staff/menu', label: 'Quản lý Thực đơn (Menu)', icon: UtensilsCrossed },
+  { to: '/staff/reviews', label: 'Đánh giá của khách', icon: Star },
 ];
 
 export const SHIPPER_BRAND: BrandConfig = {
@@ -68,6 +71,8 @@ export const ADMIN_NAV: NavItem[] = [
   { to: '/admin/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
   { to: '/admin/orders', label: 'Đơn hàng', icon: ClipboardList },
   { to: '/admin/categories', label: 'Danh mục món', icon: FolderTree },
+  { to: '/admin/promotions', label: 'Mã giảm giá', icon: Ticket },
+  { to: '/admin/reviews', label: 'Đánh giá', icon: Star },
   { to: '/admin/users', label: 'Tài khoản', icon: Users },
 ];
 

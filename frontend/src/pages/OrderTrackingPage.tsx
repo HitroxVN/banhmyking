@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Check, Info, Receipt, SearchX, Truck, XCircle } from 'lucide-react';
+import { Check, Info, Receipt, SearchX, Star, Truck, XCircle } from 'lucide-react';
 import { orderApi } from '../api/orderApi';
 import { Badge, Button, EmptyState, Spinner, StatusBadge, useConfirm, useToast } from '../components/ui';
+import { ReviewFormModal } from '../components/review/ReviewFormModal';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
-import type { OrderResponse, OrderStatus, OrderStatusHistoryItem, PaymentStatus } from '../types/order';
+import type { OrderItemResponse, OrderResponse, OrderStatus, OrderStatusHistoryItem, PaymentStatus } from '../types/order';
 import '../styles/components/order.css';
 import '../styles/components/tracking.css';
 
@@ -61,6 +62,8 @@ export const OrderTrackingPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  /** Món đang mở form đánh giá — null = đóng modal */
+  const [reviewItem, setReviewItem] = useState<OrderItemResponse | null>(null);
 
   const load = useCallback(
     async (silent = false) => {
@@ -264,6 +267,17 @@ export const OrderTrackingPage = () => {
                   </div>
                   <div className="cart-row__side">
                     <span className="cart-row__total">{formatCurrency(item.lineTotal)}</span>
+                    {/* Backend chỉ nhận đánh giá khi đơn đã giao */}
+                    {order.status === 'DELIVERED' && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={<Star size={15} />}
+                        onClick={() => setReviewItem(item)}
+                      >
+                        Đánh giá
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -372,6 +386,8 @@ export const OrderTrackingPage = () => {
           </section>
         </aside>
       </div>
+
+      <ReviewFormModal item={reviewItem} onClose={() => setReviewItem(null)} />
     </div>
   );
 };

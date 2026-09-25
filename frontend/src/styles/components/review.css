@@ -1,0 +1,196 @@
+/* RatingStars — sao dùng chung cho khối đánh giá trong modal món và form gửi đánh giá */
+.rstar {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--stone-300);
+}
+
+.rstar__item {
+  display: inline-grid;
+  place-items: center;
+  line-height: 0;
+}
+
+.rstar__item--on {
+  color: var(--primary-500);
+}
+
+/* Bản chọn được (có onChange) — nút bấm thay vì icon tĩnh */
+.rstar--input .rstar__item--btn {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--stone-300);
+  cursor: pointer;
+  transition: transform .12s, color .12s;
+}
+
+.rstar--input .rstar__item--btn:hover {
+  transform: scale(1.12);
+}
+
+/* Đủ 3 class để thắng selector màu xám ở trên */
+.rstar--input .rstar__item--btn.rstar__item--on {
+  color: var(--primary-500);
+}
+
+.rstar--input .rstar__item--btn:focus-visible {
+  outline: 2px solid var(--primary-500);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ProductReviews — khối đánh giá trong modal chi tiết món */
+.rvw {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.rvw__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.rvw__title {
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--stone-900);
+}
+
+.rvw__score {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--stone-600);
+}
+
+.rvw__score strong {
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--primary-700);
+}
+
+.rvw__count {
+  color: var(--stone-500);
+}
+
+.rvw__loading {
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+}
+
+.rvw__empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--stone-500);
+}
+
+.rvw__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rvw__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.rvw__item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.rvw__name {
+  font-size: var(--text-sm);
+  color: var(--stone-800);
+}
+
+.rvw__comment {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--stone-700);
+  /* Nhận xét dài không được phá layout modal */
+  overflow-wrap: anywhere;
+}
+
+.rvw__date {
+  font-size: var(--text-xs);
+  color: var(--stone-400);
+}
+
+/* ReviewFormModal — form gửi đánh giá cho món trong đơn đã giao */
+.rvw-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rvw-form__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.rvw-form__img {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+.rvw-form__name {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--stone-800);
+}
+
+.rvw-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rvw-form__label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--stone-700);
+}
+
+.rvw-form__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+/* Trong modal chi tiết món, khối đánh giá là con thứ 3 của grid .pmodal —
+   choàng cả 2 cột để danh sách nhận xét không bị bó trong cột hẹp */
+.pmodal .rvw {
+  grid-column: 1 / -1;
+}

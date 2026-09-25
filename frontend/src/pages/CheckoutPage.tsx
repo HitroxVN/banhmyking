@@ -6,11 +6,13 @@ import { useCart } from '../context/useCart';
 import { useAuth } from '../context/useAuth';
 import { addressApi } from '../api/addressApi';
 import { orderApi } from '../api/orderApi';
+import { promotionApi } from '../api/promotionApi';
 import { deliveryApi } from '../api/deliveryApi';
 import { Badge, Button, EmptyState, Input, Spinner, Textarea, useToast } from '../components/ui';
 import { formatCurrency } from '../utils/formatters';
 import type { AddressResponse } from '../types/address';
 import type { CreateOrderRequest, PaymentMethod } from '../types/order';
+import type { PromotionResponse } from '../types/promotion';
 import type { DeliveryFeeResult } from '../types/delivery';
 import '../styles/components/order.css';
 import '../styles/components/checkout.css';
@@ -63,6 +65,10 @@ export const CheckoutPage = () => {
 
   const [fee, setFee] = useState<DeliveryFeeResult | null>(null);
   const [isLoadingFee, setIsLoadingFee] = useState(false);
+
+  const [promoInput, setPromoInput] = useState('');
+  const [appliedPromotion, setAppliedPromotion] = useState<PromotionResponse | null>(null);
+  const [isApplyingPromo, setIsApplyingPromo] = useState(false);
 
   // Sổ địa chỉ: ưu tiên địa chỉ mặc định, chưa có thì điền sẵn thông tin tài khoản
   useEffect(() => {
@@ -129,7 +135,9 @@ export const CheckoutPage = () => {
   }, [shippingAddress, subtotal]);
 
   const shippingFee = fee?.shippingFee ?? 0;
-  const total = subtotal + shippingFee;
+  // Số tiền giảm do backend tính (cùng công thức với lúc tạo đơn) — FE không tự tính lại
+  const discount = appliedPromotion?.discountApplied ?? 0;
+  const total = Math.max(0, subtotal + shippingFee - discount);
   const items = cart?.items ?? [];
   const isEmpty = !isCartLoading && items.length === 0;
 
@@ -176,6 +184,7 @@ export const CheckoutPage = () => {
         shippingAddress: shippingAddress.trim(),
         paymentMethod,
         note: note.trim() || undefined,
+        promotionCode: appliedPromotion?.code,
       };
 
       const created = await orderApi.createOrder(payload);
@@ -188,6 +197,36 @@ export const CheckoutPage = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Áp mã: `orderAmount` = subtotal (trước phí ship) để khớp validateForOrder của backend
+  const applyPromo = async () => {
+    const code = promoInput.trim();
+    if (!code || isApplyingPromo) return;
+
+    setIsApplyingPromo(true);
+    try {
+      const promotion = await promotionApi.validate({
+        code,
+        orderAmount: subtotal,
+        shippingFee: fee?.shippingFee,
+        userId: user?.id,
+      });
+      setAppliedPromotion(promotion);
+      setPromoInput(promotion.code);
+      toast.success(`Đã áp dụng mã ${promotion.code}`);
+    } catch (err) {
+      setAppliedPromotion(null);
+      // Backend đã trả message tiếng Việt (hết hạn / chưa đủ đơn tối thiểu / hết lượt)
+      toast.error(err instanceof Error ? err.message : 'Mã giảm giá không dùng được');
+    } finally {
+      setIsApplyingPromo(false);
+    }
+  };
+
+  const clearPromo = () => {
+    setAppliedPromotion(null);
+    setPromoInput('');
   };
 
   if (isCartLoading) {
@@ -436,6 +475,12 @@ export const CheckoutPage = () => {
               </span>
             </div>
             {fee?.description && <p className="summary__row summary__row--note">{fee.description}</p>}
+            {discount > 0 && (
+              <div className="summary__row summary__row--free">
+                <span>Giảm giá ({appliedPromotion?.code})</span>
+                <span>-{formatCurrency(discount)}</span>
+              </div>
+            )}
 
             <div className="summary__divider" />
 
@@ -445,13 +490,37 @@ export const CheckoutPage = () => {
             </div>
 
             <div className="ck__block">
-              <Input
-                label="Mã giảm giá"
-                icon={<Ticket size={16} />}
-                placeholder="Sắp ra mắt"
-                disabled
-                hint="Tính năng khuyến mãi sẽ mở ở bản cập nhật sau."
-              />
+              <div className="ck__promo">
+                <Input
+                  label="Mã giảm giá"
+                  icon={<Ticket size={16} />}
+                  placeholder="VD: BANHMYKING10"
+                  value={promoInput}
+                  disabled={appliedPromotion !== null}
+                  onChange={(event) => setPromoInput(event.target.value)}
+                  // Ô này nằm trong <form onSubmit> — không chặn thì Enter sẽ gửi luôn đơn hàng
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void applyPromo();
+                    }
+                  }}
+                />
+                {appliedPromotion ? (
+                  <Button variant="secondary" onClick={clearPromo}>
+                    Bỏ mã
+                  </Button>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    loading={isApplyingPromo}
+                    disabled={!promoInput.trim()}
+                    onClick={() => void applyPromo()}
+                  >
+                    Áp dụng
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
           <div className="card__foot">

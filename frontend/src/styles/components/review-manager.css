@@ -1,0 +1,36 @@
+/* ReviewManagerPage — trang quản lý đánh giá (/admin/reviews, /staff/reviews) */
+@import './card.css';
+@import './table.css';
+
+.rmgr__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+}
+
+.rmgr__filters .ui-field {
+  flex: 0 1 220px;
+}
+
+.rmgr__comment {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--stone-600);
+  line-height: 1.6;
+}
+
+.rmgr__date {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--stone-500);
+}
+
+.rmgr__pager {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-4) var(--space-5);
+}

@@ -23,4 +23,17 @@ public interface ReviewService {
      * Lấy thông tin điểm đánh giá trung bình của món ăn (Public).
      */
     ProductRatingSummaryResponse getProductRatingSummary(Long productId);
+
+    /**
+     * Danh sách đánh giá cho trang quản lý (STAFF & ADMIN).
+     * @param productId lọc theo món, {@code null} = tất cả
+     * @param rating   lọc theo số sao (1–5), {@code null} = tất cả
+     */
+    PageResponse<ReviewResponse> getAllReviews(Long productId, Integer rating, Pageable pageable);
+
+    /**
+     * Xoá hẳn một đánh giá (chỉ ADMIN — chốt quyền ở controller).
+     * Lưu ý: xoá xong khách được đánh giá lại món đó và điểm sao của món tính lại ngay.
+     */
+    void deleteReview(Long reviewId);
 }

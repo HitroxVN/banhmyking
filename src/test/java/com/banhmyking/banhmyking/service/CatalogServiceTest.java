@@ -30,6 +30,7 @@ import com.banhmyking.banhmyking.repository.CartItemOptionRepository;
 import com.banhmyking.banhmyking.repository.CategoryRepository;
 import com.banhmyking.banhmyking.repository.ProductOptionRepository;
 import com.banhmyking.banhmyking.repository.ProductRepository;
+import com.banhmyking.banhmyking.repository.ReviewRepository;
 import com.banhmyking.banhmyking.service.impl.CatalogServiceImpl;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,6 +47,9 @@ class CatalogServiceTest {
 
     @Mock
     private CartItemOptionRepository cartItemOptionRepository;
+
+    @Mock
+    private ReviewRepository reviewRepository;
 
     @InjectMocks
     private CatalogServiceImpl catalogService;

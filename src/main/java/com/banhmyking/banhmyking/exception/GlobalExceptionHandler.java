@@ -70,6 +70,15 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of("Dữ liệu xung đột (có thể đã tồn tại hoặc vi phạm ràng buộc)", ErrorCode.CONFLICT));
     }
 
+    /** Không khớp route/handler nào (đường dẫn sai hoặc đã bị gỡ) — 404, không phải 500. */
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(
+            org.springframework.web.servlet.resource.NoResourceFoundException ex) {
+        log.warn("Không có handler cho request: {}", ex.getMessage());
+        return ResponseEntity.status(ErrorCode.NOT_FOUND.getHttpStatus())
+                .body(ErrorResponse.of("Không tìm thấy đường dẫn yêu cầu", ErrorCode.NOT_FOUND));
+    }
+
     /** Lỗi khác — log đầy đủ, trả message chung (không lộ stack trace ra ngoài). */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex) {

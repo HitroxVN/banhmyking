@@ -17,9 +17,11 @@ import { PaymentPage } from './pages/PaymentPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { OrderTrackingPage } from './pages/OrderTrackingPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { ReviewManagerPage } from './pages/ReviewManagerPage';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
 import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage';
+import { AdminPromotionsPage } from './pages/admin/AdminPromotionsPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { StaffOrderQueuePage } from './pages/staff/StaffOrderQueuePage';
 import { StaffMenuPage } from './pages/staff/StaffMenuPage';
@@ -56,6 +58,8 @@ export const App: FC = () => (
                   <Route path="dashboard" element={<AdminDashboardPage />} />
                   <Route path="orders" element={<AdminOrdersPage />} />
                   <Route path="categories" element={<AdminCategoriesPage />} />
+                  <Route path="promotions" element={<AdminPromotionsPage />} />
+                  <Route path="reviews" element={<ReviewManagerPage />} />
                   <Route path="users" element={<AdminUsersPage />} />
                 </Route>
               </Route>
@@ -66,6 +70,7 @@ export const App: FC = () => (
                   <Route index element={<Navigate to="orders" replace />} />
                   <Route path="orders" element={<StaffOrderQueuePage />} />
                   <Route path="menu" element={<StaffMenuPage />} />
+                  <Route path="reviews" element={<ReviewManagerPage />} />
                 </Route>
               </Route>
 

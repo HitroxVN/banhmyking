@@ -250,4 +250,69 @@ class ReviewServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Sản phẩm với ID 999 không tồn tại");
     }
+
+    @Test
+    @DisplayName("REVIEW-03: Bộ lọc món + số sao được truyền nguyên xuống repository (trang quản lý)")
+    void getAllReviews_passesFiltersToRepository() {
+        Review review = new Review();
+        review.setId(101L);
+        review.setProduct(testProduct);
+        review.setUser(testUser);
+        review.setOrderItem(testOrderItem);
+        review.setRating(5);
+        review.setComment("Rất ngon");
+
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
+        org.springframework.data.domain.Page<Review> page =
+                new org.springframework.data.domain.PageImpl<>(java.util.List.of(review), pageable, 1);
+
+        when(reviewRepository.search(10L, 5, pageable)).thenReturn(page);
+
+        com.banhmyking.banhmyking.dto.common.PageResponse<ReviewResponse> result =
+                reviewService.getAllReviews(10L, 5, pageable);
+
+        assertThat(result.totalElements()).isEqualTo(1);
+        assertThat(result.content().get(0).getRating()).isEqualTo(5);
+        verify(reviewRepository).search(10L, 5, pageable);
+    }
+
+    @Test
+    @DisplayName("REVIEW-03: Không lọc gì thì lấy tất cả (tham số null xuống repository)")
+    void getAllReviews_withoutFilters_returnsEmptyPage() {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
+        when(reviewRepository.search(null, null, pageable))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of(), pageable, 0));
+
+        com.banhmyking.banhmyking.dto.common.PageResponse<ReviewResponse> result =
+                reviewService.getAllReviews(null, null, pageable);
+
+        assertThat(result.totalElements()).isZero();
+        assertThat(result.content()).isEmpty();
+        verify(reviewRepository).search(null, null, pageable);
+    }
+
+    @Test
+    @DisplayName("REVIEW-03: ADMIN xoá đánh giá thành công")
+    void deleteReview_success() {
+        Review review = new Review();
+        review.setId(101L);
+
+        when(reviewRepository.findById(101L)).thenReturn(Optional.of(review));
+
+        reviewService.deleteReview(101L);
+
+        verify(reviewRepository).delete(review);
+    }
+
+    @Test
+    @DisplayName("REVIEW-03: Bắn lỗi ResourceNotFoundException khi xoá đánh giá không tồn tại")
+    void deleteReview_whenNotFound_shouldThrowException() {
+        when(reviewRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> reviewService.deleteReview(999L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Không tìm thấy đánh giá với ID: 999");
+
+        verify(reviewRepository, never()).delete(any(Review.class));
+    }
 }
