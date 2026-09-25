@@ -293,7 +293,7 @@ public class OrderServiceImpl implements OrderService {
         // Ghi nhận lượt dùng khuyến mãi (nếu có) — SAU khi order đã save để FK order_id hợp lệ.
         // Increment atomic trong UPDATE (điều kiện maxUsage) → không race hai đơn cùng vượt quota.
         if (promotion != null) {
-            if (promotionRepository.incrementUsedCount(promotion.getId()) == 0) {
+            if (promotionRepository.incrementUsedCountAtomic(promotion.getId()) == 0) {
                 throw new BusinessException(ErrorCode.BUSINESS_ERROR,
                         "Mã khuyến mãi '" + promotion.getCode() + "' vừa hết lượt sử dụng, vui lòng thử lại");
             }

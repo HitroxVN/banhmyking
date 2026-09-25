@@ -19,8 +19,8 @@ public interface PromotionRepository extends JpaRepository<Promotion, Long> {
      * hai đơn đặt cùng lúc không thể cùng vượt quota. Trả số row cập nhật:
      * 0 = vừa hết lượt, caller phải fail (transaction rollback cả đơn).
      */
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Promotion p SET p.usedCount = p.usedCount + 1 "
             + "WHERE p.id = :id AND (p.maxUsage IS NULL OR p.maxUsage <= 0 OR p.usedCount < p.maxUsage)")
-    int incrementUsedCount(@Param("id") Long id);
+    int incrementUsedCountAtomic(@Param("id") Long id);
 }

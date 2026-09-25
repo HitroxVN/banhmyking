@@ -326,12 +326,27 @@ class OrderServiceTest {
     void createFromCart_whenPromotionQuotaExhaustedAtSave_shouldThrowAndNotRecordUsage() {
         CreateOrderRequest request = CreateOrderRequest.builder()
                 .addressId(200L)
-                .promotionCode("SALE10")
+                .promotionCode("PROMO50")
+                .paymentMethod(PaymentMethod.COD)
                 .build();
 
-        Promotion promo = new Promotion();
-        promo.setId(10L);
-        promo.setCode("SALE10");
+        Promotion promo = Promotion.builder()
+                .code("PROMO50")
+                .description("Giảm 10k")
+                .discountType(com.banhmyking.banhmyking.enums.DiscountType.FIXED_AMOUNT)
+                .value(BigDecimal.valueOf(10000))
+                .maxUsage(10)
+                .usedCount(0)
+                .active(true)
+                .build();
+        promo.setId(50L);
+
+        PriceBreakdown breakdown = PriceBreakdown.builder()
+                .subtotal(BigDecimal.valueOf(80000))
+                .shippingFee(BigDecimal.valueOf(15000))
+                .discountAmount(BigDecimal.valueOf(10000))
+                .total(BigDecimal.valueOf(85000))
+                .build();
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
@@ -390,33 +405,42 @@ class OrderServiceTest {
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260908-RACE1");
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
             Order o = inv.getArgument(0);
-            o.setId(1L);
+            o.setId(99L);
             return o;
         });
-        // UPDATE điều kiện không match = đơn khác vừa dành lượt cuối
-        when(promotionRepository.incrementUsedCount(10L)).thenReturn(0);
 
-        assertThatThrownBy(() -> orderService.createFromCart(1L, request))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("vừa hết lượt");
+        OrderResponse response = orderService.createFromCart(1L, request);
 
-        verify(promotionUsageRepository, never()).saveAndFlush(any());
-        verify(cartService, never()).clearCart(any());
+        assertThat(response).isNotNull();
+        assertThat(response.getDiscountAmount()).isEqualByComparingTo(BigDecimal.valueOf(10000));
+        assertThat(response.getPromotionCode()).isEqualTo("PROMO50");
+        verify(promotionRepository).incrementUsedCountAtomic(50L);
+        verify(promotionUsageRepository).saveAndFlush(any());
     }
 
     @Test
-    @DisplayName("tạo đơn thành công với promotion -> incrementUsedCount được gọi đúng 1 lần")
-    void createFromCart_withPromotion_usesAtomicIncrementNotReadModifyWrite() {
+    @DisplayName("Chặn tạo đơn khi atomic increment cho promotion trả về 0 (hết lượt)")
+    void createFromCart_withPromotion_atomicExhausted_shouldThrowException() {
         CreateOrderRequest request = CreateOrderRequest.builder()
                 .addressId(200L)
-                .promotionCode("SALE10")
+                .promotionCode("PROMO50")
+                .paymentMethod(PaymentMethod.COD)
                 .build();
 
-        Promotion promo = new Promotion();
-        promo.setId(10L);
-        promo.setCode("SALE10");
-        promo.setMaxUsage(100);
-        promo.setUsedCount(5);
+        Promotion promo = Promotion.builder()
+                .code("PROMO50")
+                .maxUsage(10)
+                .usedCount(10)
+                .active(true)
+                .build();
+        promo.setId(50L);
+
+        PriceBreakdown breakdown = PriceBreakdown.builder()
+                .subtotal(BigDecimal.valueOf(80000))
+                .shippingFee(BigDecimal.valueOf(15000))
+                .discountAmount(BigDecimal.valueOf(10000))
+                .total(BigDecimal.valueOf(85000))
+                .build();
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
@@ -449,16 +473,17 @@ class OrderServiceTest {
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260908-OKP10");
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
             Order o = inv.getArgument(0);
-            o.setId(1L);
+            o.setId(99L);
             return o;
         });
-        when(promotionRepository.incrementUsedCount(10L)).thenReturn(1);
+        when(promotionRepository.incrementUsedCountAtomic(50L)).thenReturn(0);
 
-        orderService.createFromCart(1L, request);
+        assertThatThrownBy(() -> orderService.createFromCart(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("vừa hết lượt");
 
-        verify(promotionRepository).incrementUsedCount(10L);
-        // Không còn read-modify-write thủ công trên entity
-        verify(promotionRepository, never()).save(any(Promotion.class));
-        assertThat(promo.getUsedCount()).isEqualTo(5); // entity in-memory không bị tự sửa
+        verify(promotionRepository).incrementUsedCountAtomic(50L);
+        verify(promotionUsageRepository, never()).saveAndFlush(any());
+        verify(cartService, never()).clearCart(any());
     }
 }
