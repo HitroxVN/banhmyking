@@ -71,6 +71,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/logout").permitAll()
                         .requestMatchers("/api/v1/health/**").permitAll()
                         .requestMatchers("/api/v1/promotions/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/products/**").permitAll()
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",

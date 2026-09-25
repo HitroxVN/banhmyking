@@ -41,6 +41,9 @@ class ReviewServiceTest {
     @Mock
     private OrderItemRepository orderItemRepository;
 
+    @Mock
+    private com.banhmyking.banhmyking.repository.ProductRepository productRepository;
+
     @InjectMocks
     private ReviewServiceImpl reviewService;
 
@@ -195,5 +198,56 @@ class ReviewServiceTest {
                 .hasMessageContaining("Chi tiết đơn hàng (OrderItem) với ID 999 không tồn tại");
 
         verify(reviewRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("REVIEW-02: Lấy danh sách đánh giá sản phẩm có phân trang thành công")
+    void getReviewsByProduct_success() {
+        Review review1 = new Review();
+        review1.setId(101L);
+        review1.setProduct(testProduct);
+        review1.setUser(testUser);
+        review1.setOrderItem(testOrderItem);
+        review1.setRating(5);
+        review1.setComment("Rất ngon");
+
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
+        org.springframework.data.domain.Page<Review> reviewPage = new org.springframework.data.domain.PageImpl<>(java.util.List.of(review1), pageable, 1);
+
+        when(productRepository.existsById(10L)).thenReturn(true);
+        when(reviewRepository.findByProductId(10L, pageable)).thenReturn(reviewPage);
+
+        com.banhmyking.banhmyking.dto.common.PageResponse<ReviewResponse> result = reviewService.getReviewsByProduct(10L, pageable);
+
+        assertThat(result).isNotNull();
+        assertThat(result.totalElements()).isEqualTo(1);
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.content().get(0).getRating()).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("REVIEW-02: Lấy thông tin điểm đánh giá trung bình sản phẩm thành công bằng AVG(rating)")
+    void getProductRatingSummary_success() {
+        when(productRepository.existsById(10L)).thenReturn(true);
+        when(reviewRepository.findAverageRatingByProductId(10L)).thenReturn(4.666666);
+        when(reviewRepository.countByProductId(10L)).thenReturn(3L);
+
+        com.banhmyking.banhmyking.dto.review.ProductRatingSummaryResponse summary = reviewService.getProductRatingSummary(10L);
+
+        assertThat(summary).isNotNull();
+        assertThat(summary.getProductId()).isEqualTo(10L);
+        assertThat(summary.getAverageRating()).isEqualTo(4.7); // 4.666666 rounded to 1 decimal
+        assertThat(summary.getTotalReviews()).isEqualTo(3L);
+    }
+
+    @Test
+    @DisplayName("REVIEW-02: Bắn lỗi ResourceNotFoundException khi lấy đánh giá của sản phẩm không tồn tại")
+    void getReviewsByProduct_whenProductNotFound_shouldThrowException() {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
+        when(productRepository.existsById(999L)).thenReturn(false);
+
+        assertThatThrownBy(() -> reviewService.getReviewsByProduct(999L, pageable))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Sản phẩm với ID 999 không tồn tại");
     }
 }

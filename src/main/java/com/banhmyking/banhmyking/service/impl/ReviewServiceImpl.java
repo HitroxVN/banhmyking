@@ -1,6 +1,8 @@
 package com.banhmyking.banhmyking.service.impl;
 
+import com.banhmyking.banhmyking.dto.common.PageResponse;
 import com.banhmyking.banhmyking.dto.review.CreateReviewRequest;
+import com.banhmyking.banhmyking.dto.review.ProductRatingSummaryResponse;
 import com.banhmyking.banhmyking.dto.review.ReviewResponse;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.OrderItem;
@@ -11,13 +13,19 @@ import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
 import com.banhmyking.banhmyking.repository.OrderItemRepository;
+import com.banhmyking.banhmyking.repository.ProductRepository;
 import com.banhmyking.banhmyking.repository.ReviewRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
 import com.banhmyking.banhmyking.service.ReviewService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @Slf4j
 @Service
@@ -27,6 +35,7 @@ public class ReviewServiceImpl implements ReviewService {
     private final ReviewRepository reviewRepository;
     private final OrderItemRepository orderItemRepository;
     private final UserRepository userRepository;
+    private final ProductRepository productRepository;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -75,6 +84,36 @@ public class ReviewServiceImpl implements ReviewService {
         log.info("Created review ID {} for orderItem {}", review.getId(), request.getOrderItemId());
 
         return toReviewResponse(review);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ReviewResponse> getReviewsByProduct(Long productId, Pageable pageable) {
+        if (!productRepository.existsById(productId)) {
+            throw new ResourceNotFoundException("Sản phẩm với ID " + productId + " không tồn tại");
+        }
+        Page<Review> page = reviewRepository.findByProductId(productId, pageable);
+        return PageResponse.from(page.map(this::toReviewResponse));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProductRatingSummaryResponse getProductRatingSummary(Long productId) {
+        if (!productRepository.existsById(productId)) {
+            throw new ResourceNotFoundException("Sản phẩm với ID " + productId + " không tồn tại");
+        }
+        Double avgRating = reviewRepository.findAverageRatingByProductId(productId);
+        Long totalReviews = reviewRepository.countByProductId(productId);
+
+        double roundedAvg = avgRating != null
+                ? BigDecimal.valueOf(avgRating).setScale(1, RoundingMode.HALF_UP).doubleValue()
+                : 0.0;
+
+        return ProductRatingSummaryResponse.builder()
+                .productId(productId)
+                .averageRating(roundedAvg)
+                .totalReviews(totalReviews != null ? totalReviews : 0L)
+                .build();
     }
 
     private ReviewResponse toReviewResponse(Review review) {
