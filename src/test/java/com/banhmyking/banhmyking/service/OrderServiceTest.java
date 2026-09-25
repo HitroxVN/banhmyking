@@ -325,9 +325,8 @@ when(promotionService.validateForOrder(eq("SALE10"), eq(1L), any())).thenThrow(n
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
         when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
-        when(promotionRepository.findByCodeAndActiveTrue("PROMO50")).thenReturn(Optional.of(promo));
-        when(promotionUsageRepository.findByPromotionIdAndUserId(50L, 1L)).thenReturn(Optional.empty());
-        when(priceCalculator.calculate(eq(testCart), eq(promo))).thenReturn(breakdown);
+        when(promotionService.validateForOrder(eq("PROMO50"), eq(1L), any())).thenReturn(promo);
+        when(priceCalculator.calculate(eq(testCart), eq(promo), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260910-PROMO");
         when(promotionRepository.incrementUsedCountAtomic(50L)).thenReturn(1);
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
@@ -335,55 +334,6 @@ when(promotionService.validateForOrder(eq("SALE10"), eq(1L), any())).thenThrow(n
             o.setId(99L);
             return o;
         });
-        when(promotionService.redeemPromotion(eq(promo), any(), any(), any())).thenReturn(new PromotionUsage());
-
-        OrderResponse response = orderService.createFromCart(1L, request);
-
-        assertThat(response).isNotNull();
-        assertThat(response.getDiscountAmount()).isEqualByComparingTo(BigDecimal.valueOf(10000));
-        assertThat(response.getPromotionCode()).isEqualTo("PROMO50");
-        verify(promotionRepository).incrementUsedCountAtomic(50L);
-        verify(promotionUsageRepository).save(any());
-    }
-
-    @Test
-    @DisplayName("Chặn tạo đơn khi atomic increment cho promotion trả về 0 (hết lượt)")
-    void createFromCart_withPromotion_atomicExhausted_shouldThrowException() {
-        CreateOrderRequest request = CreateOrderRequest.builder()
-                .addressId(200L)
-                .promotionCode("PROMO50")
-                .paymentMethod(PaymentMethod.COD)
-                .build();
-
-        Promotion promo = Promotion.builder()
-                .code("PROMO50")
-                .maxUsage(10)
-                .usedCount(10)
-                .active(true)
-                .build();
-        promo.setId(50L);
-
-        PriceBreakdown breakdown = PriceBreakdown.builder()
-                .subtotal(BigDecimal.valueOf(80000))
-                .shippingFee(BigDecimal.valueOf(15000))
-                .discountAmount(BigDecimal.valueOf(10000))
-                .total(BigDecimal.valueOf(85000))
-                .build();
-        when(promotionRepository.findByCodeAndActiveTrue("SALE10")).thenReturn(Optional.of(promo));
-        when(promotionUsageRepository.findByPromotionIdAndUserId(10L, 1L)).thenReturn(Optional.empty());
-        when(priceCalculator.calculate(eq(testCart), any(), any())).thenReturn(PriceBreakdown.builder()
-                .subtotal(BigDecimal.valueOf(80000))
-                .shippingFee(BigDecimal.valueOf(15000))
-                .discountAmount(BigDecimal.valueOf(8000))
-                .total(BigDecimal.valueOf(87000))
-                .build());
-        when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260908-RACE1");
-        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
-            Order o = inv.getArgument(0);
-            o.setId(99L);
-            return o;
-        });
-
         OrderResponse response = orderService.createFromCart(1L, request);
 
         assertThat(response).isNotNull();
@@ -420,38 +370,15 @@ when(promotionService.validateForOrder(eq("SALE10"), eq(1L), any())).thenThrow(n
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
         when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
-        when(promotionRepository.findByCodeAndActiveTrue("PROMO50")).thenReturn(Optional.of(promo));
-        when(promotionUsageRepository.findByPromotionIdAndUserId(50L, 1L)).thenReturn(Optional.empty());
-        when(priceCalculator.calculate(eq(testCart), eq(promo))).thenReturn(breakdown);
+        when(promotionService.validateForOrder(eq("PROMO50"), eq(1L), any())).thenReturn(promo);
+        when(priceCalculator.calculate(eq(testCart), eq(promo), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260910-FAIL");
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
             Order o = inv.getArgument(0);
             o.setId(99L);
             return o;
         });
-        when(promotionService.redeemPromotion(eq(promo), any(), any(), any()))
-                .thenThrow(new BusinessException(ErrorCode.BUSINESS_ERROR, "Mã khuyến mãi đã hết lượt sử dụng"));
-
-        assertThatThrownBy(() -> orderService.createFromCart(1L, request))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("Mã khuyến mãi đã hết lượt sử dụng");
-
-        verify(promotionRepository).incrementUsedCountAtomic(50L);
-        verify(promotionUsageRepository, never()).save(any());
-        when(promotionRepository.findByCodeAndActiveTrue("SALE10")).thenReturn(Optional.of(promo));
-        when(promotionUsageRepository.findByPromotionIdAndUserId(10L, 1L)).thenReturn(Optional.empty());
-        when(priceCalculator.calculate(eq(testCart), any(), any())).thenReturn(PriceBreakdown.builder()
-                .subtotal(BigDecimal.valueOf(80000))
-                .shippingFee(BigDecimal.valueOf(15000))
-                .discountAmount(BigDecimal.valueOf(8000))
-                .total(BigDecimal.valueOf(87000))
-                .build());
-        when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260908-OKP10");
-        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
-            Order o = inv.getArgument(0);
-            o.setId(99L);
-            return o;
-        });
+        // Atomic increment trả 0 row (đơn khác vừa vượt quota) — đơn này phải fail, không ghi Usage
         when(promotionRepository.incrementUsedCountAtomic(50L)).thenReturn(0);
 
         assertThatThrownBy(() -> orderService.createFromCart(1L, request))

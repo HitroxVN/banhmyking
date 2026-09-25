@@ -29,10 +29,6 @@ public class JwtTokenProvider {
         try {
             keyBytes = Decoders.BASE64.decode(props.secret());
             if (keyBytes.length < 32) {
-                keyBytes = props.secret().getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            }
-        } catch (Exception e) {
-            keyBytes = props.secret().getBytes(java.nio.charset.StandardCharsets.UTF_8);
                 keyBytes = props.secret().getBytes(StandardCharsets.UTF_8);
             }
         } catch (Exception e) {

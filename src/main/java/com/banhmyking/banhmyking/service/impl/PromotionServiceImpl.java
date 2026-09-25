@@ -90,7 +90,7 @@ public class PromotionServiceImpl implements PromotionService {
                 throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Mã khuyến mãi đã hết lượt sử dụng");
             }
         }
-        if (promotion.getMinOrderAmount() != null && request.getOrderAmount().compareTo(promotion.getMinOrderAmount()) < 0) {
+        if (promotion.getMinOrderAmount() != null && orderSubtotal.compareTo(promotion.getMinOrderAmount()) < 0) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR,
                     String.format("Đơn hàng chưa đạt giá trị tối thiểu %,.0fđ để áp dụng mã giảm giá",
                             promotion.getMinOrderAmount().doubleValue()));

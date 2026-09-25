@@ -32,6 +32,7 @@ import com.banhmyking.banhmyking.entity.OrderStatusHistory;
 import com.banhmyking.banhmyking.entity.Payment;
 import com.banhmyking.banhmyking.entity.Product;
 import com.banhmyking.banhmyking.entity.Promotion;
+import com.banhmyking.banhmyking.entity.PromotionUsage;
 import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.enums.PaymentMethod;
@@ -81,6 +82,8 @@ public class OrderServiceImpl implements OrderService {
     private final CartService cartService;
     private final UserRepository userRepository;
     private final AddressRepository addressRepository;
+    private final PromotionRepository promotionRepository;
+    private final PromotionUsageRepository promotionUsageRepository;
     private final com.banhmyking.banhmyking.service.PromotionService promotionService;
     private final PaymentRepository paymentRepository;
     private final PriceCalculator priceCalculator;
@@ -275,13 +278,6 @@ public class OrderServiceImpl implements OrderService {
         PaymentMethod method = request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.COD;
         Payment payment = paymentService.createPendingPayment(order, method, order.getTotal());
         order.setPayment(payment);
-
-        // Ghi nhận lượt dùng khuyến mãi (nếu có) bằng atomic update
-        if (promotion != null) {
-            int affectedRows = promotionRepository.incrementUsedCountAtomic(promotion.getId());
-            if (affectedRows == 0) {
-                throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Mã khuyến mãi đã hết lượt sử dụng");
-            }
 
         // Ghi nhận lượt dùng khuyến mãi (nếu có) — SAU khi order đã save để FK order_id hợp lệ.
         // Increment atomic trong UPDATE (điều kiện maxUsage) → không race hai đơn cùng vượt quota.
