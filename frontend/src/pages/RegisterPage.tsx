@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail, Sandwich, ShieldCheck, Smartphone, TriangleAlert, User } from 'lucide-react';
+import { CircleCheck, Eye, EyeOff, Lock, Mail, Sandwich, ShieldCheck, Smartphone, TriangleAlert, User } from 'lucide-react';
+import { authApi } from '../api/authApi';
 import { useAuth } from '../context/useAuth';
 import '../styles/components/auth.css';
 
@@ -27,6 +28,11 @@ export const RegisterPage: React.FC = () => {
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Khác null = đã đăng ký xong, đang chờ user bấm link trong mail
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [resendNotice, setResendNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isResending, setIsResending] = useState(false);
 
   // Nếu đã đăng nhập thì về trang chủ
   useEffect(() => {
@@ -101,19 +107,33 @@ export const RegisterPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      const target = email.trim();
       await register({
         fullName: fullName.trim(),
-        email: email.trim(),
+        email: target,
         phone: phone.trim() ? phone.trim() : undefined,
         password,
       });
-      // Đăng ký thành công -> tự động lưu token và chuyển về trang chủ
-      navigate('/', { replace: true });
+      // Chưa xác thực email nên không đăng nhập luôn — hiện màn hình chờ xác thực
+      setPendingEmail(target);
     } catch (err: unknown) {
       const errObj = err as Error;
       setErrorMessage(errObj.message || 'Đăng ký không thành công. Vui lòng kiểm tra lại thông tin.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!pendingEmail) return;
+    setResendNotice(null);
+    setIsResending(true);
+    try {
+      setResendNotice({ type: 'success', text: await authApi.resendVerification(pendingEmail) });
+    } catch (err: unknown) {
+      setResendNotice({ type: 'error', text: (err as Error).message || 'Không gửi lại được email xác thực.' });
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -141,6 +161,66 @@ export const RegisterPage: React.FC = () => {
             </button>
           </div>
 
+          {pendingEmail ? (
+            <>
+              <h2 className="auth-card-title">
+                Kiểm tra hộp thư <Mail size={20} aria-hidden="true" />
+              </h2>
+              <p className="auth-card-subtitle">
+                Tài khoản đã được tạo nhưng chưa thể đăng nhập cho tới khi email được xác thực.
+              </p>
+
+              <div className="alert-banner alert-success" role="status">
+                <CircleCheck size={17} aria-hidden="true" />
+                <div>
+                  Đã gửi email xác thực tới <strong>{pendingEmail}</strong>. Vui lòng mở email và bấm vào link xác
+                  thực để kích hoạt tài khoản.
+                </div>
+              </div>
+
+              {resendNotice && (
+                <div
+                  className={`alert-banner ${resendNotice.type === 'error' ? 'alert-error' : 'alert-success'}`}
+                  role="alert"
+                >
+                  {resendNotice.type === 'error' ? (
+                    <TriangleAlert size={17} aria-hidden="true" />
+                  ) : (
+                    <CircleCheck size={17} aria-hidden="true" />
+                  )}
+                  <div>{resendNotice.text}</div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                className="auth-submit"
+                onClick={handleResend}
+                disabled={isResending}
+              >
+                {isResending ? (
+                  <>
+                    <span className="spinner-mini"></span>
+                    Đang gửi lại...
+                  </>
+                ) : (
+                  'Gửi lại email xác thực'
+                )}
+              </button>
+
+              <p className="helper-note" style={{ marginTop: 12 }}>
+                Không thấy email? Hãy kiểm tra thư mục Spam/Quảng cáo trước khi gửi lại.
+              </p>
+
+              <div className="auth-switch-prompt">
+                Đã xác thực thành công?{' '}
+                <Link to="/login" className="link-text">
+                  Đăng nhập ngay
+                </Link>
+              </div>
+            </>
+          ) : (
+          <>
           <h2 className="auth-card-title">Tạo tài khoản mới</h2>
           <p className="auth-card-subtitle">Điền thông tin bên dưới để trở thành thành viên Bánh Mỳ King</p>
 
@@ -332,6 +412,8 @@ export const RegisterPage: React.FC = () => {
               Đăng nhập ngay
             </Link>
           </div>
+          </>
+          )}
         </div>
       </div>
     </div>

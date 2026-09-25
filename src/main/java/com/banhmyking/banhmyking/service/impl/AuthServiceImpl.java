@@ -12,34 +12,49 @@ import com.banhmyking.banhmyking.repository.RefreshTokenRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
 import com.banhmyking.banhmyking.security.JwtTokenProvider;
 import com.banhmyking.banhmyking.service.AuthService;
+import com.banhmyking.banhmyking.service.EmailService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.HexFormat;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
+
+    /** 32 byte ngẫu nhiên — đủ để token trong link email không đoán được. */
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
 
     @Value("${jwt.refresh-token-expiry-days}")
     private int refreshTokenExpiryDays;
+
+    @Value("${app.verification-token-expiry-hours}")
+    private int verificationTokenExpiryHours;
+
+    @Value("${app.reset-token-expiry-minutes}")
+    private int resetTokenExpiryMinutes;
 
     // ─── Register ───────────────────────────────────────────────────────────
 
     @Override
     @Transactional
-    public TokenResponse register(RegisterRequest request) {
+    public void register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.email())) {
             throw new BusinessException(ErrorCode.CONFLICT, "Email đã tồn tại");
         }
@@ -49,9 +64,90 @@ public class AuthServiceImpl implements AuthService {
         user.setPassword(passwordEncoder.encode(request.password()));
         user.setFullName(request.fullName());
         user.setPhone(request.phone());
+        user.setEmailVerified(false);
+        String rawToken = assignVerificationToken(user);
         userRepository.save(user);
 
-        return issueTokens(user);
+        emailService.sendVerificationEmail(user.getEmail(), user.getFullName(), rawToken);
+    }
+
+    // ─── Verify email ───────────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public void verifyEmail(String rawToken) {
+        User user = userRepository.findByVerificationTokenHash(sha256Hex(rawToken))
+                .orElseThrow(() -> new BusinessException(ErrorCode.BUSINESS_ERROR,
+                        "Link xác thực không hợp lệ hoặc đã được sử dụng"));
+
+        if (user.getVerificationTokenExpiresAt() == null
+                || user.getVerificationTokenExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Link xác thực đã hết hạn. Vui lòng yêu cầu gửi lại email xác thực.");
+        }
+
+        user.setEmailVerified(true);
+        // Token dùng một lần: xoá để link cũ không xác thực lại được.
+        user.setVerificationTokenHash(null);
+        user.setVerificationTokenExpiresAt(null);
+        userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
+    public void resendVerificationEmail(String email) {
+        User user = userRepository.findByEmailAndDeletedFalse(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "Không tìm thấy tài khoản với email này"));
+
+        if (user.isEmailVerified()) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Tài khoản đã được xác thực. Bạn có thể đăng nhập.");
+        }
+
+        String rawToken = assignVerificationToken(user);
+        userRepository.save(user);
+
+        emailService.sendVerificationEmail(user.getEmail(), user.getFullName(), rawToken);
+    }
+
+    // ─── Quên mật khẩu ─────────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public void forgotPassword(String email) {
+        // Không ném lỗi khi email không tồn tại: response giống hệt nhau để người ngoài
+        // không dò được email nào đã đăng ký. User gõ nhầm cũng chỉ thấy "đã gửi".
+        userRepository.findByEmailAndDeletedFalse(email).ifPresent(user -> {
+            if (user.isBanned()) {
+                return;
+            }
+            String rawToken = assignResetToken(user);
+            userRepository.save(user);
+            emailService.sendPasswordResetEmail(user.getEmail(), user.getFullName(), rawToken);
+        });
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(String rawToken, String newPassword) {
+        User user = userRepository.findByResetTokenHash(sha256Hex(rawToken))
+                .orElseThrow(() -> new BusinessException(ErrorCode.BUSINESS_ERROR,
+                        "Link đặt lại mật khẩu không hợp lệ hoặc đã được sử dụng"));
+
+        if (user.getResetTokenExpiresAt() == null || user.getResetTokenExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Link đặt lại mật khẩu đã hết hạn. Vui lòng yêu cầu gửi lại.");
+        }
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        // Token dùng một lần
+        user.setResetTokenHash(null);
+        user.setResetTokenExpiresAt(null);
+        userRepository.save(user);
+
+        // Mật khẩu đổi thì mọi phiên cũ phải chết — kể cả phiên của kẻ đã chiếm được tài khoản.
+        revokeAllActiveTokens(user.getId());
     }
 
     // ─── Login ──────────────────────────────────────────────────────────────
@@ -69,6 +165,12 @@ public class AuthServiceImpl implements AuthService {
         // Check sau password match
         if (user.isBanned()) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Tài khoản đã bị khoá");
+        }
+
+        // Chưa xác thực email → không cấp token. Mã lỗi riêng để FE hiện nút gửi lại mail.
+        if (!user.isEmailVerified()) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_VERIFIED,
+                    "Tài khoản chưa được xác thực email. Vui lòng kiểm tra hộp thư và bấm vào link xác thực.");
         }
 
         return issueTokens(user);
@@ -145,15 +247,37 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         // Thu hồi tất cả refresh token đang hoạt động
-        refreshTokenRepository.findByUserIdAndRevokedAtIsNull(userId)
-                .forEach(rt -> {
-                    rt.setRevokedAt(LocalDateTime.now());
-                    refreshTokenRepository.save(rt);
-                });
+        revokeAllActiveTokens(userId);
     }
 
     // ─── Private helpers ────────────────────────────────────────────────────
     // (getMe đã gom sang UserService.getMe — /auth/me delegate sang đó, bỏ bản sao ở đây)
+
+    /** Token thô 32 byte ngẫu nhiên — chỉ tồn tại trong link email, DB giữ SHA-256. */
+    private static String generateRawToken() {
+        byte[] randomBytes = new byte[32];
+        SECURE_RANDOM.nextBytes(randomBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+    }
+
+    /**
+     * Sinh token xác thực email mới (ghi đè token cũ nếu có), set lên user và trả token thô.
+     * Không tự save — caller save một lần cùng các thay đổi khác của user.
+     */
+    private String assignVerificationToken(User user) {
+        String rawToken = generateRawToken();
+        user.setVerificationTokenHash(sha256Hex(rawToken));
+        user.setVerificationTokenExpiresAt(LocalDateTime.now().plusHours(verificationTokenExpiryHours));
+        return rawToken;
+    }
+
+    /** Như trên nhưng cho luồng đặt lại mật khẩu — hạn ngắn hơn, cột riêng. */
+    private String assignResetToken(User user) {
+        String rawToken = generateRawToken();
+        user.setResetTokenHash(sha256Hex(rawToken));
+        user.setResetTokenExpiresAt(LocalDateTime.now().plusMinutes(resetTokenExpiryMinutes));
+        return rawToken;
+    }
 
     /** Tạo cặp access + refresh token, lưu hash refresh vào DB. */
     private TokenResponse issueTokens(User user) {

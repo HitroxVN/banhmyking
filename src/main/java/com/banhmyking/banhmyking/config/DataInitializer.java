@@ -163,6 +163,8 @@ public class DataInitializer implements ApplicationRunner {
         u.setFullName(fullName);
         u.setPhone(phone);
         u.setRole(role);
+        // seed đi kèm DB sẵn sàng dùng luôn — không bắt user demo đi xác thực email
+        u.setEmailVerified(true);
         userRepository.save(u);
         log.info("Seed user: {} (role {})", email, role);
     }

@@ -50,15 +50,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (data: RegisterRequest) => {
+  // Đăng ký KHÔNG đăng nhập luôn: tài khoản phải xác thực email trước (backend không cấp token).
+  const register = async (data: RegisterRequest): Promise<string> => {
     setIsLoading(true);
     try {
-      const tokens = await authApi.register(data);
-      tokenStorage.setTokens(tokens.accessToken, tokens.refreshToken);
-      const profile = await authApi.getMe();
-      tokenStorage.setUserInfo(profile);
-      setUser(profile);
-      setIsAuthenticated(true);
+      return await authApi.register(data);
     } finally {
       setIsLoading(false);
     }

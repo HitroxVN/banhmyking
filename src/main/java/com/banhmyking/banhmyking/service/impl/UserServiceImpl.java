@@ -98,6 +98,8 @@ public class UserServiceImpl implements UserService {
         user.setRole(request.role() != null ? request.role() : RoleName.CUSTOMER);
         user.setBanned(false);
         user.setDeleted(false);
+        // ADMIN tạo tài khoản nội bộ (staff/shipper) — không đi qua luồng xác thực email
+        user.setEmailVerified(true);
 
         User saved = userRepository.save(user);
         return toDetail(saved);

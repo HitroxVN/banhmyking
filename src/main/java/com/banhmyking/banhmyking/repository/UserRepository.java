@@ -21,6 +21,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByIdAndDeletedFalse(Long id);
 
+    /** Tra user theo hash token xác thực email — token thô không lưu DB. */
+    Optional<User> findByVerificationTokenHash(String verificationTokenHash);
+
+    /** Tra user theo hash token đặt lại mật khẩu. */
+    Optional<User> findByResetTokenHash(String resetTokenHash);
+
     /**
      * khóa dòng user khi thao tác lazy-init giỏ hàng — hai request cùng user chạy song
      * song sẽ xếp hàng thay vì cùng thấy cart trống và cùng INSERT (va chạm unique user_id).

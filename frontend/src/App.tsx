@@ -10,6 +10,9 @@ import { RequireRole } from './components/layout/RequireRole';
 import { ADMIN_BRAND, ADMIN_NAV, SHIPPER_BRAND, SHIPPER_NAV, STAFF_BRAND, STAFF_NAV } from './components/layout/navItems';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { VerifyEmailPage } from './pages/VerifyEmailPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { MenuPage } from './pages/MenuPage';
 import { CartPage } from './pages/CartPage';
 import { CheckoutPage } from './pages/CheckoutPage';
@@ -37,6 +40,11 @@ export const App: FC = () => (
               {/* Công khai */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              {/* Trang đích của link xác thực email gửi từ backend */}
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
+              {/* Quên mật khẩu: nhập email → link trong mail → đặt mật khẩu mới */}
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
               {/* Khách hàng */}
               <Route element={<CustomerLayout />}>

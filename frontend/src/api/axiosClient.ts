@@ -126,23 +126,35 @@ axiosClient.interceptors.response.use(
 );
 
 /**
+ * Lỗi backend kèm errorCode để màn hình quyết định UI
+ * (vd: EMAIL_NOT_VERIFIED → hiện nút gửi lại mail xác thực).
+ */
+export type ApiError = Error & { errorCode?: string };
+
+/**
  * Trích xuất câu thông báo lỗi rõ ràng từ backend envelope
  */
-export function extractErrorMessage(error: AxiosError<ErrorResponse>): Error {
-  if (error.response?.data) {
-    const data = error.response.data;
+export function extractErrorMessage(error: AxiosError<ErrorResponse>): ApiError {
+  const data = error.response?.data;
+  let result: Error | null = null;
+
+  if (data) {
     if (data.message) {
-      return new Error(data.message);
-    }
-    if (data.errors && typeof data.errors === 'object') {
+      result = new Error(data.message);
+    } else if (data.errors && typeof data.errors === 'object') {
       const firstKey = Object.keys(data.errors)[0];
       if (firstKey) {
-        return new Error(data.errors[firstKey]);
+        return Object.assign(new Error(data.errors[firstKey]), { errorCode: data.errorCode });
       }
     }
   }
-  if (error.message === 'Network Error') {
-    return new Error('Không thể kết nối đến máy chủ. Vui lòng kiểm tra đường truyền mạng hoặc server.');
+
+  if (!result) {
+    result =
+      error.message === 'Network Error'
+        ? new Error('Không thể kết nối đến máy chủ. Vui lòng kiểm tra đường truyền mạng hoặc server.')
+        : new Error(error.message || 'Đã có lỗi xảy ra, vui lòng thử lại.');
   }
-  return new Error(error.message || 'Đã có lỗi xảy ra, vui lòng thử lại.');
+
+  return Object.assign(result, { errorCode: data?.errorCode });
 }

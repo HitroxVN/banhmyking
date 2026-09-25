@@ -6,7 +6,8 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (data: LoginRequest) => Promise<void>;
-  register: (data: RegisterRequest) => Promise<void>;
+  /** Trả về message của backend; tài khoản mới chưa xác thực email nên KHÔNG tự đăng nhập. */
+  register: (data: RegisterRequest) => Promise<string>;
   logout: () => Promise<void>;
   refreshUserProfile: () => Promise<void>;
 }

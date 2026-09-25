@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { CircleCheck, Eye, EyeOff, Hand, Lock, Mail, Sandwich, TriangleAlert } from 'lucide-react';
+import { authApi } from '../api/authApi';
+import type { ApiError } from '../api/axiosClient';
 import { useAuth } from '../context/useAuth';
 
 import { tokenStorage } from '../utils/tokenStorage';
@@ -19,6 +21,9 @@ export const LoginPage: React.FC = () => {
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendNotice, setResendNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isResending, setIsResending] = useState(false);
 
   // Nếu đã đăng nhập: Admin chuyển thẳng về /admin, Staff về /staff, user thông thường về trang chủ
   useEffect(() => {
@@ -71,6 +76,8 @@ export const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setNeedsVerification(false);
+    setResendNotice(null);
 
     if (!validate()) {
       return;
@@ -91,10 +98,24 @@ export const LoginPage: React.FC = () => {
         navigate(from, { replace: true });
       }
     } catch (err: unknown) {
-      const errObj = err as Error;
+      const errObj = err as ApiError;
       setErrorMessage(errObj.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại email hoặc mật khẩu.');
+      // Tài khoản chưa xác thực email → cho xin lại link ngay tại đây
+      setNeedsVerification(errObj.errorCode === 'EMAIL_NOT_VERIFIED');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setResendNotice(null);
+    setIsResending(true);
+    try {
+      setResendNotice({ type: 'success', text: await authApi.resendVerification(email.trim()) });
+    } catch (err: unknown) {
+      setResendNotice({ type: 'error', text: (err as Error).message || 'Không gửi lại được email xác thực.' });
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -144,6 +165,40 @@ export const LoginPage: React.FC = () => {
               <CircleCheck size={17} aria-hidden="true" />
               <div>{activeSuccess}</div>
             </div>
+          )}
+
+          {/* Tài khoản chưa xác thực email — cho gửi lại link tại chỗ */}
+          {needsVerification && (
+            <>
+              {resendNotice && (
+                <div
+                  className={`alert-banner ${resendNotice.type === 'error' ? 'alert-error' : 'alert-success'}`}
+                  role="alert"
+                >
+                  {resendNotice.type === 'error' ? (
+                    <TriangleAlert size={17} aria-hidden="true" />
+                  ) : (
+                    <CircleCheck size={17} aria-hidden="true" />
+                  )}
+                  <div>{resendNotice.text}</div>
+                </div>
+              )}
+              <button
+                type="button"
+                className="auth-submit"
+                onClick={handleResendVerification}
+                disabled={isResending}
+              >
+                {isResending ? (
+                  <>
+                    <span className="spinner-mini"></span>
+                    Đang gửi lại...
+                  </>
+                ) : (
+                  'Gửi lại email xác thực'
+                )}
+              </button>
+            </>
           )}
 
           <form onSubmit={handleSubmit} noValidate>
@@ -218,7 +273,9 @@ export const LoginPage: React.FC = () => {
                 />
                 Ghi nhớ đăng nhập
               </label>
-              <span className="helper-note">Quên mật khẩu? Liên hệ quản trị viên để được cấp lại.</span>
+              <Link to="/forgot-password" className="link-text">
+                Quên mật khẩu?
+              </Link>
             </div>
 
             {/* Submit Button */}

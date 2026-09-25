@@ -7,3 +7,10 @@ server.port=8080
 # Random
 JWT_SECRET=
 spring.flyway.validate-on-migrate=false
+
+FRONTEND_BASE_URL=http://localhost:5173
+
+# Gmail SMTP — email gửi + App Password 16 ký tự (https://myaccount.google.com/apppasswords)
+# PASS viết liển ko cách
+MAIL_USERNAME=
+MAIL_PASSWORD=

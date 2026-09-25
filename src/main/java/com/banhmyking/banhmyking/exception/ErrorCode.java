@@ -11,6 +11,8 @@ public enum ErrorCode {
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST),
     BUSINESS_ERROR(HttpStatus.BAD_REQUEST),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED),
+    /** Đúng mật khẩu nhưng chưa click link xác thực email — FE dựa vào mã này để hiện nút gửi lại. */
+    EMAIL_NOT_VERIFIED(HttpStatus.FORBIDDEN),
     FORBIDDEN(HttpStatus.FORBIDDEN),
     NOT_FOUND(HttpStatus.NOT_FOUND),
     CONFLICT(HttpStatus.CONFLICT),

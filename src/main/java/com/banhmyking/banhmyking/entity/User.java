@@ -9,6 +9,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Getter;
@@ -40,6 +41,24 @@ public class User extends BaseEntity {
     /** Khoá tài khoản — ADMIN khoá/mở, chặn cả login lẫn token cũ. */
     @Column(name = "is_banned", nullable = false)
     private boolean banned = false;
+
+    /** Bắt buộc xác thực email trước khi login. User mới = false, user do ADMIN/seed tạo = true. */
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
+
+    /** SHA-256 của token xác thực đang hiệu lực — không lưu token thô. */
+    @Column(name = "verification_token_hash", length = 64)
+    private String verificationTokenHash;
+
+    @Column(name = "verification_token_expires_at")
+    private LocalDateTime verificationTokenExpiresAt;
+
+    /** SHA-256 của token đặt lại mật khẩu đang hiệu lực. Tách khỏi token xác thực email. */
+    @Column(name = "reset_token_hash", length = 64)
+    private String resetTokenHash;
+
+    @Column(name = "reset_token_expires_at")
+    private LocalDateTime resetTokenExpiresAt;
 
     /** Avatar dạng URL. */
     @Column(name = "image", length = 255)

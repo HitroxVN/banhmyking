@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -48,9 +49,7 @@ class AuthControllerTest {
     // ─── register ───────────────────────────────────────────────────────────
 
     @Test
-    void register_success_returns201() throws Exception {
-        when(authService.register(any())).thenReturn(MOCK_TOKEN);
-
+    void register_success_returns201WithoutTokens() throws Exception {
         RegisterRequest req = new RegisterRequest("test@test.com", "Password1!", "Test User", null);
 
         mockMvc.perform(post("/api/v1/auth/register")
@@ -58,14 +57,98 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.accessToken").value("access.token"))
-                .andExpect(jsonPath("$.data.tokenType").value("Bearer"));
+                .andExpect(jsonPath("$.message").value(
+                        "Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản."))
+                // chưa xác thực email thì không có token nào được cấp
+                .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
+    // ─── verify email ───────────────────────────────────────────────────────
+
+    @Test
+    void verifyEmail_success_returnsSuccessMessage() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/verify-email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"raw-token\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Đã xác thực thành công email."));
+    }
+
+    @Test
+    void verifyEmail_invalidToken_returns400() throws Exception {
+        doThrow(new BusinessException(ErrorCode.BUSINESS_ERROR, "Link xác thực không hợp lệ hoặc đã được sử dụng"))
+                .when(authService).verifyEmail("bogus");
+
+        mockMvc.perform(post("/api/v1/auth/verify-email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"bogus\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    void resendVerification_success_returns200() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/resend-verification")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"test@test.com\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Đã gửi lại email xác thực. Vui lòng kiểm tra hộp thư."));
+    }
+
+    // ─── quên mật khẩu ──────────────────────────────────────────────────────
+
+    @Test
+    void forgotPassword_alwaysReturnsSameMessage() throws Exception {
+        // Dù email có tồn tại hay không, response phải y hệt nhau
+        mockMvc.perform(post("/api/v1/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"test@test.com\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value(
+                        "Nếu email này đã đăng ký, chúng tôi đã gửi link đặt lại mật khẩu. Vui lòng kiểm tra hộp thư."));
+    }
+
+    @Test
+    void resetPassword_success_returnsSuccessMessage() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"raw-token\",\"newPassword\":\"NewPass1!\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value(
+                        "Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới."));
+    }
+
+    @Test
+    void resetPassword_invalidToken_returns400() throws Exception {
+        doThrow(new BusinessException(ErrorCode.BUSINESS_ERROR, "Link đặt lại mật khẩu không hợp lệ"))
+                .when(authService).resetPassword("bogus", "NewPass1!");
+
+        mockMvc.perform(post("/api/v1/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"bogus\",\"newPassword\":\"NewPass1!\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"));
+    }
+
+    @Test
+    void resetPassword_shortNewPassword_returns400() throws Exception {
+        // Ràng buộc độ dài mật khẩu nằm ở @Size trên DTO
+        mockMvc.perform(post("/api/v1/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"raw-token\",\"newPassword\":\"short\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
 
     @Test
     void register_duplicateEmail_returns409() throws Exception {
-        when(authService.register(any()))
-                .thenThrow(new BusinessException(ErrorCode.CONFLICT, "Email đã tồn tại"));
+        doThrow(new BusinessException(ErrorCode.CONFLICT, "Email đã tồn tại"))
+                .when(authService).register(any());
 
         RegisterRequest req = new RegisterRequest("dup@test.com", "Password1!", "Test User", null);
 
@@ -102,6 +185,20 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.refreshToken").value("refresh.token"));
+    }
+
+    @Test
+    void login_unverifiedEmail_returns403WithDedicatedCode() throws Exception {
+        when(authService.login(any()))
+                .thenThrow(new BusinessException(ErrorCode.EMAIL_NOT_VERIFIED, "Tài khoản chưa được xác thực email."));
+
+        LoginRequest req = new LoginRequest("test@test.com", "Password1!");
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("EMAIL_NOT_VERIFIED"));
     }
 
     @Test
