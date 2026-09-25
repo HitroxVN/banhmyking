@@ -1,0 +1,126 @@
+/* Field — Input / Select / Textarea dùng chung một block */
+.ui-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ui-field__label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--stone-700);
+}
+
+.ui-field__label-required {
+  color: var(--danger);
+  margin-left: 2px;
+}
+
+.ui-field__wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ui-field__lead {
+  position: absolute;
+  left: 12px;
+  display: flex;
+  color: var(--stone-400);
+  pointer-events: none;
+}
+
+.ui-field__input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  font-size: var(--text-sm);
+  color: var(--stone-900);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.ui-field__input::placeholder { color: var(--stone-400); }
+
+.ui-field__input:focus {
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px var(--primary-100);
+}
+
+.ui-field__input:disabled {
+  background: var(--stone-100);
+  color: var(--stone-500);
+  cursor: not-allowed;
+}
+
+.ui-field__input--lead { padding-left: 40px; }
+.ui-field__input--trail { padding-right: 44px; }
+
+.ui-field__input--invalid { border-color: var(--danger); }
+.ui-field__input--invalid:focus { box-shadow: 0 0 0 3px var(--danger-bg); }
+
+textarea.ui-field__input {
+  height: auto;
+  min-height: 96px;
+  padding: 10px 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+select.ui-field__input {
+  appearance: none;
+  padding-right: 34px;
+  cursor: pointer;
+}
+
+.ui-field__caret {
+  position: absolute;
+  right: 12px;
+  display: flex;
+  color: var(--stone-400);
+  pointer-events: none;
+}
+
+.ui-field__trail {
+  position: absolute;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--stone-500);
+  cursor: pointer;
+}
+
+.ui-field__trail:hover { background: var(--stone-100); }
+
+.ui-field__msg {
+  font-size: var(--text-xs);
+  color: var(--stone-500);
+}
+
+.ui-field__msg--error { color: var(--danger); }
+
+.ui-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--stone-600);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ui-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary-600);
+  cursor: pointer;
+}

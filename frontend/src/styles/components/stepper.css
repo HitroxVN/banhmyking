@@ -1,0 +1,44 @@
+/* QuantityStepper — thay cho stepper lặp ở 3 chỗ */
+.ui-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px;
+  background: var(--stone-100);
+  border-radius: var(--radius-full);
+}
+
+.ui-stepper__btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--stone-700);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: color .15s;
+}
+
+.ui-stepper__btn:hover:not(:disabled) { color: var(--primary-700); }
+
+.ui-stepper__btn:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.ui-stepper__value {
+  min-width: 34px;
+  text-align: center;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--stone-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-stepper--sm .ui-stepper__btn { width: 26px; height: 26px; }
+.ui-stepper--lg .ui-stepper__btn { width: 38px; height: 38px; }
+.ui-stepper--lg .ui-stepper__value { font-size: var(--text-base); min-width: 40px; }

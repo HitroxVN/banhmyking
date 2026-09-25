@@ -1,0 +1,153 @@
+/* Modal nghiệp vụ đơn hàng (gán tài xế, huỷ đơn) — dùng chung Staff & Admin */
+@import './card.css';
+
+.ops-sum {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.ops-sum__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.ops-sum__label {
+  color: var(--stone-500);
+  flex: none;
+}
+
+.ops-sum__value {
+  color: var(--stone-800);
+  font-weight: 600;
+  text-align: right;
+}
+
+.ops-sum__total {
+  color: var(--primary-700);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.ops-field {
+  margin-top: var(--space-4);
+}
+
+.ops-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--warning-bg);
+  color: var(--primary-900);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.ops-warn p {
+  margin: 4px 0 0;
+}
+
+.ops-shippers {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.ops-shipper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+
+.ops-shipper:hover:not(:disabled) {
+  border-color: var(--primary-300);
+  background: var(--primary-50);
+}
+
+.ops-shipper--on {
+  border-color: var(--primary-500);
+  background: var(--primary-50);
+}
+
+.ops-shipper:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.ops-shipper__avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: var(--primary-100);
+  color: var(--primary-800);
+  flex: none;
+}
+
+.ops-shipper__name {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--stone-800);
+}
+
+.ops-shipper__meta {
+  font-size: var(--text-xs);
+  color: var(--stone-500);
+}
+
+.ops-shipper__badge {
+  margin-left: auto;
+  flex: none;
+}
+
+.ops-group-title {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--stone-800);
+}
+
+.ops-state {
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+}
+
+.ops-empty {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--stone-500);
+}
+
+.ops-danger-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}

@@ -90,7 +90,7 @@ public class PromotionServiceImpl implements PromotionService {
                 throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Mã khuyến mãi đã hết lượt sử dụng");
             }
         }
-        if (promotion.getMinOrderAmount() != null && orderSubtotal.compareTo(promotion.getMinOrderAmount()) < 0) {
+        if (promotion.getMinOrderAmount() != null && request.getOrderAmount().compareTo(promotion.getMinOrderAmount()) < 0) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR,
                     String.format("Đơn hàng chưa đạt giá trị tối thiểu %,.0fđ để áp dụng mã giảm giá",
                             promotion.getMinOrderAmount().doubleValue()));
@@ -170,6 +170,15 @@ public class PromotionServiceImpl implements PromotionService {
         // Validate business logic: startsAt < endsAt & PERCENTAGE requires maxDiscountAmount
         validatePromotionData(code, request.getDiscountType(), request.getValue(),
                 request.getMaxDiscountAmount(), request.getStartsAt(), request.getEndsAt());
+        if (request.getEndsAt().isBefore(request.getStartsAt())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Thời gian kết thúc phải sau thời gian bắt đầu");
+        }
+
+        if (request.getDiscountType() == DiscountType.PERCENTAGE) {
+            if (request.getValue().compareTo(BigDecimal.valueOf(100)) > 0) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Phần trăm giảm giá không thể vượt quá 100%");
+            }
+        }
 
         Promotion promotion = Promotion.builder()
                 .code(code)

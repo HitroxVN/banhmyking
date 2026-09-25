@@ -1,0 +1,91 @@
+/* AdminUsersPage — tài khoản & phân quyền */
+@import './card.css';
+@import './table.css';
+
+.ausers__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+}
+
+.ausers__search {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.ausers__search .ui-field {
+  width: 260px;
+}
+
+.ausers__filters > .ui-field {
+  flex: 0 1 180px;
+}
+
+.ausers__user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ausers__avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--primary-100);
+  color: var(--primary-700);
+  font-weight: 800;
+}
+
+.ausers__you {
+  margin-left: var(--space-2);
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--primary-100);
+  color: var(--primary-700);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.ausers__pager {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-4) var(--space-5);
+}
+
+.ausers__form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.ausers__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--stone-700);
+  cursor: pointer;
+}
+
+.ausers__check input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--primary-600);
+}
+
+.ausers__check em {
+  color: var(--stone-500);
+  font-style: normal;
+}
+
+.ausers__role-info {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--stone-600);
+  line-height: 1.7;
+}
