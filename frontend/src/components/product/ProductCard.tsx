@@ -62,6 +62,9 @@ export const ProductCard = ({ product, onOpen, onQuickAdd, isQuickAdding = false
         </h3>
         {product.description && <p className="pcard__desc">{product.description}</p>}
 
+        {/* Món có topping: nút + mở modal nên nói trước cho khách khỏi bất ngờ */}
+        {hasOptions && !disabled && <span className="pcard__hint">Chọn topping</span>}
+
         <div className="pcard__foot">
           <span className="pcard__price">{formatCurrency(product.price)}</span>
           <button

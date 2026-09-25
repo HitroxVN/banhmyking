@@ -11,6 +11,14 @@ import '../styles/components/menu.css';
 
 const PAGE_SIZE = 8;
 
+/** Bốn điều lò bánh luôn làm — nội dung tĩnh, mô tả đúng thứ app đang phục vụ */
+const PROMISES = [
+  { icon: Flame, title: 'Nướng theo từng đơn', desc: 'Bánh vào lò sau khi bạn chốt đơn, không làm sẵn từ trước.' },
+  { icon: Timer, title: 'Giao nội thành 30 phút', desc: 'Đóng gói giữ giòn và giao nóng trong vòng 30 phút.' },
+  { icon: Bike, title: 'Miễn phí giao hàng', desc: 'Áp dụng cho mọi đơn hàng từ 200.000đ.' },
+  { icon: ShieldCheck, title: 'Thanh toán linh hoạt', desc: 'Tiền mặt khi nhận hàng hoặc chuyển khoản VietQR.' },
+];
+
 /** Bỏ dấu tiếng Việt để tìm "banh mi" vẫn ra "Bánh mì" */
 const normalize = (text: string): string =>
   text
@@ -96,6 +104,11 @@ export const MenuPage = () => {
     setSearchParams(params, { preventScrollReset: true });
   };
 
+  /** Link "Xem toàn bộ" ở mục nổi bật — chỉ cuộn xuống lưới, không đổi bộ lọc */
+  const scrollToFullList = () => {
+    document.getElementById('menu-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const handleQuickAdd = async (product: ProductItem) => {
     setQuickAddingId(product.id);
     try {
@@ -113,8 +126,11 @@ export const MenuPage = () => {
   return (
     <div>
       <section className="menu__hero">
-        <div>
-          <span className="menu__hero-eyebrow">BÁNH MỲ KING · GIAO NHANH NỘI THÀNH</span>
+        <div className="menu__hero-copy">
+          <span className="menu__hero-badge">
+            <span className="menu__hero-badge-dot" aria-hidden="true" />
+            Nướng theo từng đơn · giao nội thành 30 phút
+          </span>
           <h1 className="menu__hero-title">
             Bánh mì nóng giòn,
             <br />
@@ -152,22 +168,31 @@ export const MenuPage = () => {
 
           <div className="menu__hero-facts">
             <span className="menu__hero-fact">
-              <strong>
-                <Timer size={15} /> 30 phút
-              </strong>
-              <span>Giao trong nội thành</span>
+              <span className="menu__hero-fact-icon">
+                <Timer size={18} />
+              </span>
+              <span className="menu__hero-fact-text">
+                <strong>30 phút</strong>
+                <span>Giao trong nội thành</span>
+              </span>
             </span>
             <span className="menu__hero-fact">
-              <strong>
-                <Bike size={15} /> Miễn phí
-              </strong>
-              <span>Đơn từ 200.000đ</span>
+              <span className="menu__hero-fact-icon">
+                <Bike size={18} />
+              </span>
+              <span className="menu__hero-fact-text">
+                <strong>Miễn phí</strong>
+                <span>Đơn từ 200.000đ</span>
+              </span>
             </span>
             <span className="menu__hero-fact">
-              <strong>
-                <ShieldCheck size={15} /> Tươi mới
-              </strong>
-              <span>Nướng theo đơn</span>
+              <span className="menu__hero-fact-icon">
+                <ShieldCheck size={18} />
+              </span>
+              <span className="menu__hero-fact-text">
+                <strong>Tươi mới</strong>
+                <span>Nướng theo đơn</span>
+              </span>
             </span>
           </div>
         </div>
@@ -176,17 +201,24 @@ export const MenuPage = () => {
           <span className="menu__hero-art-inner">
             <Sandwich size={104} strokeWidth={1.2} />
           </span>
+          <span className="menu__hero-chip menu__hero-chip--a">Vỏ giòn</span>
+          <span className="menu__hero-chip menu__hero-chip--b">Nhân đầy</span>
         </div>
       </section>
 
       {showFeatured && featured.length > 0 && (
         <section className="menu__section" id="menu-featured">
           <div className="menu__section-head">
-            <h2 className="menu__section-title">
-              <Flame size={22} />
-              Món nổi bật
-            </h2>
-            <span className="menu__section-sub">Khách gọi nhiều nhất tuần này</span>
+            <div>
+              <h2 className="menu__section-title">
+                <Flame size={22} />
+                Món nổi bật
+              </h2>
+              <p className="menu__section-sub">Khách gọi nhiều nhất tuần này</p>
+            </div>
+            <button type="button" className="menu__section-link" onClick={scrollToFullList}>
+              Xem toàn bộ {filtered.length} món
+            </button>
           </div>
           <div className="menu__featured">
             {featured.map((product) => (
@@ -204,19 +236,24 @@ export const MenuPage = () => {
 
       <section className="menu__section" id="menu-list">
         <div className="menu__section-head">
-          <h2 className="menu__section-title">Thực đơn</h2>
-          <span className="menu__section-sub">{categories.length} danh mục</span>
+          <div>
+            <h2 className="menu__section-title">Thực đơn</h2>
+            <p className="menu__section-sub">{categories.length} danh mục</p>
+          </div>
         </div>
 
-        <ChipGroup
-          ariaLabel="Lọc theo danh mục"
-          value={categoryId}
-          onChange={(next) => updateParams({ categoryId: next })}
-          options={[
-            { value: null, label: 'Tất cả' },
-            ...categories.map((category) => ({ value: category.id, label: category.name })),
-          ]}
-        />
+        {/* Bám ngay dưới navbar khi cuộn để đổi danh mục không phải cuộn ngược lên */}
+        <div className="menu__filterbar">
+          <ChipGroup
+            ariaLabel="Lọc theo danh mục"
+            value={categoryId}
+            onChange={(next) => updateParams({ categoryId: next })}
+            options={[
+              { value: null, label: 'Tất cả' },
+              ...categories.map((category) => ({ value: category.id, label: category.name })),
+            ]}
+          />
+        </div>
 
         {isLoading && (
           <div className="menu__grid">
@@ -282,6 +319,27 @@ export const MenuPage = () => {
             )}
           </>
         )}
+      </section>
+
+      <section className="menu__promise">
+        <div className="menu__section-head">
+          <div>
+            <h2 className="menu__section-title">Cam kết của lò bánh</h2>
+            <p className="menu__section-sub">Bốn điều Bánh Mỳ King luôn làm cho mỗi đơn hàng</p>
+          </div>
+        </div>
+
+        <div className="menu__promise-grid">
+          {PROMISES.map(({ icon: Icon, title, desc }) => (
+            <article className="menu__promise-card" key={title}>
+              <span className="menu__promise-icon">
+                <Icon size={22} />
+              </span>
+              <h3 className="menu__promise-title">{title}</h3>
+              <p className="menu__promise-desc">{desc}</p>
+            </article>
+          ))}
+        </div>
       </section>
 
       <ProductModal productId={detailId} onClose={() => setDetailId(null)} />

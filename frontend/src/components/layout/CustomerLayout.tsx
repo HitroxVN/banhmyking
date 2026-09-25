@@ -1,17 +1,33 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, NavLink, Outlet, useNavigate, useSearchParams } from 'react-router-dom';
-import { Home, LogOut, Receipt, Sandwich, Search, ShoppingCart, UserRound } from 'lucide-react';
+import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Bike,
+  Home,
+  LogOut,
+  Receipt,
+  Sandwich,
+  Search,
+  ShieldCheck,
+  ShoppingCart,
+  Timer,
+  UserRound,
+} from 'lucide-react';
 import { useAuth } from '../../context/useAuth';
 import { useCart } from '../../context/useCart';
 import { useConfirm } from '../ui';
+import { formatCurrency } from '../../utils/formatters';
 
-/** Khung trang dành cho khách: navbar sticky + footer. */
+/** Các bước thanh toán đã có giỏ hàng riêng trong trang nên không cần pill nổi */
+const FLOAT_CART_HIDDEN_ON = ['/cart', '/checkout', '/payment'];
+
+/** Khung trang dành cho khách: dải promo + navbar sticky + footer + pill giỏ hàng nổi. */
 export const CustomerLayout = () => {
   const { user, logout } = useAuth();
-  const { totalQuantity } = useCart();
+  const { totalQuantity, subtotal } = useCart();
   const confirm = useConfirm();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const [searchParams] = useSearchParams();
   const urlKeyword = searchParams.get('keyword') ?? '';
@@ -75,16 +91,50 @@ export const CustomerLayout = () => {
     }
   };
 
+  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `cshop__link${isActive ? ' cshop__link--active' : ''}`;
+
+  const showFloatCart =
+    totalQuantity > 0 && !FLOAT_CART_HIDDEN_ON.some((prefix) => pathname.startsWith(prefix));
+
   return (
     <div className="cshop">
+      <div className="cshop__strip">
+        <div className="cshop__strip-inner">
+          <span className="cshop__strip-item">
+            <Timer size={14} />
+            Nướng theo từng đơn — giao nội thành trong 30 phút
+          </span>
+          <span className="cshop__strip-item cshop__strip-item--end">
+            <Bike size={14} />
+            Miễn phí giao hàng cho đơn từ 200.000đ
+          </span>
+        </div>
+      </div>
+
       <nav className="cshop__nav">
         <div className="cshop__nav-inner">
           <Link to="/" className="cshop__logo">
             <span className="cshop__logo-badge">
               <Sandwich size={22} />
             </span>
-            <span className="cshop__logo-name">Bánh Mỳ King</span>
+            <span className="cshop__logo-text">
+              <span className="cshop__logo-name">Bánh Mỳ King</span>
+              <span className="cshop__logo-tag">Vỏ giòn · nhân đầy</span>
+            </span>
           </Link>
+
+          <div className="cshop__links">
+            <NavLink to="/" end className={navLinkClass}>
+              Thực đơn
+            </NavLink>
+            <NavLink to="/orders" className={navLinkClass}>
+              Đơn của tôi
+            </NavLink>
+            <NavLink to="/profile" className={navLinkClass}>
+              Hồ sơ
+            </NavLink>
+          </div>
 
           <form className="cshop__search" onSubmit={handleSearch} role="search">
             <span className="cshop__search-icon">
@@ -101,15 +151,17 @@ export const CustomerLayout = () => {
           </form>
 
           <div className="cshop__actions">
-            <NavLink
+            <Link
               to="/cart"
-              className="cshop__icon-btn"
-              title="Giỏ hàng"
-              aria-label={`Giỏ hàng, ${totalQuantity} món`}
+              className="cshop__cart-pill"
+              aria-label={`Giỏ hàng, ${totalQuantity} món, tạm tính ${formatCurrency(subtotal)}`}
             >
-              <ShoppingCart size={21} />
-              {totalQuantity > 0 && <span className="cshop__cart-badge">{totalQuantity}</span>}
-            </NavLink>
+              <span className="cshop__cart-pill-icon">
+                <ShoppingCart size={19} />
+                {totalQuantity > 0 && <span className="cshop__cart-badge">{totalQuantity}</span>}
+              </span>
+              <span className="cshop__cart-pill-total">{formatCurrency(subtotal)}</span>
+            </Link>
 
             <div className="cshop__user" ref={userRef}>
               <button
@@ -167,8 +219,68 @@ export const CustomerLayout = () => {
       </main>
 
       <footer className="cshop__footer">
-        © {new Date().getFullYear()} Bánh Mỳ King — bánh mì nóng giòn giao tận nơi.
+        <div className="cshop__foot-inner">
+          <div className="cshop__foot-brand">
+            <Link to="/" className="cshop__logo">
+              <span className="cshop__logo-badge">
+                <Sandwich size={22} />
+              </span>
+              <span className="cshop__logo-text">
+                <span className="cshop__logo-name">Bánh Mỳ King</span>
+                <span className="cshop__logo-tag">Vỏ giòn · nhân đầy</span>
+              </span>
+            </Link>
+            <p className="cshop__foot-desc">
+              Bánh mì nướng theo từng đơn, kẹp nhân đầy đặn, đóng gói giữ giòn và giao nóng tới tay bạn.
+            </p>
+          </div>
+
+          <div className="cshop__foot-col">
+            <p className="cshop__foot-title">Khám phá</p>
+            <Link to="/">Thực đơn</Link>
+            <Link to="/cart">Giỏ hàng</Link>
+            <Link to="/orders">Đơn của tôi</Link>
+            <Link to="/profile">Hồ sơ cá nhân</Link>
+          </div>
+
+          <div className="cshop__foot-col">
+            <p className="cshop__foot-title">Phục vụ</p>
+            <span className="cshop__foot-note">
+              <Timer size={15} />
+              Giao nội thành trong 30 phút
+            </span>
+            <span className="cshop__foot-note">
+              <Bike size={15} />
+              Miễn phí giao đơn từ 200.000đ
+            </span>
+            <span className="cshop__foot-note">
+              <ShieldCheck size={15} />
+              Nướng theo đơn, không làm sẵn
+            </span>
+          </div>
+        </div>
+
+        <div className="cshop__foot-bottom">
+          <span>© {new Date().getFullYear()} Bánh Mỳ King</span>
+          <span className="cshop__foot-pay">
+            <span className="cshop__foot-pay-pill">Tiền mặt khi nhận hàng</span>
+            <span className="cshop__foot-pay-pill">VietQR</span>
+          </span>
+        </div>
       </footer>
+
+      {showFloatCart && (
+        <Link to="/cart" className="cshop__float-cart">
+          <span className="cshop__float-cart-icon">
+            <ShoppingCart size={20} />
+            <span className="cshop__float-cart-badge">{totalQuantity}</span>
+          </span>
+          <span className="cshop__float-cart-text">
+            <span className="cshop__float-cart-label">Xem giỏ hàng</span>
+            <span className="cshop__float-cart-total">{formatCurrency(subtotal)}</span>
+          </span>
+        </Link>
+      )}
     </div>
   );
 };
