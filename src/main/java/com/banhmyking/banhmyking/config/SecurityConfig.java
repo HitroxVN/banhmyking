@@ -70,6 +70,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/refresh",
                                 "/api/v1/auth/logout").permitAll()
                         .requestMatchers("/api/v1/health/**").permitAll()
+                        .requestMatchers("/api/v1/promotions/**").permitAll()
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",

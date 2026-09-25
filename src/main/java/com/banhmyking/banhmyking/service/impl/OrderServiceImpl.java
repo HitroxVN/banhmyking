@@ -283,6 +283,13 @@ public class OrderServiceImpl implements OrderService {
         Payment payment = paymentService.createPendingPayment(order, method, order.getTotal());
         order.setPayment(payment);
 
+        // Ghi nhận lượt dùng khuyến mãi (nếu có) bằng atomic update
+        if (promotion != null) {
+            int affectedRows = promotionRepository.incrementUsedCountAtomic(promotion.getId());
+            if (affectedRows == 0) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Mã khuyến mãi đã hết lượt sử dụng");
+            }
+
         // Ghi nhận lượt dùng khuyến mãi (nếu có) — SAU khi order đã save để FK order_id hợp lệ.
         // Increment atomic trong UPDATE (điều kiện maxUsage) → không race hai đơn cùng vượt quota.
         if (promotion != null) {
