@@ -30,14 +30,12 @@ public interface OrderService {
     OrderResponse getOrderByCode(Long userId, String orderCode);
 
     /**
-     * Lấy danh sách các đơn hàng của user (không phân trang - backward compatible).
-     */
-    List<OrderResponse> getUserOrders(Long userId);
-
-    /**
      * Lấy danh sách các đơn hàng của user có phân trang (Customer).
+     *
+     * @param statuses lọc theo trạng thái; rỗng/null = tất cả. Nhận nhiều trạng thái vì
+     *                 FE gộp nhóm ("Đang chuẩn bị", "Đã huỷ") — xem {@code OrderSpecifications#ownedBy}.
      */
-    PageResponse<OrderResponse> getUserOrders(Long userId, int page, int size);
+    PageResponse<OrderResponse> getUserOrders(Long userId, List<OrderStatus> statuses, int page, int size);
 
     /**
      * Lấy toàn bộ đơn hàng hệ thống kèm bộ lọc status, fromDate, toDate và phân trang (Staff/Admin).

@@ -1,9 +1,23 @@
 import { axiosClient } from './axiosClient';
 import type { ApiResponse } from '../types/auth';
-import type { PromotionPayload, PromotionResponse, ValidatePromotionPayload } from '../types/promotion';
+import type {
+  PromotionPayload,
+  PromotionResponse,
+  PublicPromotionResponse,
+  ValidatePromotionPayload,
+} from '../types/promotion';
 
 /** Mã giảm giá của khách — kiểm tra & tính số tiền giảm trước khi đặt đơn. */
 export const promotionApi = {
+  /**
+   * Mã khách đang dùng được, để khách chọn thay vì phải biết trước mã.
+   * Lỗi mạng ở đây KHÔNG được chặn việc đặt hàng — FE chỉ coi đây là gợi ý.
+   */
+  async getPublicPromotions(): Promise<PublicPromotionResponse[]> {
+    const res = await axiosClient.get<ApiResponse<PublicPromotionResponse[]>>('/promotions/public');
+    return res.data.data;
+  },
+
   /**
    * Backend là nguồn sự thật duy nhất của số tiền giảm (cùng công thức với lúc tạo đơn),
    * nên FE không tự tính lại. Lỗi (hết hạn / chưa đủ đơn tối thiểu / hết lượt) trả về

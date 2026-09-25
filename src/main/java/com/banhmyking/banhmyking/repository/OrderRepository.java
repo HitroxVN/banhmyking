@@ -22,10 +22,6 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     Optional<Order> findByOrderCodeAndUserId(String orderCode, Long userId);
 
-    List<Order> findByUserIdOrderByCreatedAtDesc(Long userId);
-
-    Page<Order> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
-
     @Query("SELECT DISTINCT o FROM Order o " +
            "LEFT JOIN FETCH o.items i " +
            "LEFT JOIN FETCH o.payment " +

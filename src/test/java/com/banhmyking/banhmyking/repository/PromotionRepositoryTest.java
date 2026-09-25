@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -145,5 +146,46 @@ class PromotionRepositoryTest {
         Optional<Promotion> updatedPromo = promotionRepository.findById(promoId);
         assertThat(updatedPromo).isPresent();
         assertThat(updatedPromo.get().getUsedCount()).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("findUsableAt: chỉ trả mã đang bật, trong thời gian hiệu lực và còn lượt")
+    void findUsableAt_filtersOutInactiveExpiredFutureAndExhausted() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime past = now.minusDays(10);
+        LocalDateTime future = now.plusDays(10);
+
+        // Dùng chung một bộ khung, chỉ khác đúng field quyết định việc lọc.
+        // Tiền tố REPO_PUB_ để không đụng các bản ghi khác trong DB dev.
+        persistPromotion("REPO_PUB_OK", true, past, future, 10, 0);
+        persistPromotion("REPO_PUB_UNLIMITED", true, past, future, 0, 0);   // maxUsage = 0 = không giới hạn
+        persistPromotion("REPO_PUB_INACTIVE", false, past, future, 10, 0);
+        persistPromotion("REPO_PUB_EXPIRED", true, past, now.minusMinutes(1), 10, 0);
+        persistPromotion("REPO_PUB_FUTURE", true, now.plusMinutes(1), future, 10, 0);
+        persistPromotion("REPO_PUB_EXHAUSTED", true, past, future, 5, 5);
+
+        List<String> usableCodes = promotionRepository.findUsableAt(now).stream()
+                .map(Promotion::getCode)
+                .filter(code -> code.startsWith("REPO_PUB_"))
+                .toList();
+
+        assertThat(usableCodes).containsExactlyInAnyOrder("REPO_PUB_OK", "REPO_PUB_UNLIMITED");
+    }
+
+    private void persistPromotion(String code, boolean active, LocalDateTime startsAt, LocalDateTime endsAt,
+                                  int maxUsage, int usedCount) {
+        entityManager.persist(Promotion.builder()
+                .code(code)
+                .description("Test " + code)
+                .discountType(DiscountType.FIXED_AMOUNT)
+                .value(BigDecimal.valueOf(10000))
+                .minOrderAmount(BigDecimal.ZERO)
+                .startsAt(startsAt)
+                .endsAt(endsAt)
+                .maxUsage(maxUsage)
+                .usedCount(usedCount)
+                .active(active)
+                .build());
+        entityManager.flush();
     }
 }

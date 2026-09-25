@@ -3,6 +3,7 @@ package com.banhmyking.banhmyking.controller;
 import com.banhmyking.banhmyking.dto.common.ApiResponse;
 import com.banhmyking.banhmyking.dto.promotion.CreatePromotionRequest;
 import com.banhmyking.banhmyking.dto.promotion.PromotionResponse;
+import com.banhmyking.banhmyking.dto.promotion.PublicPromotionResponse;
 import com.banhmyking.banhmyking.dto.promotion.UpdatePromotionRequest;
 import com.banhmyking.banhmyking.dto.promotion.ValidatePromotionRequest;
 import com.banhmyking.banhmyking.service.PromotionService;
@@ -31,6 +32,15 @@ import java.util.List;
 public class PromotionController {
 
     private final PromotionService promotionService;
+
+    @Operation(summary = "Danh sách mã giảm giá khách dùng được (Public)",
+            description = "Các mã đang thật sự dùng được (đang bật, trong thời gian hiệu lực, còn lượt, khách chưa dùng). "
+                    + "Trả bản rút gọn — không có số lượt dùng hay id nội bộ. Dùng để khách chọn mã thay vì gõ mù.")
+    @GetMapping("/promotions/public")
+    public ResponseEntity<ApiResponse<List<PublicPromotionResponse>>> getPublicPromotions() {
+        List<PublicPromotionResponse> response = promotionService.getPublicPromotions();
+        return ResponseEntity.ok(ApiResponse.ok("Lấy danh sách mã giảm giá thành công", response));
+    }
 
     @Operation(summary = "Kiểm tra mã giảm giá (CUSTOMER)", description = "Kiểm tra mã giảm giá còn hiệu lực, đạt điều kiện đơn hàng và tính số tiền được giảm")
     @PostMapping("/promotions/validate")

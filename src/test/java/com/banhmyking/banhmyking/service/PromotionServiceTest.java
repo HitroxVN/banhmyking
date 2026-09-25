@@ -1,5 +1,6 @@
 package com.banhmyking.banhmyking.service;
 
+import com.banhmyking.banhmyking.dto.promotion.PublicPromotionResponse;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.Promotion;
 import com.banhmyking.banhmyking.entity.PromotionUsage;
@@ -9,6 +10,7 @@ import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.repository.PromotionRepository;
 import com.banhmyking.banhmyking.repository.PromotionUsageRepository;
 import com.banhmyking.banhmyking.service.impl.PromotionServiceImpl;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,9 +18,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -298,5 +303,79 @@ class PromotionServiceTest {
         assertThat(failureCount.get()).isEqualTo(1);
         verify(promotionRepository, org.mockito.Mockito.times(2)).incrementUsedCountAtomic(100L);
         verify(promotionUsageRepository, org.mockito.Mockito.times(1)).save(any());
+    }
+
+    // ---------- getPublicPromotions: danh sách mã cho khách chọn ở trang thanh toán ----------
+
+    @AfterEach
+    void tearDownSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private Promotion usablePromotion(Long id, String code, BigDecimal minOrderAmount) {
+        Promotion promotion = Promotion.builder()
+                .code(code)
+                .description("Mô tả " + code)
+                .discountType(DiscountType.PERCENTAGE)
+                .value(BigDecimal.valueOf(10))
+                .maxDiscountAmount(BigDecimal.valueOf(30000))
+                .minOrderAmount(minOrderAmount)
+                .startsAt(LocalDateTime.now().minusDays(1))
+                .endsAt(LocalDateTime.now().plusDays(5))
+                .maxUsage(10)
+                .usedCount(0)
+                .active(true)
+                .build();
+        promotion.setId(id);
+        return promotion;
+    }
+
+    @Test
+    @DisplayName("Danh sách công khai trả đúng các field khách cần, không lộ lượt dùng / id")
+    void getPublicPromotions_mapsPublicFieldsOnly() {
+        when(promotionRepository.findUsableAt(any(LocalDateTime.class)))
+                .thenReturn(List.of(usablePromotion(100L, "BANHMYKING10", BigDecimal.valueOf(50000))));
+
+        List<PublicPromotionResponse> result = promotionService.getPublicPromotions();
+
+        assertThat(result).hasSize(1);
+        PublicPromotionResponse promo = result.get(0);
+        assertThat(promo.code()).isEqualTo("BANHMYKING10");
+        assertThat(promo.description()).isEqualTo("Mô tả BANHMYKING10");
+        assertThat(promo.discountType()).isEqualTo(DiscountType.PERCENTAGE);
+        assertThat(promo.value()).isEqualByComparingTo(BigDecimal.valueOf(10));
+        assertThat(promo.maxDiscountAmount()).isEqualByComparingTo(BigDecimal.valueOf(30000));
+        assertThat(promo.minOrderAmount()).isEqualByComparingTo(BigDecimal.valueOf(50000));
+        assertThat(promo.endsAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("Khách ẩn danh: không truy vấn lượt đã dùng, trả về mọi mã còn dùng được")
+    void getPublicPromotions_anonymous_doesNotQueryUsage() {
+        when(promotionRepository.findUsableAt(any(LocalDateTime.class)))
+                .thenReturn(List.of(
+                        usablePromotion(100L, "MA1", BigDecimal.valueOf(50000)),
+                        usablePromotion(200L, "MA2", BigDecimal.ZERO)));
+
+        List<PublicPromotionResponse> result = promotionService.getPublicPromotions();
+
+        assertThat(result).extracting(PublicPromotionResponse::code).containsExactly("MA1", "MA2");
+        verify(promotionUsageRepository, never()).findPromotionIdsByUserId(any());
+    }
+
+    @Test
+    @DisplayName("Loại mã khách hiện tại đã dùng — không mời chọn thứ chắc chắn bị từ chối")
+    void getPublicPromotions_excludesCodesAlreadyUsedByCurrentUser() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(1L, null, List.of()));
+        when(promotionRepository.findUsableAt(any(LocalDateTime.class)))
+                .thenReturn(List.of(
+                        usablePromotion(100L, "DA_DUNG", BigDecimal.valueOf(50000)),
+                        usablePromotion(200L, "CON_DUNG", BigDecimal.ZERO)));
+        when(promotionUsageRepository.findPromotionIdsByUserId(1L)).thenReturn(List.of(100L));
+
+        List<PublicPromotionResponse> result = promotionService.getPublicPromotions();
+
+        assertThat(result).extracting(PublicPromotionResponse::code).containsExactly("CON_DUNG");
     }
 }

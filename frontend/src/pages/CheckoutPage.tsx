@@ -10,9 +10,10 @@ import { promotionApi } from '../api/promotionApi';
 import { deliveryApi } from '../api/deliveryApi';
 import { Badge, Button, EmptyState, Input, Spinner, Textarea, useToast } from '../components/ui';
 import { formatCurrency } from '../utils/formatters';
+import { describePromotionValue } from '../utils/promotion';
 import type { AddressResponse } from '../types/address';
 import type { CreateOrderRequest, PaymentMethod } from '../types/order';
-import type { PromotionResponse } from '../types/promotion';
+import type { PromotionResponse, PublicPromotionResponse } from '../types/promotion';
 import type { DeliveryFeeResult } from '../types/delivery';
 import '../styles/components/order.css';
 import '../styles/components/checkout.css';
@@ -69,6 +70,26 @@ export const CheckoutPage = () => {
   const [promoInput, setPromoInput] = useState('');
   const [appliedPromotion, setAppliedPromotion] = useState<PromotionResponse | null>(null);
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
+  const [availablePromotions, setAvailablePromotions] = useState<PublicPromotionResponse[]>([]);
+
+  // Danh sách mã chỉ là GỢI Ý: lỗi mạng thì bỏ qua im lặng, khách vẫn gõ tay được.
+  // Không để nó chặn hay làm hỏng luồng đặt hàng.
+  useEffect(() => {
+    let alive = true;
+
+    promotionApi
+      .getPublicPromotions()
+      .then((promotions) => {
+        if (alive) setAvailablePromotions(promotions);
+      })
+      .catch(() => {
+        if (alive) setAvailablePromotions([]);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Sổ địa chỉ: ưu tiên địa chỉ mặc định, chưa có thì điền sẵn thông tin tài khoản
   useEffect(() => {
@@ -200,8 +221,9 @@ export const CheckoutPage = () => {
   };
 
   // Áp mã: `orderAmount` = subtotal (trước phí ship) để khớp validateForOrder của backend
-  const applyPromo = async () => {
-    const code = promoInput.trim();
+  // `rawCode` cho phép bấm thẳng vào một mã trong danh sách gợi ý mà không phải chờ state kịp cập nhật
+  const applyPromo = async (rawCode?: string) => {
+    const code = (rawCode ?? promoInput).trim();
     if (!code || isApplyingPromo) return;
 
     setIsApplyingPromo(true);
@@ -521,6 +543,40 @@ export const CheckoutPage = () => {
                   </Button>
                 )}
               </div>
+
+              {/*
+                Mã đang dùng được — để khách chọn thay vì phải biết trước mã.
+                `type="button"` là bắt buộc: khối này nằm trong <form>, thiếu type thì bấm
+                vào mã sẽ submit luôn đơn hàng thay vì áp mã.
+                Mã chưa đủ đơn tối thiểu vẫn bấm được, chỉ hiện rõ còn thiếu điều kiện gì.
+              */}
+              {!appliedPromotion && availablePromotions.length > 0 && (
+                <div className="ck__promo-picks">
+                  <span className="ck__promo-picks-label">Mã đang có</span>
+                  <div className="ck__promo-picks-list">
+                    {availablePromotions.map((promo) => {
+                      const minOrder = promo.minOrderAmount ?? 0;
+                      const isBelowMin = subtotal < minOrder;
+                      return (
+                        <button
+                          key={promo.code}
+                          type="button"
+                          className={`ck__promo-pick${isBelowMin ? ' ck__promo-pick--short' : ''}`}
+                          disabled={isApplyingPromo}
+                          onClick={() => void applyPromo(promo.code)}
+                          title={promo.description}
+                        >
+                          <span className="ck__promo-pick-code">{promo.code}</span>
+                          <span className="ck__promo-pick-value">{describePromotionValue(promo)}</span>
+                          {isBelowMin && (
+                            <span className="ck__promo-pick-min">Đơn từ {formatCurrency(minOrder)}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <div className="card__foot">

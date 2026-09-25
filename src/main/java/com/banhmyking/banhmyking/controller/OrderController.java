@@ -7,6 +7,7 @@ import com.banhmyking.banhmyking.dto.order.CreateOrderRequest;
 import com.banhmyking.banhmyking.dto.order.OrderResponse;
 import com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse;
 import com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest;
+import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.security.SecurityUtils;
 import com.banhmyking.banhmyking.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -59,15 +60,17 @@ public class OrderController {
     }
 
     @GetMapping
-    @Operation(summary = "Lịch sử đơn hàng của tôi (phân trang)", description = "Lấy danh sách các đơn hàng đã đặt của người dùng có phân trang, sắp xếp mới nhất lên đầu.")
+    @Operation(summary = "Lịch sử đơn hàng của tôi (phân trang + lọc trạng thái)", description = "Lấy danh sách các đơn hàng đã đặt của người dùng có phân trang và lọc theo trạng thái, sắp xếp mới nhất lên đầu.")
     public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getUserOrders(
             @AuthenticationPrincipal UserDetails principal,
+            @Parameter(description = "Lọc theo trạng thái đơn. Gửi nhiều giá trị để lọc một nhóm, ví dụ: CONFIRMED,PREPARING,READY_FOR_PICKUP")
+            @RequestParam(value = "status", required = false) List<OrderStatus> status,
             @Parameter(description = "Số trang (bắt đầu từ 0)", example = "0")
             @RequestParam(value = "page", defaultValue = "0") int page,
             @Parameter(description = "Số lượng mỗi trang", example = "10")
             @RequestParam(value = "size", defaultValue = "10") int size) {
         Long userId = SecurityUtils.requireUserId(principal);
-        PageResponse<OrderResponse> orders = orderService.getUserOrders(userId, page, size);
+        PageResponse<OrderResponse> orders = orderService.getUserOrders(userId, status, page, size);
         return ResponseEntity.ok(ApiResponse.ok("Lấy lịch sử đơn hàng thành công", orders));
     }
 

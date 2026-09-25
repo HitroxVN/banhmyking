@@ -2,6 +2,7 @@ package com.banhmyking.banhmyking.service.impl;
 
 import com.banhmyking.banhmyking.dto.promotion.CreatePromotionRequest;
 import com.banhmyking.banhmyking.dto.promotion.PromotionResponse;
+import com.banhmyking.banhmyking.dto.promotion.PublicPromotionResponse;
 import com.banhmyking.banhmyking.dto.promotion.UpdatePromotionRequest;
 import com.banhmyking.banhmyking.dto.promotion.ValidatePromotionRequest;
 import com.banhmyking.banhmyking.entity.Order;
@@ -23,8 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -261,6 +264,31 @@ public class PromotionServiceImpl implements PromotionService {
     public List<PromotionResponse> getAllPromotions() {
         return promotionRepository.findAll().stream()
                 .map(this::toPromotionResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PublicPromotionResponse> getPublicPromotions() {
+        // Trang thanh toán yêu cầu đăng nhập, nên thực tế luôn có user. Lấy an toàn để
+        // endpoint vẫn dùng được khi ẩn danh (ví dụ gọi từ trang chủ sau này).
+        Long userId = getCurrentUserIdSafely();
+        Set<Long> usedPromotionIds = userId == null
+                ? Set.of()
+                : new HashSet<>(promotionUsageRepository.findPromotionIdsByUserId(userId));
+
+        return promotionRepository.findUsableAt(LocalDateTime.now()).stream()
+                // Mỗi mã chỉ dùng được 1 lần/khách — hiện mã đã dùng sẽ là mời khách
+                // chọn một thứ chắc chắn bị validateForOrder từ chối.
+                .filter(promotion -> !usedPromotionIds.contains(promotion.getId()))
+                .map(promotion -> new PublicPromotionResponse(
+                        promotion.getCode(),
+                        promotion.getDescription(),
+                        promotion.getDiscountType(),
+                        promotion.getValue(),
+                        promotion.getMaxDiscountAmount(),
+                        promotion.getMinOrderAmount(),
+                        promotion.getEndsAt()))
                 .toList();
     }
 

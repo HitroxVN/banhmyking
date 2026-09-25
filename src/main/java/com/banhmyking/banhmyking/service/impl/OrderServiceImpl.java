@@ -330,16 +330,12 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<OrderResponse> getUserOrders(Long userId) {
-        List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
-        return orders.stream().map(this::toOrderResponse).toList();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public PageResponse<OrderResponse> getUserOrders(Long userId, int page, int size) {
-        Pageable pageable = PageableFactory.of(page, size);
-        Page<Order> orderPage = orderRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+    public PageResponse<OrderResponse> getUserOrders(Long userId, List<OrderStatus> statuses, int page, int size) {
+        // Sắp xếp tường minh: đi qua Specification thì không còn thứ tự ngầm định từ tên method
+        // như findByUserIdOrderByCreatedAtDesc trước đây.
+        Pageable pageable = PageableFactory.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Specification<Order> spec = OrderSpecifications.ownedBy(userId, statuses);
+        Page<Order> orderPage = orderRepository.findAll(spec, pageable);
         return PageResponse.from(orderPage.map(this::toOrderResponse));
     }
 

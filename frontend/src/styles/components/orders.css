@@ -6,13 +6,6 @@
   margin: var(--space-4) 0 var(--space-5);
 }
 
-.orders__hint {
-  margin: var(--space-3) 0 0;
-  font-size: var(--text-xs);
-  color: var(--stone-500);
-  text-align: center;
-}
-
 .ord-card {
   display: flex;
   align-items: center;

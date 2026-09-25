@@ -42,6 +42,21 @@ export interface PromotionPayload {
   active: boolean;
 }
 
+/**
+ * Mã giảm giá hiển thị cho khách ở trang thanh toán — khớp `PublicPromotionResponse`.
+ * KHÔNG có `id` / `usedCount` / `maxUsage`: backend cố tình không trả thông tin nội bộ.
+ */
+export interface PublicPromotionResponse {
+  code: string;
+  description?: string;
+  discountType: DiscountType;
+  /** PERCENTAGE: 1–100 · FIXED_AMOUNT/FREE_SHIP: số tiền */
+  value: number;
+  maxDiscountAmount?: number;
+  minOrderAmount?: number;
+  endsAt?: string;
+}
+
 export interface ValidatePromotionPayload {
   code: string;
   /** Giá trị đơn trước phí ship — khớp `validateForOrder(code, userId, subtotal)` của backend */

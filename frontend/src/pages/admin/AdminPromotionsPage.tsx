@@ -16,6 +16,7 @@ import {
 import { promotionApi } from '../../api/promotionApi';
 import type { DiscountType, PromotionPayload, PromotionResponse } from '../../types/promotion';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { describePromotionValue } from '../../utils/promotion';
 import '../../styles/components/admin-promotions.css';
 
 const DISCOUNT_TYPE_LABEL: Record<DiscountType, string> = {
@@ -38,15 +39,6 @@ const getState = (promo: PromotionResponse): { label: string; tone: StateTone } 
   return { label: 'Đang chạy', tone: 'success' };
 };
 
-const describeValue = (promo: PromotionResponse): string => {
-  if (promo.discountType === 'PERCENTAGE') {
-    return promo.maxDiscountAmount ? `${promo.value}% · tối đa ${formatCurrency(promo.maxDiscountAmount)}` : `${promo.value}%`;
-  }
-  if (promo.discountType === 'FREE_SHIP') {
-    return `Tối đa ${formatCurrency(promo.value)}`;
-  }
-  return formatCurrency(promo.value);
-};
 
 /** `<input type="datetime-local">` chỉ nhận `YYYY-MM-DDTHH:mm` theo giờ địa phương */
 const toInputValue = (iso?: string) => (iso ? iso.slice(0, 16) : '');
@@ -377,7 +369,7 @@ export const AdminPromotionsPage = () => {
                         <span className="ui-table__meta ui-table__clip">{promotion.description}</span>
                       </td>
                       <td>
-                        <span className="apromo__value">{describeValue(promotion)}</span>
+                        <span className="apromo__value">{describePromotionValue(promotion)}</span>
                         <span className="ui-table__meta">{DISCOUNT_TYPE_LABEL[promotion.discountType]}</span>
                       </td>
                       <td className="ui-table__amount">

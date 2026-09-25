@@ -135,10 +135,10 @@ class OrderServiceApisTest {
     @DisplayName("getUserOrders - Phân trang đơn hàng của khách hàng")
     void getUserOrders_withPagination_shouldReturnPageResponse() {
         Page<Order> page = new PageImpl<>(List.of(sampleOrder));
-        when(orderRepository.findByUserIdOrderByCreatedAtDesc(eq(1L), any(Pageable.class)))
+        when(orderRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(page);
 
-        PageResponse<OrderResponse> result = orderService.getUserOrders(1L, 0, 10);
+        PageResponse<OrderResponse> result = orderService.getUserOrders(1L, null, 0, 10);
 
         assertNotNull(result);
         assertEquals(1, result.content().size());

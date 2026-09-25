@@ -1,6 +1,11 @@
 import type { ApiResponse } from '../types/auth';
 import type { PageResponse } from '../types/admin';
-import type { CreateOrderRequest, OrderResponse, OrderStatusHistoryItem } from '../types/order';
+import type {
+  CreateOrderRequest,
+  OrderResponse,
+  OrderStatus,
+  OrderStatusHistoryItem,
+} from '../types/order';
 import { axiosClient } from './axiosClient';
 
 export const orderApi = {
@@ -21,11 +26,22 @@ export const orderApi = {
   },
 
   /**
-   * Lấy lịch sử đơn hàng của người dùng hiện tại có phân trang
+   * Lấy lịch sử đơn hàng của người dùng hiện tại có phân trang, lọc được theo trạng thái.
+   *
+   * `statuses` gửi lên dạng `CONFIRMED,PREPARING,READY_FOR_PICKUP` — nối bằng dấu phẩy chứ
+   * KHÔNG để axios serialize mảng (`status[]=A`) vì Spring không hiểu dạng đó.
    */
-  async getUserOrders(page = 0, size = 10): Promise<PageResponse<OrderResponse>> {
+  async getUserOrders(
+    page = 0,
+    size = 10,
+    statuses?: OrderStatus[]
+  ): Promise<PageResponse<OrderResponse>> {
     const response = await axiosClient.get<ApiResponse<PageResponse<OrderResponse>>>('/orders', {
-      params: { page, size },
+      params: {
+        page,
+        size,
+        ...(statuses && statuses.length > 0 ? { status: statuses.join(',') } : {}),
+      },
     });
     return response.data.data;
   },

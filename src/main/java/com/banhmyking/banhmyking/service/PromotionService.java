@@ -2,6 +2,7 @@ package com.banhmyking.banhmyking.service;
 
 import com.banhmyking.banhmyking.dto.promotion.CreatePromotionRequest;
 import com.banhmyking.banhmyking.dto.promotion.PromotionResponse;
+import com.banhmyking.banhmyking.dto.promotion.PublicPromotionResponse;
 import com.banhmyking.banhmyking.dto.promotion.ValidatePromotionRequest;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.Promotion;
@@ -66,6 +67,14 @@ public interface PromotionService {
      * Lấy danh sách tất cả mã giảm giá (Admin).
      */
     List<PromotionResponse> getAllPromotions();
+
+    /**
+     * Danh sách mã giảm giá KHÁCH đang dùng được, để khách chọn thay vì gõ mù.
+     * Đã lọc theo hiệu lực (active, trong khoảng ngày, còn lượt) và loại các mã
+     * chính khách này đã dùng. Trả về bản rút gọn {@link PublicPromotionResponse},
+     * không lộ số lượt / id nội bộ.
+     */
+    List<PublicPromotionResponse> getPublicPromotions();
 
     /**
      * Lấy thông tin chi tiết mã giảm giá theo ID.

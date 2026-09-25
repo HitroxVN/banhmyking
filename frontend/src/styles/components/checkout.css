@@ -103,6 +103,76 @@
   min-width: 0;
 }
 
+/* Gợi ý mã giảm giá — khách bấm chọn thay vì phải biết trước mã */
+.ck__promo-picks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.ck__promo-picks-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--stone-500);
+}
+
+.ck__promo-picks-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ck__promo-pick {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--stone-300);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.ck__promo-pick:hover:not(:disabled) {
+  border-color: var(--primary-500);
+  background: var(--primary-50);
+}
+
+.ck__promo-pick:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Chưa đủ đơn tối thiểu: vẫn bấm được, chỉ khác kiểu viền để không hứa hẹn suông */
+.ck__promo-pick--short {
+  border-style: dotted;
+}
+
+.ck__promo-pick-code {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--stone-800);
+}
+
+.ck__promo-pick-value {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--primary-600);
+}
+
+.ck__promo-pick-min {
+  font-size: var(--text-xs);
+  color: var(--stone-500);
+}
+
 .ck__row2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

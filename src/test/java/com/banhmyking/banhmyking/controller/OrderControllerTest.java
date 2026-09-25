@@ -160,7 +160,7 @@ class OrderControllerTest {
                         List.of(response), 0, 10, 1L, 1, true
                 );
 
-        when(orderService.getUserOrders(1L, 0, 10)).thenReturn(pageResponse);
+        when(orderService.getUserOrders(1L, null, 0, 10)).thenReturn(pageResponse);
 
         mockMvc.perform(get("/api/v1/orders")
                         .param("page", "0")
@@ -170,6 +170,38 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.data.content").isArray())
                 .andExpect(jsonPath("$.data.content[0].orderCode").value("BMK-20260908-ABC12"))
                 .andExpect(jsonPath("$.data.totalElements").value(1));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/orders - Bind nhiều trạng thái từ query param dạng CONFIRMED,PREPARING")
+    void getUserOrders_bindsMultipleStatusesFromCommaSeparatedParam() throws Exception {
+        when(orderService.getUserOrders(1L,
+                List.of(OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP), 0, 10))
+                .thenReturn(new com.banhmyking.banhmyking.dto.common.PageResponse<>(
+                        List.of(), 0, 10, 0L, 0, true));
+
+        mockMvc.perform(get("/api/v1/orders")
+                        .param("status", "CONFIRMED,PREPARING,READY_FOR_PICKUP")
+                        .param("page", "0")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content").isEmpty());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/orders - Bind nhiều trạng thái khi tham số lặp lại (status=A&status=B)")
+    void getUserOrders_bindsMultipleStatusesFromRepeatedParam() throws Exception {
+        when(orderService.getUserOrders(1L, List.of(OrderStatus.CANCELLED, OrderStatus.FAILED), 0, 10))
+                .thenReturn(new com.banhmyking.banhmyking.dto.common.PageResponse<>(
+                        List.of(), 0, 10, 0L, 0, true));
+
+        mockMvc.perform(get("/api/v1/orders")
+                        .param("status", "CANCELLED")
+                        .param("status", "FAILED")
+                        .param("page", "0")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content").isEmpty());
     }
 
     @Test

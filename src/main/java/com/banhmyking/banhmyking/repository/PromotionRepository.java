@@ -7,12 +7,26 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface PromotionRepository extends JpaRepository<Promotion, Long> {
     Optional<Promotion> findByCode(String code);
     Optional<Promotion> findByCodeAndActiveTrue(String code);
+
+    /**
+     * Các mã khách thật sự dùng được ngay bây giờ: đang bật, đã tới ngày, chưa hết hạn, còn lượt.
+     * Điều kiện lượt phải khớp {@link #incrementUsedCountAtomic} — nếu lệch, danh sách sẽ mời
+     * khách chọn một mã mà lúc trừ lượt sẽ nổ.
+     * Sắp theo đơn tối thiểu tăng dần: mã dễ dùng nhất lên đầu.
+     */
+    @Query("SELECT p FROM Promotion p WHERE p.active = true "
+            + "AND p.startsAt <= :now AND p.endsAt >= :now "
+            + "AND (p.maxUsage <= 0 OR p.usedCount < p.maxUsage) "
+            + "ORDER BY p.minOrderAmount ASC")
+    List<Promotion> findUsableAt(@Param("now") LocalDateTime now);
 
     /**
      * Increment usedCount atomically — điều kiện maxUsage nằm trong cùng câu UPDATE nên
