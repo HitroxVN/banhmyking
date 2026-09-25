@@ -6,6 +6,9 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 import java.util.UUID;
 import javax.crypto.SecretKey;
@@ -26,13 +29,24 @@ public class JwtTokenProvider {
         try {
             keyBytes = Decoders.BASE64.decode(props.secret());
             if (keyBytes.length < 32) {
-                keyBytes = props.secret().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                keyBytes = props.secret().getBytes(StandardCharsets.UTF_8);
             }
         } catch (Exception e) {
-            keyBytes = props.secret().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            keyBytes = props.secret().getBytes(StandardCharsets.UTF_8);
+        }
+        if (keyBytes.length < 32) {
+            try {
+                keyBytes = MessageDigest.getInstance("SHA-256").digest(keyBytes);
+            } catch (NoSuchAlgorithmException ignored) {
+            }
         }
         this.key = Keys.hmacShaKeyFor(keyBytes);
         this.accessTokenExpiryMs = props.accessTokenExpiryMs();
+    }
+
+    /** TTL access token (ms) — để AuthService trả expiresIn khớp cấu hình, không hardcode. */
+    public long getAccessTokenExpiryMs() {
+        return accessTokenExpiryMs;
     }
 
     /** Subject = userId (String), claim "role" = RoleName.name(). */

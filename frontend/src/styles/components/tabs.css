@@ -1,0 +1,58 @@
+/* Tabs — controlled, dùng chung cho staff / shipper / profile */
+.ui-tabs {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+}
+
+.ui-tabs__tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--stone-500);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ui-tabs__tab:hover { color: var(--stone-800); }
+
+.ui-tabs__tab--active {
+  color: var(--primary-700);
+}
+
+.ui-tabs__tab--active::after {
+  content: '';
+  position: absolute;
+  left: var(--space-2);
+  right: var(--space-2);
+  bottom: -1px;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--primary-600);
+}
+
+.ui-tabs__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--stone-600);
+  background: var(--stone-100);
+  border-radius: var(--radius-full);
+}
+
+.ui-tabs__tab--active .ui-tabs__count {
+  color: var(--primary-700);
+  background: var(--primary-100);
+}

@@ -81,6 +81,12 @@ class OrderServiceTest {
     private PriceCalculator priceCalculator;
 
     @Mock
+    private DeliveryFeeCalculator deliveryFeeCalculator;
+
+    @Mock
+    private PaymentService paymentService;
+
+    @Mock
     private OrderCodeGenerator orderCodeGenerator;
 
     @InjectMocks
@@ -155,7 +161,7 @@ class OrderServiceTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
         when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
-        when(priceCalculator.calculate(eq(testCart), any())).thenReturn(breakdown);
+        when(priceCalculator.calculate(eq(testCart), any(), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260908-ABC12");
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
             Order o = inv.getArgument(0);
@@ -190,9 +196,10 @@ class OrderServiceTest {
 
         // AC 6: Giỏ hàng phải được dọn sạch
         verify(cartService).clearCart(1L);
-        // Lưu đơn hàng và payment
+        // Lưu đơn hàng và payment (#18: payment luôn tạo qua paymentService — không còn nhánh fallback tự save)
         verify(orderRepository).save(any(Order.class));
-        verify(paymentRepository).save(any(Payment.class));
+        verify(paymentService).createPendingPayment(any(Order.class), eq(PaymentMethod.COD),
+                eq(BigDecimal.valueOf(95000)));
     }
 
     @Test
@@ -251,7 +258,7 @@ class OrderServiceTest {
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
-        when(priceCalculator.calculate(eq(testCart), any())).thenReturn(breakdown);
+        when(priceCalculator.calculate(eq(testCart), any(), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260908-XYZ99");
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -321,7 +328,7 @@ class OrderServiceTest {
         when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
         when(promotionRepository.findByCodeAndActiveTrue("PROMO50")).thenReturn(Optional.of(promo));
         when(promotionUsageRepository.findByPromotionIdAndUserId(50L, 1L)).thenReturn(Optional.empty());
-        when(priceCalculator.calculate(eq(testCart), eq(promo))).thenReturn(breakdown);
+        when(priceCalculator.calculate(eq(testCart), eq(promo), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260910-PROMO");
         when(promotionRepository.incrementUsedCountAtomic(50L)).thenReturn(1);
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
@@ -336,7 +343,7 @@ class OrderServiceTest {
         assertThat(response.getDiscountAmount()).isEqualByComparingTo(BigDecimal.valueOf(10000));
         assertThat(response.getPromotionCode()).isEqualTo("PROMO50");
         verify(promotionRepository).incrementUsedCountAtomic(50L);
-        verify(promotionUsageRepository).save(any());
+        verify(promotionUsageRepository).saveAndFlush(any());
     }
 
     @Test
@@ -368,7 +375,7 @@ class OrderServiceTest {
         when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
         when(promotionRepository.findByCodeAndActiveTrue("PROMO50")).thenReturn(Optional.of(promo));
         when(promotionUsageRepository.findByPromotionIdAndUserId(50L, 1L)).thenReturn(Optional.empty());
-        when(priceCalculator.calculate(eq(testCart), eq(promo))).thenReturn(breakdown);
+        when(priceCalculator.calculate(eq(testCart), eq(promo), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260910-FAIL");
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
             Order o = inv.getArgument(0);
@@ -379,9 +386,10 @@ class OrderServiceTest {
 
         assertThatThrownBy(() -> orderService.createFromCart(1L, request))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("Mã khuyến mãi đã hết lượt sử dụng");
+                .hasMessageContaining("vừa hết lượt");
 
         verify(promotionRepository).incrementUsedCountAtomic(50L);
-        verify(promotionUsageRepository, never()).save(any());
+        verify(promotionUsageRepository, never()).saveAndFlush(any());
+        verify(cartService, never()).clearCart(any());
     }
 }

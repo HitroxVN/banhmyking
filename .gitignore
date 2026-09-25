@@ -38,4 +38,6 @@ src/main/resources/application-dev.properties
 /.claude/
 /markdown/
 *.DS_Store
-
+TESTCASES.md
+.env
+uploads/

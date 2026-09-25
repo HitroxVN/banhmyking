@@ -37,6 +37,14 @@ public class User extends BaseEntity {
     @Column(nullable = false, length = 20)
     private RoleName role = RoleName.CUSTOMER;
 
+    /** Khoá tài khoản — ADMIN khoá/mở, chặn cả login lẫn token cũ. */
+    @Column(name = "is_banned", nullable = false)
+    private boolean banned = false;
+
+    /** Avatar dạng URL. */
+    @Column(name = "image", length = 255)
+    private String image;
+
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted = false;
 

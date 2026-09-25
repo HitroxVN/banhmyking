@@ -1,0 +1,30 @@
+/* AdminOrdersPage — thanh lọc + bảng đơn hàng toàn hệ thống */
+@import './card.css';
+@import './table.css';
+
+.aorders__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+}
+
+.aorders__filters .ui-field {
+  flex: 0 1 190px;
+}
+
+.aorders__payer {
+  display: grid;
+  gap: 4px;
+}
+
+.aorders__status-select {
+  min-width: 158px;
+}
+
+.aorders__pager {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-4) var(--space-5);
+}

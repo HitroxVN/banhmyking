@@ -10,8 +10,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 /**
- * Load UserDetails by userId (String) — dùng cho JwtAuthenticationFilter.
- * Tách với CustomUserDetailsService (load by email) tránh nhập nhằng.
+ * Load UserDetails by userId — dùng cho JwtAuthenticationFilter.
+ * (CustomUserDetailsService load-by-email đã xóa: không nơi nào dùng.)
  */
 @Service
 @RequiredArgsConstructor
@@ -21,7 +21,7 @@ public class JwtUserDetailsService {
 
     public UserDetails loadById(Long userId) {
         User user = userRepository.findById(userId)
-                .filter(u -> !u.isDeleted())
+                .filter(u -> !u.isDeleted() && !u.isBanned())
                 .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user id: " + userId));
 
         return new org.springframework.security.core.userdetails.User(
