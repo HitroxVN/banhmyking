@@ -38,7 +38,10 @@ public class OrderCodeGenerator {
      *
      * @param existsChecker hàm kiểm tra xem mã đã tồn tại hay chưa (trả về true nếu đã tồn tại)
      * @param maxRetries    số lần retry tối đa (ví dụ: 3)
-     * @return mã đơn hàng duy nhất
+     * @return mã đơn hàng duy nhất (đã qua existsChecker)
+     * @throws IllegalStateException nếu hết retry mà vẫn không tìm được mã tự do —
+     *         trước đây fallback trả mã CHƯA kiểm tra → order_code UNIQUE nổ 500 khó hiểu
+     *         khi save; throws sớm cho caller biết nguyên nhân thật.
      */
     public String generateUniqueCode(Predicate<String> existsChecker, int maxRetries) {
         int attempts = 0;
@@ -49,7 +52,7 @@ public class OrderCodeGenerator {
             }
             attempts++;
         }
-        // Fallback: nếu sau maxRetries vẫn trùng (rất hiếm), sinh thêm timestamp nano
-        return generateRawCode();
+        throw new IllegalStateException(
+                "Không sinh được mã đơn hàng duy nhất sau " + maxRetries + " lần thử — không gian mã quá chật hoặc trùng hàng loạt");
     }
 }

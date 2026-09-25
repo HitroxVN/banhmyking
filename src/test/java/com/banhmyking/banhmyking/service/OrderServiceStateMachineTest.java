@@ -78,6 +78,12 @@ class OrderServiceStateMachineTest {
     private PriceCalculator priceCalculator;
 
     @Mock
+    private DeliveryFeeCalculator deliveryFeeCalculator;
+
+    @Mock
+    private PaymentService paymentService;
+
+    @Mock
     private OrderCodeGenerator orderCodeGenerator;
 
     @Spy
@@ -206,6 +212,7 @@ class OrderServiceStateMachineTest {
     @DisplayName("Cập nhật DELIVERING -> DELIVERED: Đóng dấu deliveredAt và ghi order_status_history")
     void updateOrderStatus_deliveringToDelivered_success() {
         testOrder.setStatus(OrderStatus.DELIVERING);
+        testOrder.setShipper(shipper); // shipper 3 là người được phân công
 
         when(userRepository.findById(3L)).thenReturn(Optional.of(shipper));
         when(orderRepository.findByOrderCode("BMK-20260909-ABCDE")).thenReturn(Optional.of(testOrder));
@@ -228,6 +235,7 @@ class OrderServiceStateMachineTest {
     @DisplayName("Cập nhật DELIVERING -> FAILED: Cho phép và ghi log vào order_status_history")
     void updateOrderStatus_deliveringToFailed_success() {
         testOrder.setStatus(OrderStatus.DELIVERING);
+        testOrder.setShipper(shipper); // shipper 3 là người được phân công
 
         when(userRepository.findById(3L)).thenReturn(Optional.of(shipper));
         when(orderRepository.findByOrderCode("BMK-20260909-ABCDE")).thenReturn(Optional.of(testOrder));
@@ -283,5 +291,90 @@ class OrderServiceStateMachineTest {
         assertThat(result.get(0).getToStatus()).isEqualTo(OrderStatus.CONFIRMED);
         assertThat(result.get(0).getChangedByName()).isEqualTo("Nhân Viên Quán");
         assertThat(result.get(0).getChangedByRole()).isEqualTo(RoleName.STAFF);
+    }
+
+    @Test
+    @DisplayName("Security: Shipper không được gán không thể cập nhật trạng thái đơn của shipper khác")
+    void updateOrderStatus_shipperNotAssigned_forbidden() {
+        testOrder.setStatus(OrderStatus.DELIVERING);
+        testOrder.setShipper(otherShipper()); // đơn thuộc shipper khác
+
+        when(userRepository.findById(3L)).thenReturn(Optional.of(shipper));
+        when(orderRepository.findByOrderCode("BMK-20260909-ABCDE")).thenReturn(Optional.of(testOrder));
+
+        UpdateOrderStatusRequest request = UpdateOrderStatusRequest.builder()
+                .newStatus(OrderStatus.FAILED)
+                .note("Khách không nghe máy")
+                .build();
+
+        assertThatThrownBy(() -> orderService.updateOrderStatus(3L, "BMK-20260909-ABCDE", request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    @DisplayName("Security: Shipper không thể tự gán mình vào đơn chưa phân công khi chuyển DELIVERING")
+    void updateOrderStatus_shipperSelfAssign_blocked() {
+        testOrder.setStatus(OrderStatus.READY_FOR_PICKUP); // đơn chưa có shipper
+
+        when(userRepository.findById(3L)).thenReturn(Optional.of(shipper));
+        when(orderRepository.findByOrderCode("BMK-20260909-ABCDE")).thenReturn(Optional.of(testOrder));
+
+        UpdateOrderStatusRequest request = UpdateOrderStatusRequest.builder()
+                .newStatus(OrderStatus.DELIVERING)
+                .build();
+
+        assertThatThrownBy(() -> orderService.updateOrderStatus(3L, "BMK-20260909-ABCDE", request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    @DisplayName("Security: Shipper không thể phân công đơn cho shipper khác qua shipperId")
+    void updateOrderStatus_shipperAssignsOtherShipper_forbidden() {
+        testOrder.setStatus(OrderStatus.READY_FOR_PICKUP);
+        testOrder.setShipper(shipper); // shipper 3 đang giữ đơn
+
+        when(userRepository.findById(3L)).thenReturn(Optional.of(shipper));
+        when(orderRepository.findByOrderCode("BMK-20260909-ABCDE")).thenReturn(Optional.of(testOrder));
+
+        UpdateOrderStatusRequest request = UpdateOrderStatusRequest.builder()
+                .newStatus(OrderStatus.DELIVERING)
+                .shipperId(7L) // thử chuyển cho đồng nghiệp
+                .build();
+
+        assertThatThrownBy(() -> orderService.updateOrderStatus(3L, "BMK-20260909-ABCDE", request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    @DisplayName("READY_FOR_PICKUP -> DELIVERING bởi Staff có truyền shipperId: Gán shipper và thành công")
+    void updateOrderStatus_readyForPickupToDelivering_withShipperId_success() {
+        testOrder.setStatus(OrderStatus.READY_FOR_PICKUP);
+        shipper.setId(3L);
+
+        when(userRepository.findById(4L)).thenReturn(Optional.of(staff));
+        when(userRepository.findById(3L)).thenReturn(Optional.of(shipper));
+        when(orderRepository.findByOrderCode("BMK-20260909-ABCDE")).thenReturn(Optional.of(testOrder));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateOrderStatusRequest request = UpdateOrderStatusRequest.builder()
+                .newStatus(OrderStatus.DELIVERING)
+                .shipperId(3L)
+                .build();
+
+        OrderResponse response = orderService.updateOrderStatus(4L, "BMK-20260909-ABCDE", request);
+
+        assertThat(response.getStatus()).isEqualTo(OrderStatus.DELIVERING);
+        assertThat(testOrder.getShipper().getId()).isEqualTo(3L);
+    }
+
+    /** Shipper khác (id 7) — fixture cho test ownership. */
+    private User otherShipper() {
+        User s = new User();
+        s.setId(7L);
+        s.setRole(RoleName.SHIPPER);
+        return s;
     }
 }

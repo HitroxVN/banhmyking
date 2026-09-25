@@ -1,0 +1,234 @@
+/* StaffMenuPage — thực đơn của quán: lọc danh mục, thẻ món, form thêm/sửa */
+@import './card.css';
+@import './field.css';
+
+.smenu__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+}
+
+.smenu__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.smenu__actions .ui-field { flex: 0 1 260px; }
+
+.smenu__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+  gap: var(--space-4);
+}
+
+.smenu__card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.smenu__card--out { opacity: .72; }
+
+.smenu__media {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: var(--stone-100);
+}
+
+.smenu__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.smenu__placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--stone-400);
+  background: var(--stone-100);
+}
+
+.smenu__cat,
+.smenu__featured {
+  position: absolute;
+  top: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  background: rgba(255, 255, 255, .92);
+  color: var(--stone-700);
+  box-shadow: var(--shadow-sm);
+}
+
+.smenu__cat { left: var(--space-2); }
+
+.smenu__featured { right: var(--space-2); color: var(--warning); }
+
+.smenu__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.smenu__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.smenu__name {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--stone-900);
+}
+
+.smenu__price {
+  flex: none;
+  font-weight: 800;
+  color: var(--primary-700);
+  font-variant-numeric: tabular-nums;
+}
+
+.smenu__desc {
+  flex: 1;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--stone-500);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.smenu__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--stone-50);
+}
+
+/* Form thêm / sửa món */
+.smenu__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.smenu__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--stone-700);
+  cursor: pointer;
+}
+
+.smenu__check input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--primary-600);
+}
+
+.smenu__uploading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--stone-500);
+}
+
+.smenu__preview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.smenu__preview-img {
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+.smenu__preview .smenu__placeholder {
+  width: 84px;
+  height: 84px;
+  border-radius: var(--radius-md);
+}
+
+.smenu__preview-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.smenu__dropzone {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  padding: var(--space-5) var(--space-4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: var(--stone-50);
+  color: var(--stone-500);
+  font-size: var(--text-sm);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+
+.smenu__dropzone:hover,
+.smenu__dropzone--over {
+  border-color: var(--primary-400);
+  background: var(--primary-50);
+}
+
+.smenu__dropzone em {
+  font-style: normal;
+  font-size: var(--text-xs);
+  color: var(--stone-400);
+}
+
+.smenu__dropzone .ui-btn { margin-top: var(--space-2); }
+
+.smenu__url-toggle {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--primary-600);
+  cursor: pointer;
+}
+
+.smenu__url-toggle:hover { text-decoration: underline; }
+
+@media (max-width: 720px) {
+  .smenu__search,
+  .smenu__actions .ui-field { flex: 1 1 100%; }
+}

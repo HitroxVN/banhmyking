@@ -69,6 +69,28 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void register_expiresInComesFromProviderTtl_notHardcoded() {
+        // expiresIn phải khớp TTL access token thực sự được ký (đọc config), không phải 900 cố định
+        setRefreshExpiry(7);
+        when(userRepository.existsByEmail("x@y.com")).thenReturn(false);
+        when(passwordEncoder.encode("password1")).thenReturn("hashed");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            ReflectionTestUtils.setField(u, "id", 1L);
+            return u;
+        });
+        when(jwtTokenProvider.generateAccessToken(any())).thenReturn("access.token");
+        when(jwtTokenProvider.generateRefreshToken()).thenReturn("raw-refresh");
+        when(jwtTokenProvider.getAccessTokenExpiryMs()).thenReturn(1800000L); // 30 phút
+        when(refreshTokenRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        TokenResponse resp = authService.register(
+                new RegisterRequest("x@y.com", "password1", "Nguyen X", null));
+
+        assertThat(resp.expiresIn()).isEqualTo(1800L);
+    }
+
+    @Test
     void register_duplicateEmail_throwsConflict() {
         RegisterRequest req = new RegisterRequest("dup@b.com", "password1", "Nguyen B", null);
         when(userRepository.existsByEmail("dup@b.com")).thenReturn(true);
@@ -106,11 +128,28 @@ class AuthServiceImplTest {
                 .isEqualTo(ErrorCode.UNAUTHORIZED);
     }
 
+    @Test
+    void login_bannedUser_throwsUnauthorized() {
+        setRefreshExpiry(7);
+        User user = buildUser(1L, "locked@y.com", "hashed", false);
+        user.setBanned(true);
+        when(userRepository.findByEmailAndDeletedFalse("locked@y.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("pw", "hashed")).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.login(new LoginRequest("locked@y.com", "pw")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Tài khoản đã bị khoá")
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.UNAUTHORIZED);
+    }
+
     // ─── refresh ────────────────────────────────────────────────────────────
 
     @Test
     void refresh_revokedToken_throwsUnauthorized() {
+        User user = buildUser(1L, "x@y.com", "hashed", false);
         RefreshToken rt = new RefreshToken();
+        rt.setUser(user);
         rt.setTokenHash("somehash");
         rt.setExpiresAt(LocalDateTime.now().plusDays(7));
         rt.setRevokedAt(LocalDateTime.now().minusHours(1));
@@ -125,8 +164,53 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void refresh_reuseOfRevokedToken_revokesAllActiveTokens() {
+        // Reuse detection: dùng lại token đã revoke → thu hồi TOÀN BỘ token đang sống của user
+        User user = buildUser(1L, "x@y.com", "hashed", false);
+        ReflectionTestUtils.setField(user, "id", 1L);
+        RefreshToken stolen = new RefreshToken();
+        stolen.setUser(user);
+        stolen.setTokenHash("somehash");
+        stolen.setExpiresAt(LocalDateTime.now().plusDays(7));
+        stolen.setRevokedAt(LocalDateTime.now().minusHours(1));
+
+        RefreshToken otherActive = new RefreshToken();
+        otherActive.setUser(user);
+        otherActive.setTokenHash("otherhash");
+        otherActive.setExpiresAt(LocalDateTime.now().plusDays(7));
+
+        when(refreshTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(stolen));
+        when(refreshTokenRepository.findByUserIdAndRevokedAtIsNull(1L))
+                .thenReturn(java.util.List.of(otherActive));
+
+        assertThatThrownBy(() -> authService.refresh("raw-token"))
+                .isInstanceOf(BusinessException.class);
+
+        assertThat(otherActive.isRevoked()).isTrue();
+        verify(refreshTokenRepository).save(otherActive);
+    }
+
+    @Test
+    void refresh_bannedUser_throwsUnauthorized() {
+        User user = buildUser(1L, "x@y.com", "hashed", false);
+        user.setBanned(true);
+        RefreshToken rt = new RefreshToken();
+        rt.setUser(user);
+        rt.setTokenHash("somehash");
+        rt.setExpiresAt(LocalDateTime.now().plusDays(7));
+
+        when(refreshTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(rt));
+
+        assertThatThrownBy(() -> authService.refresh("raw-token"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.UNAUTHORIZED);
+    }
+
+    @Test
     void refresh_expiredToken_throwsUnauthorized() {
         RefreshToken rt = new RefreshToken();
+        rt.setUser(buildUser(1L, "x@y.com", "hashed", false));
         rt.setTokenHash("somehash");
         rt.setExpiresAt(LocalDateTime.now().minusDays(1));
 

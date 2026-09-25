@@ -1,0 +1,188 @@
+/* OrderTrackingPage — stepper tiến trình + timeline trạng thái */
+.track__steps {
+  display: flex;
+  margin: var(--space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.track__grid {
+  margin-top: var(--space-5);
+}
+
+.tl__empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--stone-500);
+}
+
+.track__step {
+  position: relative;
+  flex: 1;
+  text-align: center;
+}
+
+/* Đường nối giữa hai bước — tô màu khi bước hiện tại đã đạt */
+.track__step:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  top: 15px;
+  right: 50%;
+  left: -50%;
+  height: 2px;
+  background: var(--stone-200);
+  z-index: 0;
+}
+
+.track__step--done:not(:first-child)::before {
+  background: var(--primary-500);
+}
+
+.track__dot {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 0 auto var(--space-2);
+  border: 2px solid var(--stone-200);
+  border-radius: 50%;
+  background: var(--stone-100);
+  color: var(--stone-400);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.track__step--done .track__dot {
+  border-color: var(--primary-600);
+  background: var(--primary-600);
+  color: #fff;
+}
+
+.track__step--current .track__dot {
+  border-color: var(--primary-600);
+  background: var(--surface);
+  color: var(--primary-700);
+  box-shadow: 0 0 0 4px var(--primary-100);
+}
+
+.track__step--stopped .track__dot {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+
+.track__label {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--stone-400);
+}
+
+.track__step--done .track__label,
+.track__step--current .track__label {
+  color: var(--stone-800);
+}
+
+.track__step--stopped .track__label {
+  color: var(--danger);
+}
+
+.track__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.track__code {
+  margin: 0 0 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-xl);
+  font-weight: 800;
+  color: var(--stone-900);
+  letter-spacing: .02em;
+}
+
+.track__time {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--stone-500);
+}
+
+.track__note {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  font-size: var(--text-sm);
+  color: var(--stone-600);
+}
+
+/* Timeline lịch sử trạng thái */
+.tl {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tl__item {
+  position: relative;
+  padding: 0 0 var(--space-5) var(--space-5);
+  border-left: 2px solid var(--border);
+}
+
+.tl__item:last-child {
+  padding-bottom: 0;
+  border-left-color: transparent;
+}
+
+.tl__dot {
+  position: absolute;
+  left: -7px;
+  top: 4px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--primary-500);
+}
+
+.tl__item:first-child .tl__dot {
+  background: var(--primary-700);
+  box-shadow: 0 0 0 3px var(--primary-100);
+}
+
+.tl__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.tl__time {
+  font-size: var(--text-xs);
+  color: var(--stone-500);
+}
+
+.tl__note {
+  margin: 6px 0 0;
+  font-size: var(--text-sm);
+  color: var(--stone-600);
+}
+
+.tl__by {
+  margin: 6px 0 0;
+  font-size: var(--text-xs);
+  color: var(--stone-400);
+}
+
+@media (max-width: 560px) {
+  .track__label { font-size: 11px; }
+  .track__dot { width: 26px; height: 26px; font-size: var(--text-xs); }
+  .track__step:not(:first-child)::before { top: 12px; }
+}
