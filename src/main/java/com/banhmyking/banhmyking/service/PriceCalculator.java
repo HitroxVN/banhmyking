@@ -30,7 +30,23 @@ public class PriceCalculator {
         BigDecimal subtotal = BigDecimal.ZERO;
         if (cart != null && cart.getItems() != null) {
             for (CartItem item : cart.getItems()) {
-                subtotal = subtotal.add(lineTotalOf(item));
+                BigDecimal basePrice = item.getProduct() != null && item.getProduct().getPrice() != null
+                        ? item.getProduct().getPrice()
+                        : BigDecimal.ZERO;
+
+                BigDecimal optionsExtra = BigDecimal.ZERO;
+                if (item.getSelectedOptions() != null) {
+                    for (CartItemOption cio : item.getSelectedOptions()) {
+                        if (cio.getProductOption() != null && cio.getProductOption().getExtraPrice() != null) {
+                            optionsExtra = optionsExtra.add(cio.getProductOption().getExtraPrice());
+                        }
+                    }
+                }
+
+                BigDecimal unitPrice = basePrice.add(optionsExtra);
+                int qty = item.getQuantity() != null ? item.getQuantity() : 1;
+                BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(qty));
+                subtotal = subtotal.add(lineTotal);
             }
         }
         return subtotal.setScale(2, RoundingMode.HALF_UP);
