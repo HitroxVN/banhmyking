@@ -15,6 +15,12 @@ public interface UserService {
 
     UserDetailResponse updateProfile(Long userId, UpdateProfileRequest request);
 
+    /** Tải ảnh đại diện mới lên, thay ảnh cũ và xoá file cũ nếu là file do app lưu. */
+    UserDetailResponse uploadAvatar(Long userId, org.springframework.web.multipart.MultipartFile file);
+
+    /** Xoá ảnh đại diện, đưa về mặc định (chữ cái đầu của tên). */
+    UserDetailResponse removeAvatar(Long userId);
+
     // ─── Admin — đọc (STAFF + ADMIN) ─────────────────────────────────────────
 
     PageResponse<UserDetailResponse> getUsers(RoleName role, Boolean banned, String keyword, int page, int size);

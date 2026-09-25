@@ -74,6 +74,27 @@ export const authApi = {
   },
 
   /**
+   * Tải ảnh đại diện mới lên. Backend thay ảnh cũ và xoá file cũ.
+   * Ảnh tối đa 5MB, định dạng image/*.
+   */
+  async uploadAvatar(file: File): Promise<UserInfoResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    // PHẢI set tường minh: axiosClient mặc định application/json, mà axios thấy FormData +
+    // content-type JSON thì stringify FormData thành JSON → backend multipart từ chối.
+    const response = await axiosClient.post<ApiResponse<UserInfoResponse>>('/users/me/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data.data;
+  },
+
+  /** Xoá ảnh đại diện, quay về mặc định. */
+  async removeAvatar(): Promise<UserInfoResponse> {
+    const response = await axiosClient.delete<ApiResponse<UserInfoResponse>>('/users/me/avatar');
+    return response.data.data;
+  },
+
+  /**
    * Đổi mật khẩu. Backend thu hồi toàn bộ refresh token sau khi đổi
    * → phải đăng nhập lại để có phiên mới.
    */

@@ -74,6 +74,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/forgot-password",
                                 "/api/v1/auth/reset-password").permitAll()
                         .requestMatchers("/api/v1/health/**").permitAll()
+                        // Nội dung website: trang login cũng cần đọc tên web nên mở công khai phần GET
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/site-settings").permitAll()
                         .requestMatchers("/api/v1/promotions/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/products/**").permitAll()
                         .requestMatchers(

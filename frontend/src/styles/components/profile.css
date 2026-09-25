@@ -1,4 +1,57 @@
 /* ProfilePage — form hồ sơ, đổi mật khẩu, sổ địa chỉ */
+.profile__avatar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--stone-200);
+}
+
+.profile__avatar-img {
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--stone-200);
+  background: var(--stone-100);
+}
+
+/* Mặc định khi chưa có ảnh: chữ cái đầu của tên */
+.profile__avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--primary-700);
+  background: var(--primary-50);
+}
+
+.profile__avatar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.profile__avatar-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Input file thật được nút "Đổi ảnh" kích hoạt ngầm */
+.profile__avatar-input {
+  display: none;
+}
+
+.profile__avatar-hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--stone-500);
+}
+
 .profile__form {
   display: grid;
   gap: var(--space-4);

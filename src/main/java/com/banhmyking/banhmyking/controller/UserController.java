@@ -9,13 +9,18 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -38,6 +43,22 @@ public class UserController {
             @AuthenticationPrincipal UserDetails principal,
             @Valid @RequestBody UpdateProfileRequest request) {
         return ApiResponse.ok("Cập nhật hồ sơ thành công", userService.updateProfile(userId(principal), request));
+    }
+
+    @PostMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Tải ảnh đại diện lên", description = "Ảnh JPG/PNG/WEBP/GIF tối đa 5MB. Ảnh cũ bị thay thế.")
+    public ApiResponse<UserDetailResponse> uploadAvatar(
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestParam("file") MultipartFile file) {
+        return ApiResponse.ok("Cập nhật ảnh đại diện thành công",
+                userService.uploadAvatar(userId(principal), file));
+    }
+
+    @DeleteMapping("/me/avatar")
+    @Operation(summary = "Xoá ảnh đại diện", description = "Đưa ảnh đại diện về mặc định (chữ cái đầu của tên).")
+    public ApiResponse<UserDetailResponse> removeAvatar(@AuthenticationPrincipal UserDetails principal) {
+        return ApiResponse.ok("Đã xoá ảnh đại diện",
+                userService.removeAvatar(userId(principal)));
     }
 
     /** JWT subject = userId → username chính là userId. */

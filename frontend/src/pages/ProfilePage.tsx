@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Pencil, Plus, SearchX, Star, Trash2 } from 'lucide-react';
+import { Camera, MapPin, Pencil, Plus, SearchX, Star, Trash2 } from 'lucide-react';
 import { addressApi } from '../api/addressApi';
 import { authApi } from '../api/authApi';
 import { useAuth } from '../context/useAuth';
@@ -42,6 +42,59 @@ export const ProfilePage = () => {
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [infoErrors, setInfoErrors] = useState<{ fullName?: string; phone?: string }>({});
   const [isSavingInfo, setIsSavingInfo] = useState(false);
+
+  // ── Avatar ─────────────────────────────────────────────────────────────────
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isRemovingAvatar, setIsRemovingAvatar] = useState(false);
+
+  const handleAvatarPick = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Reset input để chọn lại cùng một file vẫn kích hoạt onChange
+    event.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Vui lòng chọn tệp hình ảnh (JPG, PNG, WEBP, GIF)');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Dung lượng ảnh không được vượt quá 5MB');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      await authApi.uploadAvatar(file);
+      await refreshUserProfile();
+      toast.success('Đã cập nhật ảnh đại diện');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Tải ảnh đại diện thất bại');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    const accepted = await confirm({
+      title: 'Xoá ảnh đại diện?',
+      message: 'Ảnh sẽ được đưa về mặc định (chữ cái đầu của tên bạn).',
+      confirmText: 'Xoá ảnh',
+      danger: true,
+    });
+    if (!accepted) return;
+
+    setIsRemovingAvatar(true);
+    try {
+      await authApi.removeAvatar();
+      await refreshUserProfile();
+      toast.success('Đã xoá ảnh đại diện');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Xoá ảnh đại diện thất bại');
+    } finally {
+      setIsRemovingAvatar(false);
+    }
+  };
 
   // ── Tab mật khẩu ───────────────────────────────────────────────────────────
   const [oldPassword, setOldPassword] = useState('');
@@ -234,6 +287,49 @@ export const ProfilePage = () => {
             <Badge tone="info">{user?.role ?? 'CUSTOMER'}</Badge>
           </div>
           <div className="card__body">
+            <div className="profile__avatar">
+              {user?.image ? (
+                <img className="profile__avatar-img" src={user.image} alt="Ảnh đại diện" />
+              ) : (
+                <span className="profile__avatar-img profile__avatar-fallback" aria-hidden="true">
+                  {user?.fullName?.charAt(0)?.toUpperCase() ?? 'K'}
+                </span>
+              )}
+
+              <div className="profile__avatar-actions">
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="profile__avatar-input"
+                  onChange={handleAvatarPick}
+                />
+                <div className="profile__avatar-buttons">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<Camera size={16} />}
+                    loading={isUploadingAvatar}
+                    onClick={() => avatarInputRef.current?.click()}
+                  >
+                    Đổi ảnh
+                  </Button>
+                  {user?.image && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Trash2 size={16} />}
+                      loading={isRemovingAvatar}
+                      onClick={handleRemoveAvatar}
+                    >
+                      Xoá ảnh
+                    </Button>
+                  )}
+                </div>
+                <p className="profile__avatar-hint">JPG, PNG, WEBP hoặc GIF — tối đa 5MB.</p>
+              </div>
+            </div>
+
             <div className="profile__form">
               <Input label="Email" value={user?.email ?? ''} readOnly disabled hint="Email dùng để đăng nhập, không thể thay đổi." />
               <Input

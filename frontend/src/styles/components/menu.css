@@ -9,9 +9,23 @@
   margin-bottom: var(--space-8);
   border: 1px solid var(--primary-200);
   border-radius: var(--radius-lg);
-  background: linear-gradient(120deg, var(--primary-50) 0%, var(--primary-100) 55%, var(--primary-200) 100%);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--primary-50) 55%, var(--bg-page) 100%);
   box-shadow: var(--shadow-md);
   overflow: hidden;
+}
+
+/* Vệt sáng ấm mờ phía sau nội dung — chiều sâu kiểu mẫu, không cần ảnh nền */
+.menu__hero-glow {
+  position: absolute;
+  top: -150px;
+  right: 18%;
+  width: 380px;
+  height: 380px;
+  border-radius: 50%;
+  background: var(--primary-400);
+  opacity: .35;
+  filter: blur(70px);
+  pointer-events: none;
 }
 
 /* Nhãn nhỏ kèm chấm nhấp nháy — dấu hiệu thị giác lấy từ mẫu */
@@ -91,6 +105,12 @@
   gap: var(--space-2);
 }
 
+/* Vạch ngăn giữa các cam kết — chi tiết của mẫu */
+.menu__hero-fact + .menu__hero-fact {
+  padding-left: var(--space-5);
+  border-left: 1px solid var(--primary-300);
+}
+
 .menu__hero-fact-icon {
   display: grid;
   place-items: center;
@@ -128,6 +148,9 @@
 /* Hai nhãn bay quanh đĩa bánh — chi tiết đặc trưng của mẫu */
 .menu__hero-chip {
   position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: 8px var(--space-4);
   border: 1px solid var(--primary-200);
   border-radius: var(--radius-full);
@@ -142,25 +165,54 @@
 .menu__hero-chip--a {
   top: 4%;
   left: 0;
-  transform: rotate(-4deg);
+  animation: menu-float-left 4s ease-in-out infinite;
 }
 
 .menu__hero-chip--b {
   right: 0;
   bottom: 8%;
-  transform: rotate(3deg);
+  animation: menu-float-right 4.6s ease-in-out .5s infinite;
+}
+
+/* Bay lên xuống quanh đĩa bánh; độ nghiêng nằm trong keyframe vì transform chỉ có một */
+@keyframes menu-float-left {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-10px) rotate(-4deg); }
+}
+
+@keyframes menu-float-right {
+  0%, 100% { transform: translateY(0) rotate(3deg); }
+  50% { transform: translateY(-13px) rotate(3deg); }
 }
 
 .menu__hero-art-inner {
   display: grid;
   place-items: center;
-  width: 200px;
-  height: 200px;
+  width: 220px;
+  height: 220px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, .65);
-  border: 1px solid var(--primary-200);
+  background: rgba(255, 255, 255, .95);
+  border: 8px solid rgba(255, 255, 255, .7);
   color: var(--primary-700);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
+  /* Đặt lệch như đĩa bánh nghiêng; hover trả về thẳng */
+  transform: rotate(-3deg);
+  transition: transform .5s cubic-bezier(.16, 1, .3, 1);
+}
+
+.menu__hero-art-inner:hover {
+  transform: rotate(0deg) scale(1.04);
+}
+
+/* Ảnh banner do admin tải lên, cắt tròn cho vừa đĩa */
+.menu__hero-art-inner--photo {
+  overflow: hidden;
+}
+
+.menu__hero-art-inner--photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .menu__section {
@@ -310,6 +362,8 @@
 @media (max-width: 720px) {
   .menu__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .menu__hero-facts { gap: var(--space-4); }
+  /* Hẹp thì các cam kết xuống dòng — vạch ngăn dọc không còn nghĩa */
+  .menu__hero-fact + .menu__hero-fact { padding-left: 0; border-left: 0; }
   .menu__section-head { align-items: flex-start; flex-direction: column; }
 }
 

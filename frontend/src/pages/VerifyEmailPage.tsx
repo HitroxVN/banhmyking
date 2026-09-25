@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CircleCheck, Mail, Sandwich, TriangleAlert } from 'lucide-react';
+import { CircleCheck, Mail, TriangleAlert } from 'lucide-react';
 import { authApi } from '../api/authApi';
+import { BrandLockup } from '../components/layout/BrandLockup';
 import '../styles/components/auth.css';
 
 type Status = 'verifying' | 'success' | 'error';
@@ -58,10 +59,7 @@ export const VerifyEmailPage: React.FC = () => {
     <div className="auth-page-wrapper">
       <div className="auth-container">
         <div className="brand-header">
-          <div className="brand-logo-badge" title="Bánh Mỳ King">
-            <Sandwich size={26} />
-          </div>
-          <h1 className="brand-title">BÁNH MỲ KING</h1>
+          <BrandLockup />
           <p className="brand-tagline">Xác thực email để hoàn tất đăng ký</p>
         </div>
 

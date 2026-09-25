@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Bike, Flame, Sandwich, SearchX, ShieldCheck, Star, Timer } from 'lucide-react';
 import { catalogApi } from '../api/catalogApi';
 import { useCart } from '../context/useCart';
+import { useSiteSettings } from '../context/useSiteSettings';
 import { Button, ChipGroup, EmptyState, Pagination, Skeleton, useToast } from '../components/ui';
 import { ProductCard } from '../components/product/ProductCard';
 import { ProductModal } from '../components/product/ProductModal';
@@ -46,6 +47,7 @@ export const MenuPage = () => {
   const [quickAddingId, setQuickAddingId] = useState<number | null>(null);
 
   const { addItem } = useCart();
+  const { settings } = useSiteSettings();
   const toast = useToast();
 
   useEffect(() => {
@@ -126,20 +128,22 @@ export const MenuPage = () => {
   return (
     <div>
       <section className="menu__hero">
+        {/* Vệt sáng ấm mờ sau nội dung — tạo chiều sâu mà không cần ảnh nền */}
+        <span className="menu__hero-glow" aria-hidden="true" />
+
         <div className="menu__hero-copy">
-          <span className="menu__hero-badge">
-            <span className="menu__hero-badge-dot" aria-hidden="true" />
-            Nướng theo từng đơn · giao nội thành 30 phút
-          </span>
+          {settings.heroBadge && (
+            <span className="menu__hero-badge">
+              <span className="menu__hero-badge-dot" aria-hidden="true" />
+              {settings.heroBadge}
+            </span>
+          )}
           <h1 className="menu__hero-title">
-            Bánh mì nóng giòn,
+            {settings.heroTitle}
             <br />
-            giao tới tay trong <em>30 phút</em>
+            {settings.heroTitleLead} <em>{settings.heroTitleHighlight}</em>
           </h1>
-          <p className="menu__hero-desc">
-            Nướng theo từng đơn, kẹp nhân đầy đặn, đóng gói giữ giòn. Chọn món, thêm topping tuỳ thích và thanh toán
-            chỉ trong vài bước.
-          </p>
+          <p className="menu__hero-desc">{settings.heroDescription}</p>
 
           <div className="menu__hero-actions">
             <Button
@@ -198,11 +202,23 @@ export const MenuPage = () => {
         </div>
 
         <div className="menu__hero-art" aria-hidden="true">
-          <span className="menu__hero-art-inner">
-            <Sandwich size={104} strokeWidth={1.2} />
+          {settings.heroImageUrl ? (
+            <span className="menu__hero-art-inner menu__hero-art-inner--photo">
+              <img src={settings.heroImageUrl} alt="" />
+            </span>
+          ) : (
+            <span className="menu__hero-art-inner">
+              <Sandwich size={104} strokeWidth={1.2} />
+            </span>
+          )}
+          <span className="menu__hero-chip menu__hero-chip--a">
+            <Flame size={15} />
+            Vỏ giòn
           </span>
-          <span className="menu__hero-chip menu__hero-chip--a">Vỏ giòn</span>
-          <span className="menu__hero-chip menu__hero-chip--b">Nhân đầy</span>
+          <span className="menu__hero-chip menu__hero-chip--b">
+            <Sandwich size={15} />
+            Nhân đầy
+          </span>
         </div>
       </section>
 

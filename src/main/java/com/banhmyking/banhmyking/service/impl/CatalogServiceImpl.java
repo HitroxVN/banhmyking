@@ -1,16 +1,10 @@
 package com.banhmyking.banhmyking.service.impl;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -35,6 +29,7 @@ import com.banhmyking.banhmyking.repository.ProductOptionRepository;
 import com.banhmyking.banhmyking.repository.ProductRepository;
 import com.banhmyking.banhmyking.repository.ReviewRepository;
 import com.banhmyking.banhmyking.service.CatalogService;
+import com.banhmyking.banhmyking.service.FileStorageService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -42,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class CatalogServiceImpl implements CatalogService {
 
+    private final FileStorageService fileStorageService;
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
     private final ProductOptionRepository productOptionRepository;
@@ -155,40 +151,7 @@ public class CatalogServiceImpl implements CatalogService {
     @Override
     @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
     public String uploadProductImage(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Vui lòng chọn tệp hình ảnh để tải lên");
-        }
-
-        String contentType = file.getContentType();
-        if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Tệp tải lên phải là định dạng hình ảnh (JPG, PNG, WEBP, GIF)");
-        }
-
-        // Tối đa 5MB cho mỗi ảnh
-        if (file.getSize() > 5 * 1024 * 1024) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Dung lượng ảnh không được vượt quá 5MB");
-        }
-
-        try {
-            Path uploadDir = Paths.get("uploads", "products");
-            if (!Files.exists(uploadDir)) {
-                Files.createDirectories(uploadDir);
-            }
-
-            String originalFilename = file.getOriginalFilename();
-            String extension = ".png";
-            if (originalFilename != null && originalFilename.contains(".")) {
-                extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
-            }
-
-            String fileName = UUID.randomUUID().toString().replace("-", "") + extension;
-            Path targetLocation = uploadDir.resolve(fileName);
-            Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
-
-            return "/uploads/products/" + fileName;
-        } catch (IOException ex) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "Không thể lưu trữ tệp ảnh: " + ex.getMessage());
-        }
+        return fileStorageService.storeImage(file, FileStorageService.PRODUCT_DIR);
     }
 
 

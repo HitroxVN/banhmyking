@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CircleCheck, Eye, EyeOff, Lock, Sandwich, TriangleAlert } from 'lucide-react';
+import { CircleCheck, Eye, EyeOff, Lock, TriangleAlert } from 'lucide-react';
 import { authApi } from '../api/authApi';
+import { BrandLockup } from '../components/layout/BrandLockup';
 import '../styles/components/auth.css';
 
 /** Bước 2 của quên mật khẩu: trang đích của link trong mail — /reset-password?token=... */
@@ -53,10 +54,7 @@ export const ResetPasswordPage: React.FC = () => {
     <div className="auth-page-wrapper">
       <div className="auth-container">
         <div className="brand-header">
-          <div className="brand-logo-badge" title="Bánh Mỳ King">
-            <Sandwich size={26} />
-          </div>
-          <h1 className="brand-title">BÁNH MỲ KING</h1>
+          <BrandLockup />
           <p className="brand-tagline">Đặt mật khẩu mới cho tài khoản</p>
         </div>
 

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CircleCheck, Eye, EyeOff, Lock, Mail, Sandwich, ShieldCheck, Smartphone, TriangleAlert, User } from 'lucide-react';
+import { CircleCheck, Eye, EyeOff, Lock, Mail, ShieldCheck, Smartphone, TriangleAlert, User } from 'lucide-react';
 import { authApi } from '../api/authApi';
+import { BrandLockup } from '../components/layout/BrandLockup';
 import { useAuth } from '../context/useAuth';
 import '../styles/components/auth.css';
 
@@ -142,10 +143,7 @@ export const RegisterPage: React.FC = () => {
       <div className="auth-container">
         {/* Brand Header */}
         <div className="brand-header">
-          <div className="brand-logo-badge" title="Bánh Mỳ King">
-            <Sandwich size={26} />
-          </div>
-          <h1 className="brand-title">BÁNH MỲ KING</h1>
+          <BrandLockup />
           <p className="brand-tagline">Tạo tài khoản để nhận ngàn ưu đãi hấp dẫn</p>
         </div>
 

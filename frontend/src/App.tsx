@@ -2,6 +2,7 @@ import type { FC } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthProvider';
 import { CartProvider } from './context/CartProvider';
+import { SiteSettingsProvider } from './context/SiteSettingsProvider';
 import { ConfirmProvider, ToastProvider } from './components/ui';
 import { CustomerLayout } from './components/layout/CustomerLayout';
 import { DashboardLayout } from './components/layout/DashboardLayout';
@@ -26,12 +27,14 @@ import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
 import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage';
 import { AdminPromotionsPage } from './pages/admin/AdminPromotionsPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
+import { AdminSiteSettingsPage } from './pages/admin/AdminSiteSettingsPage';
 import { StaffOrderQueuePage } from './pages/staff/StaffOrderQueuePage';
 import { StaffMenuPage } from './pages/staff/StaffMenuPage';
 import { ShipperOrdersPage } from './pages/shipper/ShipperOrdersPage';
 
 export const App: FC = () => (
-  <AuthProvider>
+  <SiteSettingsProvider>
+    <AuthProvider>
     <ToastProvider>
       <ConfirmProvider>
         <CartProvider>
@@ -69,6 +72,7 @@ export const App: FC = () => (
                   <Route path="promotions" element={<AdminPromotionsPage />} />
                   <Route path="reviews" element={<ReviewManagerPage />} />
                   <Route path="users" element={<AdminUsersPage />} />
+                  <Route path="settings" element={<AdminSiteSettingsPage />} />
                 </Route>
               </Route>
 
@@ -96,7 +100,8 @@ export const App: FC = () => (
         </CartProvider>
       </ConfirmProvider>
     </ToastProvider>
-  </AuthProvider>
+    </AuthProvider>
+  </SiteSettingsProvider>
 );
 
 export default App;

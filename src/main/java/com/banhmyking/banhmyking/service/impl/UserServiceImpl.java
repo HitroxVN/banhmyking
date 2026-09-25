@@ -12,6 +12,7 @@ import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.repository.RefreshTokenRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
+import com.banhmyking.banhmyking.service.FileStorageService;
 import com.banhmyking.banhmyking.service.UserService;
 import com.banhmyking.banhmyking.util.PageableFactory;
 import java.time.LocalDateTime;
@@ -24,6 +25,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
@@ -32,29 +34,63 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
+    private final FileStorageService fileStorageService;
 
     // ─── Self-service ─────────────────────────────────────────────────────────
 
     @Override
     @Transactional(readOnly = true)
     public UserDetailResponse getMe(Long userId) {
-        User user = userRepository.findById(userId)
-                .filter(u -> !u.isDeleted() && !u.isBanned())
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy user"));
-        return toDetail(user);
+        return toDetail(requireActiveUser(userId));
     }
 
     @Override
     @Transactional
     public UserDetailResponse updateProfile(Long userId, UpdateProfileRequest request) {
-        User user = userRepository.findById(userId)
-                .filter(u -> !u.isDeleted() && !u.isBanned())
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy user"));
+        User user = requireActiveUser(userId);
 
         user.setFullName(request.fullName());
         user.setPhone(request.phone());
-        user.setImage(request.imageUrl());
+        // Chỉ đổi ảnh khi client THỰC SỰ gửi field này. Form sửa tên/SĐT không gửi imageUrl
+        // → gán thẳng sẽ vô tình xoá avatar mỗi lần lưu. Xoá ảnh có endpoint riêng.
+        if (request.imageUrl() != null) {
+            user.setImage(request.imageUrl());
+        }
         return toDetail(userRepository.save(user));
+    }
+
+    @Override
+    @Transactional
+    public UserDetailResponse uploadAvatar(Long userId, MultipartFile file) {
+        User user = requireActiveUser(userId);
+
+        String oldImage = user.getImage();
+        user.setImage(fileStorageService.storeImage(file, FileStorageService.AVATAR_DIR));
+        UserDetailResponse response = toDetail(userRepository.save(user));
+
+        // Ghi DB xong mới xoá file cũ — lỗi xoá không làm hỏng ảnh vừa lưu.
+        fileStorageService.deleteImage(oldImage, FileStorageService.AVATAR_DIR);
+        return response;
+    }
+
+    @Override
+    @Transactional
+    public UserDetailResponse removeAvatar(Long userId) {
+        User user = requireActiveUser(userId);
+
+        String oldImage = user.getImage();
+        user.setImage(null);
+        UserDetailResponse response = toDetail(userRepository.save(user));
+
+        fileStorageService.deleteImage(oldImage, FileStorageService.AVATAR_DIR);
+        return response;
+    }
+
+    /** User đang đăng nhập, chưa xoá và chưa bị khoá. */
+    private User requireActiveUser(Long userId) {
+        return userRepository.findById(userId)
+                .filter(u -> !u.isDeleted() && !u.isBanned())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy user"));
     }
 
     // ─── Admin — đọc ─────────────────────────────────────────────────────────

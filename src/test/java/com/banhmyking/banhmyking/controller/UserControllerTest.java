@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -24,7 +25,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -104,5 +107,37 @@ class UserControllerTest {
                         .content("{\"fullName\":\"\",\"phone\":\"0912345678\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
+
+    // ─── avatar ─────────────────────────────────────────────────────────────
+
+    @Test
+    void uploadAvatar_multipartFile_returnsUpdatedDetail() throws Exception {
+        when(userService.uploadAvatar(eq(5L), any())).thenReturn(DETAIL);
+
+        mockMvc.perform(multipart("/api/v1/users/me/avatar")
+                        .file(new MockMultipartFile("file", "avatar.png", "image/png", "bytes".getBytes()))
+                        .principal(PRINCIPAL::getUsername))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.image").value("https://cdn.banhmyking.vn/a/5.png"));
+
+        verify(userService).uploadAvatar(eq(5L), any());
+    }
+
+    @Test
+    void removeAvatar_returnsUpdatedDetail() throws Exception {
+        UserDetailResponse withoutImage = new UserDetailResponse(
+                5L, "customer@gmail.com", "Khách Hàng Test", "0901234567",
+                null, RoleName.CUSTOMER, false, LocalDateTime.now());
+        when(userService.removeAvatar(5L)).thenReturn(withoutImage);
+
+        mockMvc.perform(delete("/api/v1/users/me/avatar")
+                        .principal(PRINCIPAL::getUsername))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.image").doesNotExist());
+
+        verify(userService).removeAvatar(5L);
     }
 }

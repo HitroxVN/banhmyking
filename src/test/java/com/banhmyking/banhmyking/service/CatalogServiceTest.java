@@ -51,6 +51,9 @@ class CatalogServiceTest {
     @Mock
     private ReviewRepository reviewRepository;
 
+    @Mock
+    private FileStorageService fileStorageService;
+
     @InjectMocks
     private CatalogServiceImpl catalogService;
 
@@ -189,39 +192,15 @@ class CatalogServiceTest {
     }
 
     @Test
-    void uploadProductImage_NullOrEmptyFile_ThrowsException() {
-        org.springframework.mock.web.MockMultipartFile emptyFile =
-                new org.springframework.mock.web.MockMultipartFile("file", "test.png", "image/png", new byte[0]);
-
-        assertThatThrownBy(() -> catalogService.uploadProductImage(emptyFile))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("chọn tệp hình ảnh");
-
-        assertThatThrownBy(() -> catalogService.uploadProductImage(null))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("chọn tệp hình ảnh");
-    }
-
-    @Test
-    void uploadProductImage_NonImageFormat_ThrowsException() {
-        org.springframework.mock.web.MockMultipartFile textFile =
-                new org.springframework.mock.web.MockMultipartFile("file", "script.sh", "text/plain", "echo hello".getBytes());
-
-        assertThatThrownBy(() -> catalogService.uploadProductImage(textFile))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("định dạng hình ảnh");
-    }
-
-    @Test
-    void uploadProductImage_ValidImage_ReturnsUploadUrl() {
+    void uploadProductImage_delegatesToStorageWithProductsDir() {
+        // Validate định dạng/dung lượng nằm ở FileStorageService (đã có test riêng);
+        // ở đây chỉ chốt rằng ảnh sản phẩm đi đúng thư mục "products".
         org.springframework.mock.web.MockMultipartFile imageFile =
                 new org.springframework.mock.web.MockMultipartFile("file", "banhmi.png", "image/png", new byte[]{1, 2, 3});
+        when(fileStorageService.storeImage(imageFile, FileStorageService.PRODUCT_DIR))
+                .thenReturn("/uploads/products/abc.png");
 
-        String result = catalogService.uploadProductImage(imageFile);
-
-        assertThat(result).isNotNull();
-        assertThat(result).startsWith("/uploads/products/");
-        assertThat(result).endsWith(".png");
+        assertThat(catalogService.uploadProductImage(imageFile)).isEqualTo("/uploads/products/abc.png");
     }
 
     @Test

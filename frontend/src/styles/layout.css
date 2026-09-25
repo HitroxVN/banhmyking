@@ -262,6 +262,13 @@
   font-weight: 700;
 }
 
+/* Cùng khung với chữ cái mặc định, chỉ khác là ảnh thật do user tải lên */
+img.cshop__avatar,
+img.dash__avatar {
+  object-fit: cover;
+  display: block;
+}
+
 .cshop__dropdown {
   position: absolute;
   top: calc(100% + 8px);
@@ -351,6 +358,11 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: var(--space-8) var(--space-4);
+}
+
+/* Thêm cột "Liên hệ" khi admin đã điền thông tin; dưới 900px rơi về lưới 2 cột chung bên dưới */
+.cshop__foot-inner--with-contact {
+  grid-template-columns: 1.6fr 1fr 1.4fr 1.4fr;
 }
 
 .cshop__foot-brand .cshop__logo {

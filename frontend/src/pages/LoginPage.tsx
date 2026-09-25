@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { CircleCheck, Eye, EyeOff, Hand, Lock, Mail, Sandwich, TriangleAlert } from 'lucide-react';
+import { CircleCheck, Eye, EyeOff, Hand, Lock, Mail, TriangleAlert } from 'lucide-react';
 import { authApi } from '../api/authApi';
 import type { ApiError } from '../api/axiosClient';
+import { BrandLockup } from '../components/layout/BrandLockup';
 import { useAuth } from '../context/useAuth';
 
 import { tokenStorage } from '../utils/tokenStorage';
@@ -127,10 +128,7 @@ export const LoginPage: React.FC = () => {
       <div className="auth-container">
         {/* Brand Header */}
         <div className="brand-header">
-          <div className="brand-logo-badge" title="Bánh Mỳ King">
-            <Sandwich size={26} />
-          </div>
-          <h1 className="brand-title">BÁNH MỲ KING</h1>
+          <BrandLockup />
           <p className="brand-tagline">Hương vị đỉnh cao - Đẳng cấp hoàng gia</p>
         </div>
 

@@ -28,6 +28,8 @@ export interface UserInfoResponse {
   email: string;
   fullName: string;
   phone?: string;
+  /** Đường dẫn ảnh đại diện; null = dùng mặc định (chữ cái đầu của tên). */
+  image?: string | null;
   role: RoleName;
 }
 

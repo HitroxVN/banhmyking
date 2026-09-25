@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '../../context/useAuth';
+import { useSiteSettings } from '../../context/useSiteSettings';
 import { useConfirm } from '../ui';
 import type { BrandConfig, NavItem } from './navItems';
 
@@ -15,6 +16,7 @@ export interface DashboardLayoutProps {
  */
 export const DashboardLayout = ({ navItems, brand }: DashboardLayoutProps) => {
   const { user, logout } = useAuth();
+  const { settings } = useSiteSettings();
   const confirm = useConfirm();
   const navigate = useNavigate();
   const BrandIcon = brand.icon;
@@ -40,7 +42,7 @@ export const DashboardLayout = ({ navItems, brand }: DashboardLayoutProps) => {
             <BrandIcon size={22} />
           </span>
           <span className="dash__brand-text">
-            <span className="dash__brand-name">{brand.name}</span>
+            <span className="dash__brand-name">{settings.siteName || brand.name}</span>
             <span className="dash__brand-sub">{brand.sub}</span>
           </span>
         </div>
@@ -67,7 +69,11 @@ export const DashboardLayout = ({ navItems, brand }: DashboardLayoutProps) => {
 
         <div className="dash__user">
           <div className="dash__user-row">
-            <span className="dash__avatar">{user?.fullName?.charAt(0)?.toUpperCase() ?? 'K'}</span>
+            {user?.image ? (
+              <img className="dash__avatar" src={user.image} alt="" />
+            ) : (
+              <span className="dash__avatar">{user?.fullName?.charAt(0)?.toUpperCase() ?? 'K'}</span>
+            )}
             <span className="dash__user-text">
               <span className="dash__user-name" title={user?.fullName}>
                 {user?.fullName ?? brand.roleLabel}

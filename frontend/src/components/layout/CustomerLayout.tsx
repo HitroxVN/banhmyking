@@ -5,6 +5,9 @@ import {
   Bike,
   Home,
   LogOut,
+  Mail,
+  MapPin,
+  Phone,
   Receipt,
   Sandwich,
   Search,
@@ -15,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/useAuth';
 import { useCart } from '../../context/useCart';
+import { useSiteSettings } from '../../context/useSiteSettings';
 import { useConfirm } from '../ui';
 import { formatCurrency } from '../../utils/formatters';
 
@@ -25,6 +29,7 @@ const FLOAT_CART_HIDDEN_ON = ['/cart', '/checkout', '/payment'];
 export const CustomerLayout = () => {
   const { user, logout } = useAuth();
   const { totalQuantity, subtotal } = useCart();
+  const { settings } = useSiteSettings();
   const confirm = useConfirm();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -97,18 +102,26 @@ export const CustomerLayout = () => {
   const showFloatCart =
     totalQuantity > 0 && !FLOAT_CART_HIDDEN_ON.some((prefix) => pathname.startsWith(prefix));
 
+  const hasContact = Boolean(
+    settings.contactPhone || settings.contactEmail || settings.contactAddress,
+  );
+
   return (
     <div className="cshop">
       <div className="cshop__strip">
         <div className="cshop__strip-inner">
-          <span className="cshop__strip-item">
-            <Timer size={14} />
-            Nướng theo từng đơn — giao nội thành trong 30 phút
-          </span>
-          <span className="cshop__strip-item cshop__strip-item--end">
-            <Bike size={14} />
-            Miễn phí giao hàng cho đơn từ 200.000đ
-          </span>
+          {settings.announcementPrimary && (
+            <span className="cshop__strip-item">
+              <Timer size={14} />
+              {settings.announcementPrimary}
+            </span>
+          )}
+          {settings.announcementSecondary && (
+            <span className="cshop__strip-item cshop__strip-item--end">
+              <Bike size={14} />
+              {settings.announcementSecondary}
+            </span>
+          )}
         </div>
       </div>
 
@@ -119,8 +132,8 @@ export const CustomerLayout = () => {
               <Sandwich size={22} />
             </span>
             <span className="cshop__logo-text">
-              <span className="cshop__logo-name">Bánh Mỳ King</span>
-              <span className="cshop__logo-tag">Vỏ giòn · nhân đầy</span>
+              <span className="cshop__logo-name">{settings.siteName}</span>
+              <span className="cshop__logo-tag">{settings.tagline}</span>
             </span>
           </Link>
 
@@ -171,7 +184,11 @@ export const CustomerLayout = () => {
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
               >
-                <span className="cshop__avatar">{user?.fullName?.charAt(0)?.toUpperCase() ?? 'K'}</span>
+                {user?.image ? (
+                  <img className="cshop__avatar" src={user.image} alt="" />
+                ) : (
+                  <span className="cshop__avatar">{user?.fullName?.charAt(0)?.toUpperCase() ?? 'K'}</span>
+                )}
                 <span>{user?.fullName?.split(' ').pop() ?? 'Khách'}</span>
               </button>
 
@@ -219,20 +236,18 @@ export const CustomerLayout = () => {
       </main>
 
       <footer className="cshop__footer">
-        <div className="cshop__foot-inner">
+        <div className={`cshop__foot-inner${hasContact ? ' cshop__foot-inner--with-contact' : ''}`}>
           <div className="cshop__foot-brand">
             <Link to="/" className="cshop__logo">
               <span className="cshop__logo-badge">
                 <Sandwich size={22} />
               </span>
               <span className="cshop__logo-text">
-                <span className="cshop__logo-name">Bánh Mỳ King</span>
-                <span className="cshop__logo-tag">Vỏ giòn · nhân đầy</span>
+                <span className="cshop__logo-name">{settings.siteName}</span>
+                <span className="cshop__logo-tag">{settings.tagline}</span>
               </span>
             </Link>
-            <p className="cshop__foot-desc">
-              Bánh mì nướng theo từng đơn, kẹp nhân đầy đặn, đóng gói giữ giòn và giao nóng tới tay bạn.
-            </p>
+            <p className="cshop__foot-desc">{settings.footerDescription}</p>
           </div>
 
           <div className="cshop__foot-col">
@@ -258,10 +273,35 @@ export const CustomerLayout = () => {
               Nướng theo đơn, không làm sẵn
             </span>
           </div>
+
+          {/* Chỉ hiện khi admin đã điền ít nhất một thông tin liên hệ */}
+          {hasContact && (
+            <div className="cshop__foot-col">
+              <p className="cshop__foot-title">Liên hệ</p>
+              {settings.contactPhone && (
+                <a className="cshop__foot-note" href={`tel:${settings.contactPhone.replace(/\s/g, '')}`}>
+                  <Phone size={15} />
+                  {settings.contactPhone}
+                </a>
+              )}
+              {settings.contactEmail && (
+                <a className="cshop__foot-note" href={`mailto:${settings.contactEmail}`}>
+                  <Mail size={15} />
+                  {settings.contactEmail}
+                </a>
+              )}
+              {settings.contactAddress && (
+                <span className="cshop__foot-note">
+                  <MapPin size={15} />
+                  {settings.contactAddress}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="cshop__foot-bottom">
-          <span>© {new Date().getFullYear()} Bánh Mỳ King</span>
+          <span>© {new Date().getFullYear()} {settings.siteName}</span>
           <span className="cshop__foot-pay">
             <span className="cshop__foot-pay-pill">Tiền mặt khi nhận hàng</span>
             <span className="cshop__foot-pay-pill">VietQR</span>

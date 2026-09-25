@@ -5,6 +5,7 @@ import {
   Crown,
   FolderTree,
   LayoutDashboard,
+  Settings,
   Star,
   Ticket,
   Users,
@@ -74,6 +75,7 @@ export const ADMIN_NAV: NavItem[] = [
   { to: '/admin/promotions', label: 'Mã giảm giá', icon: Ticket },
   { to: '/admin/reviews', label: 'Đánh giá', icon: Star },
   { to: '/admin/users', label: 'Tài khoản', icon: Users },
+  { to: '/admin/settings', label: 'Cấu hình trang web', icon: Settings },
 ];
 
 /** Trang chủ của từng vai trò — dùng cho redirect sau đăng nhập / trang 403 */
