@@ -128,6 +128,15 @@ public class PromotionServiceImpl implements PromotionService {
         // Validate business logic: startsAt < endsAt & PERCENTAGE requires maxDiscountAmount
         validatePromotionData(code, request.getDiscountType(), request.getValue(),
                 request.getMaxDiscountAmount(), request.getStartsAt(), request.getEndsAt());
+        if (request.getEndsAt().isBefore(request.getStartsAt())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Thời gian kết thúc phải sau thời gian bắt đầu");
+        }
+
+        if (request.getDiscountType() == DiscountType.PERCENTAGE) {
+            if (request.getValue().compareTo(BigDecimal.valueOf(100)) > 0) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Phần trăm giảm giá không thể vượt quá 100%");
+            }
+        }
 
         Promotion promotion = Promotion.builder()
                 .code(code)
