@@ -4,7 +4,6 @@ import com.banhmyking.banhmyking.dto.auth.ChangePasswordRequest;
 import com.banhmyking.banhmyking.dto.auth.LoginRequest;
 import com.banhmyking.banhmyking.dto.auth.RegisterRequest;
 import com.banhmyking.banhmyking.dto.auth.TokenResponse;
-import com.banhmyking.banhmyking.dto.auth.UserInfoResponse;
 import com.banhmyking.banhmyking.entity.RefreshToken;
 import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.exception.BusinessException;
@@ -67,6 +66,11 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Email hoặc mật khẩu không đúng");
         }
 
+        // Check sau password match
+        if (user.isBanned()) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Tài khoản đã bị khoá");
+        }
+
         return issueTokens(user);
     }
 
@@ -81,10 +85,17 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, "Refresh token không hợp lệ"));
 
         if (stored.isRevoked()) {
+            // Thu hồi TOÀN BỘ token đang sống của user này, ép đăng nhập lại từ đầu.
+            if (stored.getUser() != null) {
+                revokeAllActiveTokens(stored.getUser().getId());
+            }
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Refresh token đã bị thu hồi");
         }
         if (stored.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Refresh token đã hết hạn");
+        }
+        if (stored.getUser() == null || stored.getUser().isBanned() || stored.getUser().isDeleted()) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Refresh token không còn hợp lệ");
         }
 
         // Revoke token cũ
@@ -95,6 +106,15 @@ public class AuthServiceImpl implements AuthService {
     }
 
     // ─── Logout ─────────────────────────────────────────────────────────────
+
+    /** Thu hồi mọi refresh token đang sống của user (dùng cho reuse-detection). */
+    private void revokeAllActiveTokens(Long userId) {
+        LocalDateTime now = LocalDateTime.now();
+        refreshTokenRepository.findByUserIdAndRevokedAtIsNull(userId).forEach(rt -> {
+            rt.setRevokedAt(now);
+            refreshTokenRepository.save(rt);
+        });
+    }
 
     @Override
     @Transactional
@@ -132,17 +152,8 @@ public class AuthServiceImpl implements AuthService {
                 });
     }
 
-    // ─── Me ─────────────────────────────────────────────────────────────────
-
-    @Override
-    @Transactional(readOnly = true)
-    public UserInfoResponse getMe(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy user"));
-        return new UserInfoResponse(user.getId(), user.getEmail(), user.getFullName(), user.getPhone(), user.getRole());
-    }
-
     // ─── Private helpers ────────────────────────────────────────────────────
+    // (getMe đã gom sang UserService.getMe — /auth/me delegate sang đó, bỏ bản sao ở đây)
 
     /** Tạo cặp access + refresh token, lưu hash refresh vào DB. */
     private TokenResponse issueTokens(User user) {
@@ -155,7 +166,8 @@ public class AuthServiceImpl implements AuthService {
         rt.setExpiresAt(LocalDateTime.now().plusDays(refreshTokenExpiryDays));
         refreshTokenRepository.save(rt);
 
-        long expiresInSeconds = 900; // 15 phút
+        // Đọc TTL từ provider (cùng nguồn với exp đã ký vào token) — không hardcode, hết lệch khi đổi config
+        long expiresInSeconds = jwtTokenProvider.getAccessTokenExpiryMs() / 1000;
         return TokenResponse.of(accessToken, rawRefresh, expiresInSeconds);
     }
 

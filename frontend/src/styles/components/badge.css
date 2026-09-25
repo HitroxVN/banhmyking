@@ -1,0 +1,47 @@
+/* Badge + StatusBadge — một map trạng thái duy nhất cho toàn app */
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.ui-badge--neutral { background: var(--stone-100); color: var(--stone-600); }
+.ui-badge--success { background: var(--success-bg); color: var(--success); }
+.ui-badge--danger  { background: var(--danger-bg);  color: var(--danger); }
+.ui-badge--warning { background: var(--warning-bg); color: var(--warning); }
+.ui-badge--info    { background: var(--info-bg);    color: var(--info); }
+
+.ui-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.ui-status__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.ui-status--pending    { color: var(--status-pending);    background: #FFFBEB; }
+.ui-status--confirmed  { color: var(--status-confirmed);  background: #EFF6FF; }
+.ui-status--preparing  { color: var(--status-preparing);  background: #F5F3FF; }
+.ui-status--ready      { color: var(--status-ready);      background: #ECFDF5; }
+.ui-status--delivering { color: var(--status-delivering); background: #ECFEFF; }
+.ui-status--delivered  { color: var(--status-delivered);  background: #F0FDF4; }
+.ui-status--cancelled  { color: var(--status-cancelled);  background: #FEF2F2; }
+.ui-status--failed     { color: var(--status-failed);     background: #FEF2F2; }

@@ -8,6 +8,7 @@ import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.GlobalExceptionHandler;
 import com.banhmyking.banhmyking.service.CartService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -45,11 +48,27 @@ class CartControllerTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /** Principal giả — username là userId (JWT subject), user 1 (customer). */
+    private static final org.springframework.security.core.userdetails.UserDetails PRINCIPAL =
+            org.springframework.security.core.userdetails.User
+                    .withUsername("1")
+                    .password("x")
+                    .authorities("ROLE_CUSTOMER")
+                    .build();
+
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(cartController)
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver())
                 .build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(PRINCIPAL, null, PRINCIPAL.getAuthorities()));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -58,8 +77,7 @@ class CartControllerTest {
         CartResponse response = CartResponse.empty();
         when(cartService.getCart(1L)).thenReturn(response);
 
-        mockMvc.perform(get("/api/v1/cart")
-                        .header("X-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/cart"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.totalQuantity").value(0))
@@ -84,7 +102,6 @@ class CartControllerTest {
                 .build();
 
         mockMvc.perform(post("/api/v1/cart/items")
-                        .header("X-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -105,7 +122,6 @@ class CartControllerTest {
                 .build();
 
         mockMvc.perform(post("/api/v1/cart/items")
-                        .header("X-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -123,7 +139,6 @@ class CartControllerTest {
                 .build();
 
         mockMvc.perform(post("/api/v1/cart/items")
-                        .header("X-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -148,7 +163,6 @@ class CartControllerTest {
                 .build();
 
         mockMvc.perform(put("/api/v1/cart/items/500")
-                        .header("X-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -162,8 +176,7 @@ class CartControllerTest {
         CartResponse response = CartResponse.empty();
         when(cartService.removeItem(1L, 500L)).thenReturn(response);
 
-        mockMvc.perform(delete("/api/v1/cart/items/500")
-                        .header("X-User-Id", 1L))
+        mockMvc.perform(delete("/api/v1/cart/items/500"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
     }
@@ -174,8 +187,7 @@ class CartControllerTest {
         CartResponse response = CartResponse.empty();
         when(cartService.clearCart(1L)).thenReturn(response);
 
-        mockMvc.perform(delete("/api/v1/cart")
-                        .header("X-User-Id", 1L))
+        mockMvc.perform(delete("/api/v1/cart"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.items").isEmpty());

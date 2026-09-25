@@ -1,0 +1,25 @@
+/* Spinner + màn hình chờ toàn trang */
+.ui-spinner {
+  display: inline-block;
+  animation: ui-spin .8s linear infinite;
+}
+
+.ui-loading-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 60vh;
+  padding: var(--space-8) var(--space-4);
+  color: var(--stone-500);
+  font-size: var(--text-sm);
+}
+
+.ui-loading-screen--full {
+  min-height: 100vh;
+}
+
+.ui-loading-screen__text {
+  margin: 0;
+}

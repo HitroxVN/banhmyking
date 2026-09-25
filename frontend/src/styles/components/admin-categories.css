@@ -1,0 +1,23 @@
+/* AdminCategoriesPage — danh mục món */
+@import './card.css';
+@import './table.css';
+
+.acat__form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.acat__desc {
+  color: var(--stone-500);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.acat__order {
+  font-variant-numeric: tabular-nums;
+  color: var(--stone-600);
+}
