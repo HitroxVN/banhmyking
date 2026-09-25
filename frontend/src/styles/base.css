@@ -1,0 +1,101 @@
+/* ==========================================================================
+   Base — reset + nền chung toàn app.
+   ========================================================================== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--primary-50);
+  color: var(--stone-900);
+  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Hai quầng sáng ấm cố định làm nền cho mọi trang */
+body::before {
+  content: '';
+  position: fixed;
+  top: -150px;
+  left: -150px;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.22) 0%, rgba(254, 243, 199, 0) 70%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  bottom: -200px;
+  right: -200px;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(217, 119, 6, 0.18) 0%, rgba(254, 243, 199, 0) 70%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Form control kế thừa font của app thay vì font mặc định của browser */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Vòng focus hiển thị rõ cho điều hướng bàn phím (a11y) */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--primary-500);
+  outline-offset: 2px;
+}
+
+/* Không làm nhảy layout khi ảnh lỗi / chưa tải */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Tiêu đề dùng font display của brand */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+}
+
+/* Chỉ dành cho screen reader */
+.ui-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Thanh cuộn mảnh, hợp tông nâu ấm */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--stone-300) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--stone-300);
+  border: 3px solid transparent;
+  border-radius: var(--radius-full);
+  background-clip: content-box;
+}

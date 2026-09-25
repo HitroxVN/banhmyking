@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,7 +28,7 @@ import java.util.List;
 
 @Slf4j
 @Component
-@Profile("!test")
+@Profile({"dev", "demo"})
 @RequiredArgsConstructor
 public class DataInitializer implements ApplicationRunner {
 
@@ -37,21 +38,25 @@ public class DataInitializer implements ApplicationRunner {
     private final ProductOptionRepository productOptionRepository;
     private final AddressRepository addressRepository;
     private final PromotionRepository promotionRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (userRepository.count() == 0) {
-            log.info("Khởi tạo dữ liệu mẫu cho kiểm thử...");
+        // toàn bộ seed user đi qua seedUserIfAbsent (guard existsByEmail) — idempotent,
+        // độc lập với trạng thái catalog.
+        seedUserIfAbsent("customer@gmail.com", "12345678", "Khách Hàng Test", "0901234567", RoleName.CUSTOMER);
+        seedUserIfAbsent("admin@gmail.com", "12345678", "Quản Trị Viên", "0900000001", RoleName.ADMIN);
+        seedUserIfAbsent("staff@gmail.com", "12345678", "Nhân Viên Test", "0900000002", RoleName.STAFF);
+        seedUserIfAbsent("shipper@gmail.com", "12345678", "Shipper Test", "0900000003", RoleName.SHIPPER);
 
-            // 1. User demo
-            User user = new User();
-            user.setEmail("customer@banhmyking.vn");
-            user.setPassword("123456");
-            user.setFullName("Khách Hàng Test");
-            user.setPhone("0901234567");
-            user.setRole(RoleName.CUSTOMER);
-            userRepository.save(user);
+        seedUserIfAbsent("customer@banhmyking.vn", "123456", "Khách Hàng Test", "0901234567", RoleName.CUSTOMER);
+        seedUserIfAbsent("staff@banhmyking.vn", "123456", "Nhân Viên Quán", "0908889999", RoleName.STAFF);
+        seedUserIfAbsent("admin@banhmyking.vn", "123456", "Quản Trị Viên", "0907778888", RoleName.ADMIN);
+        seedUserIfAbsent("shipper@banhmyking.vn", "123456", "Tài Xế Giao Hàng", "0906665555", RoleName.SHIPPER);
+
+        if (productRepository.count() == 0) {
+            log.info("Khởi tạo dữ liệu mẫu cho kiểm thử...");
 
             // 2. Category demo
             Category category = new Category();
@@ -103,7 +108,8 @@ public class DataInitializer implements ApplicationRunner {
         }
 
         if (addressRepository.count() == 0) {
-            userRepository.findAll().stream().findFirst().ifPresent(u -> {
+            // Gán chắc chắn cho customer demo — findAll().findFirst() không đảm bảo thứ tự
+            userRepository.findByEmailAndDeletedFalse("customer@gmail.com").ifPresent(u -> {
                 Address addr = new Address();
                 addr.setUser(u);
                 addr.setReceiverName("Khách Hàng Test");
@@ -144,15 +150,20 @@ public class DataInitializer implements ApplicationRunner {
             log.info("Khởi tạo khuyến mãi mẫu: BANHMYKING10, GIAM10K");
           }
 
-        if (userRepository.findByEmail("staff@banhmyking.vn").isEmpty()) {
-            User staff = new User();
-            staff.setEmail("staff@banhmyking.vn");
-            staff.setPassword("123456");
-            staff.setFullName("Nhân Viên Quán");
-            staff.setPhone("0908889999");
-            staff.setRole(RoleName.STAFF);
-            userRepository.save(staff);
-            log.info("Khởi tạo tài khoản Staff demo ID: {}, Email: staff@banhmyking.vn", staff.getId());
+    }
+
+    /** Seed 1 user demo nếu chưa tồn tại — encode BCrypt. guard duy nhất cho mọi user. */
+    private void seedUserIfAbsent(String email, String rawPassword, String fullName, String phone, RoleName role) {
+        if (userRepository.existsByEmail(email)) {
+            return;
         }
+        User u = new User();
+        u.setEmail(email);
+        u.setPassword(passwordEncoder.encode(rawPassword));
+        u.setFullName(fullName);
+        u.setPhone(phone);
+        u.setRole(role);
+        userRepository.save(u);
+        log.info("Seed user: {} (role {})", email, role);
     }
 }

@@ -13,6 +13,7 @@ import com.banhmyking.banhmyking.entity.ProductOption;
 import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ErrorCode;
+import com.banhmyking.banhmyking.exception.NotFoundMessages;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
 import com.banhmyking.banhmyking.repository.CartItemRepository;
 import com.banhmyking.banhmyking.repository.CartRepository;
@@ -20,6 +21,7 @@ import com.banhmyking.banhmyking.repository.ProductOptionRepository;
 import com.banhmyking.banhmyking.repository.ProductRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
 import com.banhmyking.banhmyking.service.CartService;
+import com.banhmyking.banhmyking.service.PriceCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -61,9 +63,10 @@ public class CartServiceImpl implements CartService {
         log.info("Adding item to cart for user {}: productId={}, quantity={}",
                 userId, request.getProductId(), request.getQuantity());
 
-        // 1. Kiểm tra User
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
+        // 1. Kiểm tra User — PESSIMISTIC_WRITE trên dòng user để hai request cùng user
+        // song song xếp hàng thay vì cùng lazy-init (va chạm unique user_id → 409 oan).
+        User user = userRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(NotFoundMessages.userById(userId)));
 
         // 2. Kiểm tra Product & AC 5 (isAvailable = false)
         Product product = productRepository.findByIdAndDeletedFalse(request.getProductId())
@@ -213,8 +216,6 @@ public class CartServiceImpl implements CartService {
                 BigDecimal basePrice = (product != null && product.getPrice() != null)
                         ? product.getPrice()
                         : BigDecimal.ZERO;
-
-                BigDecimal optionsExtraPrice = BigDecimal.ZERO;
                 List<CartItemOptionResponse> optionResponses = new ArrayList<>();
 
                 if (item.getSelectedOptions() != null) {
@@ -223,7 +224,6 @@ public class CartServiceImpl implements CartService {
                         BigDecimal extra = (po != null && po.getExtraPrice() != null)
                                 ? po.getExtraPrice()
                                 : BigDecimal.ZERO;
-                        optionsExtraPrice = optionsExtraPrice.add(extra);
 
                         optionResponses.add(CartItemOptionResponse.builder()
                                 .id(cio.getId())
@@ -234,9 +234,10 @@ public class CartServiceImpl implements CartService {
                     }
                 }
 
-                BigDecimal unitPrice = basePrice.add(optionsExtraPrice);
+                // dùng chung công thức giá với PriceCalculator (không tự tính lại)
+                BigDecimal unitPrice = PriceCalculator.unitPriceOf(item);
+                BigDecimal itemSubtotal = PriceCalculator.lineTotalOf(item);
                 int qty = item.getQuantity() != null ? item.getQuantity() : 1;
-                BigDecimal itemSubtotal = unitPrice.multiply(BigDecimal.valueOf(qty));
 
                 totalQuantity += qty;
                 totalSubtotal = totalSubtotal.add(itemSubtotal);

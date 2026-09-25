@@ -1,0 +1,19 @@
+/* Skeleton — khung chờ cho danh sách / thẻ */
+.ui-skeleton {
+  background: linear-gradient(90deg, var(--stone-100) 25%, var(--stone-200) 37%, var(--stone-100) 63%);
+  background-size: 200% 100%;
+  animation: ui-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+.ui-skeleton--text { height: 12px; width: 100%; }
+.ui-skeleton--text-sm { height: 10px; width: 60%; }
+.ui-skeleton--row { height: 56px; width: 100%; border-radius: var(--radius-md); }
+.ui-skeleton--card { height: 180px; width: 100%; border-radius: var(--radius-md); }
+.ui-skeleton--chart { height: 260px; width: 100%; border-radius: var(--radius-md); }
+
+.ui-skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

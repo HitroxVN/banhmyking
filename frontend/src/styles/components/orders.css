@@ -1,0 +1,92 @@
+/* OrdersPage — danh sách đơn của khách */
+.orders__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-5);
+}
+
+.orders__hint {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-xs);
+  color: var(--stone-500);
+  text-align: center;
+}
+
+.ord-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.ord-card:hover {
+  border-color: var(--primary-300);
+  box-shadow: var(--shadow-md);
+}
+
+.ord-card__main {
+  min-width: 0;
+  flex: 1;
+}
+
+.ord-card__top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: 6px;
+}
+
+.ord-card__code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--stone-900);
+  letter-spacing: .02em;
+}
+
+.ord-card__meta {
+  margin: 0 0 4px;
+  font-size: var(--text-xs);
+  color: var(--stone-500);
+}
+
+.ord-card__items {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--stone-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.ord-card__side {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.ord-card__total {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--primary-700);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .ord-card__side {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
