@@ -12,10 +12,12 @@ import com.banhmyking.banhmyking.entity.Payment;
 import com.banhmyking.banhmyking.entity.Product;
 import com.banhmyking.banhmyking.entity.ProductOption;
 import com.banhmyking.banhmyking.entity.Promotion;
+import com.banhmyking.banhmyking.entity.PromotionUsage;
 import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.enums.PaymentMethod;
 import com.banhmyking.banhmyking.exception.BusinessException;
+import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.repository.AddressRepository;
 import com.banhmyking.banhmyking.repository.CartRepository;
 import com.banhmyking.banhmyking.repository.OrderItemRepository;
@@ -35,7 +37,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -73,6 +74,9 @@ class OrderServiceTest {
 
     @Mock
     private PromotionUsageRepository promotionUsageRepository;
+
+    @Mock
+    private PromotionService promotionService;
 
     @Mock
     private PaymentRepository paymentRepository;
@@ -278,15 +282,10 @@ class OrderServiceTest {
                 .promotionCode("SALE10")
                 .build();
 
-        Promotion promo = new Promotion();
-        promo.setId(10L);
-        promo.setCode("SALE10");
-
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
         when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
-        when(promotionRepository.findByCodeAndActiveTrue("SALE10")).thenReturn(Optional.of(promo));
-        when(promotionUsageRepository.findByPromotionIdAndUserId(10L, 1L)).thenReturn(Optional.of(new com.banhmyking.banhmyking.entity.PromotionUsage()));
+when(promotionService.validateForOrder(eq("SALE10"), eq(1L), any())).thenThrow(new BusinessException(ErrorCode.BUSINESS_ERROR, "Bạn đã sử dụng mã khuyến mãi 'SALE10' trước đó"));
 
         assertThatThrownBy(() -> orderService.createFromCart(1L, request))
                 .isInstanceOf(BusinessException.class)
@@ -299,31 +298,6 @@ class OrderServiceTest {
     @Test
     @DisplayName("Tạo đơn thành công với promotion sử dụng atomic increment")
     void createFromCart_withPromotion_atomicSuccess() {
-        CreateOrderRequest request = CreateOrderRequest.builder()
-                .addressId(200L)
-                .promotionCode("PROMO50")
-                .paymentMethod(PaymentMethod.COD)
-                .build();
-
-        Promotion promo = Promotion.builder()
-                .code("PROMO50")
-                .description("Giảm 10k")
-                .discountType(com.banhmyking.banhmyking.enums.DiscountType.FIXED_AMOUNT)
-                .value(BigDecimal.valueOf(10000))
-                .maxUsage(10)
-                .usedCount(0)
-                .active(true)
-                .build();
-        promo.setId(50L);
-
-        PriceBreakdown breakdown = PriceBreakdown.builder()
-                .subtotal(BigDecimal.valueOf(80000))
-                .shippingFee(BigDecimal.valueOf(15000))
-                .discountAmount(BigDecimal.valueOf(10000))
-                .total(BigDecimal.valueOf(85000))
-                .build();
-    @DisplayName("hai đơn cùng vượt quota — atomic increment trả 0 row -> đơn fail, không ghi Usage")
-    void createFromCart_whenPromotionQuotaExhaustedAtSave_shouldThrowAndNotRecordUsage() {
         CreateOrderRequest request = CreateOrderRequest.builder()
                 .addressId(200L)
                 .promotionCode("PROMO50")
@@ -361,6 +335,7 @@ class OrderServiceTest {
             o.setId(99L);
             return o;
         });
+        when(promotionService.redeemPromotion(eq(promo), any(), any(), any())).thenReturn(new PromotionUsage());
 
         OrderResponse response = orderService.createFromCart(1L, request);
 
@@ -454,7 +429,8 @@ class OrderServiceTest {
             o.setId(99L);
             return o;
         });
-        when(promotionRepository.incrementUsedCountAtomic(50L)).thenReturn(0);
+        when(promotionService.redeemPromotion(eq(promo), any(), any(), any()))
+                .thenThrow(new BusinessException(ErrorCode.BUSINESS_ERROR, "Mã khuyến mãi đã hết lượt sử dụng"));
 
         assertThatThrownBy(() -> orderService.createFromCart(1L, request))
                 .isInstanceOf(BusinessException.class)

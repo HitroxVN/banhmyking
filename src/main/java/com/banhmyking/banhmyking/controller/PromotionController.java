@@ -27,7 +27,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
-@Tag(name = "Promotion", description = "APIs quản lý mã giảm giá & Atomic Redemption (Sprint 6 - PROMO-01)")
+@Tag(name = "Promotion", description = "APIs quản lý mã giảm giá & Atomic Redemption (Sprint 6 - PROMO-01 & PROMO-02)")
 public class PromotionController {
 
     private final PromotionService promotionService;

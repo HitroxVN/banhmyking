@@ -32,7 +32,6 @@ import com.banhmyking.banhmyking.entity.OrderStatusHistory;
 import com.banhmyking.banhmyking.entity.Payment;
 import com.banhmyking.banhmyking.entity.Product;
 import com.banhmyking.banhmyking.entity.Promotion;
-import com.banhmyking.banhmyking.entity.PromotionUsage;
 import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.enums.PaymentMethod;
@@ -82,8 +81,7 @@ public class OrderServiceImpl implements OrderService {
     private final CartService cartService;
     private final UserRepository userRepository;
     private final AddressRepository addressRepository;
-    private final PromotionRepository promotionRepository;
-    private final PromotionUsageRepository promotionUsageRepository;
+    private final com.banhmyking.banhmyking.service.PromotionService promotionService;
     private final PaymentRepository paymentRepository;
     private final PriceCalculator priceCalculator;
     private final DeliveryFeeCalculator deliveryFeeCalculator;
@@ -198,13 +196,8 @@ public class OrderServiceImpl implements OrderService {
         // 4. Resolve Promotion (nếu có)
         Promotion promotion = null;
         if (request.getPromotionCode() != null && !request.getPromotionCode().trim().isEmpty()) {
-            String code = request.getPromotionCode().trim().toUpperCase();
-            promotion = promotionRepository.findByCodeAndActiveTrue(code)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.BUSINESS_ERROR, "Mã khuyến mãi '" + code + "' không tồn tại hoặc đã hết hiệu lực"));
-
-            if (promotionUsageRepository.findByPromotionIdAndUserId(promotion.getId(), userId).isPresent()) {
-                throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Bạn đã sử dụng mã khuyến mãi '" + code + "' trước đó");
-            }
+            BigDecimal cartSubtotal = priceCalculator.calculateSubtotal(cart);
+            promotion = promotionService.validateForOrder(request.getPromotionCode(), userId, cartSubtotal);
         }
 
         // 5. Tính tiền qua DeliveryFeeCalculator & PriceCalculator (AC 1, AC 5)

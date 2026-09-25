@@ -221,4 +221,82 @@ class PromotionServiceTest {
         verify(promotionRepository).save(testPromotion);
         verify(promotionRepository, never()).delete(any());
     }
+
+    // --- Tests cho PROMO-03 (Validate & Atomic Redemption Race Condition) ---
+
+    @Test
+    @DisplayName("PROMO-03: validateForOrder hợp lệ khi thỏa mãn mọi điều kiện")
+    void validateForOrder_success() {
+        when(promotionRepository.findByCodeAndActiveTrue("PROMO100")).thenReturn(java.util.Optional.of(testPromotion));
+        when(promotionUsageRepository.findByPromotionIdAndUserId(100L, 1L)).thenReturn(java.util.Optional.empty());
+
+        Promotion promo = promotionService.validateForOrder("PROMO100", 1L, BigDecimal.valueOf(50000));
+
+        assertThat(promo).isNotNull();
+        assertThat(promo.getCode()).isEqualTo("PROMO100");
+    }
+
+    @Test
+    @DisplayName("PROMO-03: validateForOrder ném lỗi khi user đã sử dụng mã trước đây")
+    void validateForOrder_whenUserAlreadyUsed_shouldThrowBusinessException() {
+        when(promotionRepository.findByCodeAndActiveTrue("PROMO100")).thenReturn(java.util.Optional.of(testPromotion));
+        when(promotionUsageRepository.findByPromotionIdAndUserId(100L, 1L))
+                .thenReturn(java.util.Optional.of(new PromotionUsage()));
+
+        assertThatThrownBy(() -> promotionService.validateForOrder("PROMO100", 1L, BigDecimal.valueOf(50000)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Bạn đã sử dụng mã khuyến mãi");
+    }
+
+    @Test
+    @DisplayName("PROMO-03: Race condition test - 2 thread cùng gọi áp mã cuối cùng, chỉ 1 thread thành công")
+    void redeemPromotion_raceCondition_onlyOneThreadSucceeds() throws Exception {
+        java.util.concurrent.atomic.AtomicInteger remainingUsages = new java.util.concurrent.atomic.AtomicInteger(1);
+
+        when(promotionRepository.incrementUsedCountAtomic(100L)).thenAnswer(inv -> {
+            if (remainingUsages.getAndDecrement() > 0) {
+                return 1;
+            } else {
+                return 0;
+            }
+        });
+
+        when(promotionUsageRepository.save(any(PromotionUsage.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        int numberOfThreads = 2;
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(numberOfThreads);
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger failureCount = new java.util.concurrent.atomic.AtomicInteger(0);
+
+        for (int i = 0; i < numberOfThreads; i++) {
+            final long userId = (long) (i + 1);
+            executor.submit(() -> {
+                try {
+                    latch.await(); // Đảm bảo cả 2 thread gọi đồng thời
+                    User u = new User();
+                    u.setId(userId);
+                    Order o = new Order();
+                    o.setId(10L + userId);
+
+                    promotionService.redeemPromotion(testPromotion, u, o, BigDecimal.valueOf(10000));
+                    successCount.incrementAndGet();
+                } catch (BusinessException e) {
+                    failureCount.incrementAndGet();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
+
+        latch.countDown(); // Phát súng cho cả 2 thread chạy cùng lúc
+        executor.shutdown();
+        boolean finished = executor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS);
+
+        assertThat(finished).isTrue();
+        assertThat(successCount.get()).isEqualTo(1);
+        assertThat(failureCount.get()).isEqualTo(1);
+        verify(promotionRepository, org.mockito.Mockito.times(2)).incrementUsedCountAtomic(100L);
+        verify(promotionUsageRepository, org.mockito.Mockito.times(1)).save(any());
+    }
 }

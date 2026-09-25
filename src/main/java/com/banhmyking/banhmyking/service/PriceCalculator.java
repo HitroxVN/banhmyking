@@ -26,6 +26,16 @@ public class PriceCalculator {
         return calculate(cart, promotion, DEFAULT_SHIPPING_FEE);
     }
 
+    public BigDecimal calculateSubtotal(Cart cart) {
+        BigDecimal subtotal = BigDecimal.ZERO;
+        if (cart != null && cart.getItems() != null) {
+            for (CartItem item : cart.getItems()) {
+                subtotal = subtotal.add(lineTotalOf(item));
+            }
+        }
+        return subtotal.setScale(2, RoundingMode.HALF_UP);
+    }
+
     public PriceBreakdown calculate(Cart cart, Promotion promotion, BigDecimal shippingFee) {
         if (shippingFee == null) {
             shippingFee = DEFAULT_SHIPPING_FEE;
@@ -33,13 +43,7 @@ public class PriceCalculator {
         shippingFee = shippingFee.setScale(2, RoundingMode.HALF_UP);
 
         // 1. Tính subtotal từ các món trong giỏ
-        BigDecimal subtotal = BigDecimal.ZERO;
-        if (cart != null && cart.getItems() != null) {
-            for (CartItem item : cart.getItems()) {
-                subtotal = subtotal.add(lineTotalOf(item));
-            }
-        }
-        subtotal = subtotal.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal subtotal = calculateSubtotal(cart);
 
         // 2. Tính discount từ promotion (nếu có)
         BigDecimal discountAmount = BigDecimal.ZERO;

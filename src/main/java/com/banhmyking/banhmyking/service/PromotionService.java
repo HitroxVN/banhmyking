@@ -37,6 +37,11 @@ public interface PromotionService {
     PromotionResponse validatePromotion(ValidatePromotionRequest request);
 
     /**
+     * Kiểm tra tính hợp lệ của mã giảm giá khi áp dụng vào đơn hàng (hạn dùng, lượt dùng, đơn tối thiểu, user chưa dùng).
+     */
+    Promotion validateForOrder(String code, Long userId, BigDecimal orderSubtotal);
+
+    /**
      * Test trực tiếp logic Atomic Redemption của PROMO-01 qua API Swagger.
      * Tăng lượt sử dụng lên 1 bằng UPDATE nguyên tử trên DB.
      */
