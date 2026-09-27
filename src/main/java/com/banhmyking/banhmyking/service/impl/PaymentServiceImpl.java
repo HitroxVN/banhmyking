@@ -3,6 +3,7 @@ package com.banhmyking.banhmyking.service.impl;
 import com.banhmyking.banhmyking.dto.payment.PaymentResponse;
 import com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest;
 import com.banhmyking.banhmyking.entity.Order;
+import com.banhmyking.banhmyking.entity.OrderStatusHistory;
 import com.banhmyking.banhmyking.entity.Payment;
 import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.enums.OrderStatus;
@@ -14,6 +15,7 @@ import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
 import com.banhmyking.banhmyking.dto.payment.SepayWebhookRequest;
 import com.banhmyking.banhmyking.repository.OrderRepository;
+import com.banhmyking.banhmyking.repository.OrderStatusHistoryRepository;
 import com.banhmyking.banhmyking.repository.PaymentRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
 import com.banhmyking.banhmyking.service.PaymentService;
@@ -24,6 +26,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -37,6 +41,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
+    private final OrderStatusHistoryRepository orderStatusHistoryRepository;
 
     private static final Pattern PATTERN_HYPHEN = Pattern.compile("BMK-\\d{8}-[A-Za-z0-9]+", Pattern.CASE_INSENSITIVE);
     private static final Pattern PATTERN_FLEXIBLE = Pattern
@@ -225,6 +230,8 @@ public class PaymentServiceImpl implements PaymentService {
             if (order.getStatus() == OrderStatus.PENDING) {
                 order.setStatus(OrderStatus.CONFIRMED);
                 orderRepository.save(order);
+                recordPaymentHistory(order, OrderStatus.PENDING, OrderStatus.CONFIRMED,
+                        actor.getFullName() + " đối soát chuyển khoản, giao dịch " + txnId);
             }
         } else {
             // COD: Giữ trạng thái PENDING chờ shipper giao
@@ -256,11 +263,18 @@ public class PaymentServiceImpl implements PaymentService {
         }
         String expectedKey = sepayApiKey.trim();
         String cleanAuth = authHeader != null ? authHeader.trim() : "";
-        boolean validHeader = cleanAuth.equalsIgnoreCase("Apikey " + expectedKey)
-                || cleanAuth.equalsIgnoreCase("Bearer " + expectedKey)
-                || cleanAuth.equals(expectedKey);
-        if (!validHeader) {
-            log.warn("SePay webhook rejected: Invalid Authorization header: {}", authHeader);
+        // Bóc tiền tố Apikey/Bearer (không phải bí mật) rồi so phần key bằng so sánh
+        // constant-time — equals() thường thoát sớm ở ký tự khác đầu tiên nên lộ dần key.
+        String providedKey = cleanAuth;
+        int space = cleanAuth.indexOf(' ');
+        if (space > 0) {
+            String scheme = cleanAuth.substring(0, space);
+            if ("Apikey".equalsIgnoreCase(scheme) || "Bearer".equalsIgnoreCase(scheme)) {
+                providedKey = cleanAuth.substring(space + 1).trim();
+            }
+        }
+        if (!constantTimeEquals(providedKey, expectedKey)) {
+            log.warn("SePay webhook rejected: Invalid Authorization header");
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "API Key SePay không hợp lệ");
         }
 
@@ -279,16 +293,8 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy đơn hàng tương ứng với nội dung chuyển khoản: " + request.getContent()));
 
-        // 4. Kiểm tra số tiền chuyển khoản
-        if (request.getTransferAmount() == null || request.getTransferAmount().compareTo(order.getTotal()) < 0) {
-            log.warn("SePay webhook amount mismatch: order {} expects {}, but received {}",
-                    order.getOrderCode(), order.getTotal(), request.getTransferAmount());
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
-                    String.format("Số tiền chuyển khoản (%s) không đủ cho đơn hàng %s (%s)",
-                            request.getTransferAmount(), order.getOrderCode(), order.getTotal()));
-        }
-
-        // 5. Cập nhật Payment sang PAID (hoặc trả về ngay nếu đã PAID - Idempotent)
+        // 4. Chỉ đơn chuyển khoản mới được webhook xác nhận. Tiền vào tài khoản cho một
+        // đơn COD/ví không có nghĩa là đơn đó đã được trả — bỏ qua, không đánh dấu PAID.
         Payment payment = paymentRepository.findByOrderId(order.getId())
                 .orElseGet(() -> {
                     Payment p = new Payment();
@@ -296,35 +302,118 @@ public class PaymentServiceImpl implements PaymentService {
                     p.setAmount(order.getTotal());
                     return p;
                 });
-
-        if (payment.getStatus() == PaymentStatus.PAID) {
-            log.info("Giao dịch SePay trùng lặp cho đơn hàng {} đã thanh toán trước đó", order.getOrderCode());
+        if (payment.getMethod() != null && payment.getMethod() != PaymentMethod.BANK_TRANSFER) {
+            log.warn("SePay webhook bỏ qua: đơn {} dùng phương thức {}, không phải chuyển khoản",
+                    order.getOrderCode(), payment.getMethod());
             return toPaymentResponse(payment);
         }
 
-        payment.setMethod(PaymentMethod.BANK_TRANSFER);
-        payment.setStatus(PaymentStatus.PAID);
-        payment.setPaidAt(LocalDateTime.now());
+        // 5. Phải khớp tiền tuyệt đối: thiếu thì chưa đủ điều kiện xác nhận, thừa thì phải
+        // đối soát tay — không tự nhận để tránh ghi sai số tiền vào sổ.
+        if (request.getTransferAmount() == null || request.getTransferAmount().compareTo(order.getTotal()) != 0) {
+            log.warn("SePay webhook lệch tiền: đơn {} cần {}, nhận {}",
+                    order.getOrderCode(), order.getTotal(), request.getTransferAmount());
+            return toPaymentResponse(payment);
+        }
+
+        // 6. Dedup theo mã giao dịch — webhook gửi lại lần hai không được đổi trạng thái thêm.
         String txnRef = (request.getReferenceCode() != null && !request.getReferenceCode().trim().isEmpty())
                 ? request.getReferenceCode().trim()
                 : "SEPAY-" + (request.getId() != null ? request.getId() : System.currentTimeMillis());
+        if (paymentRepository.existsByGatewayTxnId(txnRef)) {
+            log.info("Giao dịch SePay {} đã ghi nhận trước đó, bỏ qua", txnRef);
+            return toPaymentResponse(payment);
+        }
+
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            log.info("Đơn hàng {} đã thanh toán trước đó", order.getOrderCode());
+            return toPaymentResponse(payment);
+        }
+
+        // 7. Đơn đã huỷ/giao thất bại mà tiền vẫn về → ghi nhận đã thu rồi hoàn ngay,
+        // không giữ tiền của khách.
+        if (order.getStatus() == OrderStatus.CANCELLED || order.getStatus() == OrderStatus.FAILED) {
+            log.warn("Nhận tiền cho đơn {} đang ở trạng thái {} — tự động hoàn tiền",
+                    order.getOrderCode(), order.getStatus());
+            payment.setMethod(PaymentMethod.BANK_TRANSFER);
+            payment.setStatus(PaymentStatus.PAID);
+            payment.setPaidAt(LocalDateTime.now());
+            payment.setGatewayTxnId(txnRef);
+            Payment refunded = refundPayment(order, request.getTransferAmount(),
+                    "Đơn đã " + order.getStatus() + " nhưng vẫn nhận được tiền chuyển khoản", null);
+            return toPaymentResponse(refunded != null ? refunded : payment);
+        }
+
+        // 8. Ghi nhận PAID và chuyển đơn sang CONFIRMED
+        payment.setMethod(PaymentMethod.BANK_TRANSFER);
+        payment.setStatus(PaymentStatus.PAID);
+        payment.setPaidAt(LocalDateTime.now());
         payment.setGatewayTxnId(txnRef);
 
         Payment savedPayment = paymentRepository.save(payment);
         order.setPayment(savedPayment);
 
-        // 6. Cập nhật Order sang CONFIRMED
         if (order.getStatus() == OrderStatus.PENDING) {
             order.setStatus(OrderStatus.CONFIRMED);
             orderRepository.save(order);
-        } else if (order.getStatus() == OrderStatus.CANCELLED || order.getStatus() == OrderStatus.FAILED) {
-            log.warn("Nhận được tiền thanh toán cho đơn hàng đã ở trạng thái hủy/thất bại: orderCode={}, status={}",
-                    order.getOrderCode(), order.getStatus());
+            recordPaymentHistory(order, OrderStatus.PENDING, OrderStatus.CONFIRMED,
+                    "Webhook SePay xác nhận đủ tiền, giao dịch " + txnRef);
         }
 
         log.info("SePay payment confirmed successfully for order {} with txnRef {}",
                 order.getOrderCode(), txnRef);
         return toPaymentResponse(savedPayment);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Payment refundPayment(Order order, BigDecimal amount, String reason, Long actorId) {
+        if (order == null || order.getId() == null) {
+            return null;
+        }
+        Payment payment = paymentRepository.findByOrderId(order.getId()).orElse(null);
+        if (payment == null) {
+            log.warn("Không có bản ghi thanh toán để hoàn cho đơn {}", order.getOrderCode());
+            return null;
+        }
+        if (payment.getStatus() == PaymentStatus.REFUNDED) {
+            log.info("Đơn {} đã được hoàn tiền trước đó", order.getOrderCode());
+            return payment;
+        }
+        if (payment.getStatus() != PaymentStatus.PAID) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Chỉ hoàn tiền cho đơn đã thu tiền (trạng thái hiện tại: " + payment.getStatus() + ")");
+        }
+
+        BigDecimal refundAmount = amount != null ? amount : payment.getAmount();
+        payment.setStatus(PaymentStatus.REFUNDED);
+        payment.setRefundAmount(refundAmount);
+        payment.setRefundReason(reason);
+        payment.setRefundedAt(LocalDateTime.now());
+        if (actorId != null) {
+            payment.setRefundedBy(userRepository.findById(actorId).orElse(null));
+        }
+        Payment saved = paymentRepository.save(payment);
+        log.info("Refunded order {} amount {} by actor {}", order.getOrderCode(), refundAmount, actorId);
+        return saved;
+    }
+
+    /** Ghi order_status_history cho các chuyển trạng thái do tiền về (không có người bấm). */
+    private void recordPaymentHistory(Order order, OrderStatus fromStatus, OrderStatus toStatus, String note) {
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrder(order);
+        history.setFromStatus(fromStatus);
+        history.setToStatus(toStatus);
+        history.setChangedBy(null);
+        history.setNote(note);
+        orderStatusHistoryRepository.save(history);
+    }
+
+    private static boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
     }
 
     private Optional<Order> findOrderFromContent(String content) {
@@ -377,6 +466,9 @@ public class PaymentServiceImpl implements PaymentService {
                 .paidAt(payment.getPaidAt())
                 .gatewayTxnId(payment.getGatewayTxnId())
                 .createdAt(payment.getCreatedAt())
+                .refundAmount(payment.getRefundAmount())
+                .refundReason(payment.getRefundReason())
+                .refundedAt(payment.getRefundedAt())
                 .build();
     }
 }

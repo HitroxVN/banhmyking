@@ -21,6 +21,7 @@ import { PaymentPage } from './pages/PaymentPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { OrderTrackingPage } from './pages/OrderTrackingPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { ReviewManagerPage } from './pages/ReviewManagerPage';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
@@ -94,7 +95,7 @@ export const App: FC = () => (
                 </Route>
               </Route>
 
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </BrowserRouter>
         </CartProvider>

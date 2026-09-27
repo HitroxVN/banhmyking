@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Bike, Package, XCircle } from 'lucide-react';
+import { Bike, Package, RotateCcw, XCircle } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -14,6 +14,7 @@ import {
 } from '../../components/ui';
 import { AssignShipperModal } from '../../components/order/AssignShipperModal';
 import { CancelOrderModal } from '../../components/order/CancelOrderModal';
+import { RefundOrderModal } from '../../components/order/RefundOrderModal';
 import { staffOrderApi } from '../../api/staffOrderApi';
 import type { OrderResponse, OrderStatus } from '../../types/order';
 import { ORDER_NEXT_STATUSES, isFinalStatus } from '../../types/order';
@@ -41,6 +42,7 @@ export const AdminOrdersPage = () => {
 
   const [assigningOrder, setAssigningOrder] = useState<OrderResponse | null>(null);
   const [cancellingOrder, setCancellingOrder] = useState<OrderResponse | null>(null);
+  const [refundingOrder, setRefundingOrder] = useState<OrderResponse | null>(null);
 
   const toast = useToast();
 
@@ -197,8 +199,11 @@ export const AdminOrdersPage = () => {
               </thead>
               <tbody>
                 {orders.map((order) => {
-                  const nextStatuses = ORDER_NEXT_STATUSES[order.status] ?? [];
-                  const canCancel = nextStatuses.includes('CANCELLED');
+                  const allNextStatuses = ORDER_NEXT_STATUSES[order.status] ?? [];
+                  const canCancel = allNextStatuses.includes('CANCELLED');
+                  // Huỷ đơn đi qua nút "Huỷ" (bắt buộc lý do) — không đưa vào dropdown đổi trạng thái.
+                  const nextStatuses = allNextStatuses.filter((next) => next !== 'CANCELLED');
+                  const canRefund = order.paymentStatus === 'PAID';
                   const busy = busyOrderCode === order.orderCode;
 
                   return (
@@ -268,6 +273,18 @@ export const AdminOrdersPage = () => {
                             </Button>
                           )}
 
+                          {canRefund && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={busy}
+                              icon={<RotateCcw size={15} />}
+                              onClick={() => setRefundingOrder(order)}
+                            >
+                              Hoàn tiền
+                            </Button>
+                          )}
+
                           {canCancel && (
                             <Button
                               size="sm"
@@ -315,6 +332,18 @@ export const AdminOrdersPage = () => {
           onSuccess={(updated, reason) => {
             setCancellingOrder(null);
             toast.success(`Đã huỷ đơn ${updated.orderCode} — lý do: ${reason}`);
+            void load();
+          }}
+        />
+      )}
+
+      {refundingOrder && (
+        <RefundOrderModal
+          order={refundingOrder}
+          onClose={() => setRefundingOrder(null)}
+          onSuccess={(updated, reason) => {
+            setRefundingOrder(null);
+            toast.success(`Đã hoàn tiền đơn ${updated.orderCode} — lý do: ${reason}`);
             void load();
           }}
         />

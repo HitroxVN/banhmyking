@@ -16,6 +16,7 @@ public enum ErrorCode {
     FORBIDDEN(HttpStatus.FORBIDDEN),
     NOT_FOUND(HttpStatus.NOT_FOUND),
     CONFLICT(HttpStatus.CONFLICT),
+    PAYLOAD_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final HttpStatus httpStatus;

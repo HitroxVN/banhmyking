@@ -48,6 +48,8 @@ export interface CreateOrderRequest {
   paymentMethod?: PaymentMethod;
   distanceKm?: number;
   note?: string;
+  /** Khoá chống trùng cho mỗi lần chốt đơn; gửi lại cùng khoá nhận đúng đơn cũ. */
+  idempotencyKey?: string;
 }
 
 export interface OrderItemOptionResponse {
@@ -81,6 +83,9 @@ export interface OrderResponse {
   promotionCode?: string;
   paymentMethod: PaymentMethod;
   paymentStatus?: PaymentStatus;
+  refundAmount?: number;
+  refundReason?: string;
+  refundedAt?: string;
   note?: string;
   cancelReason?: string;
   deliveredAt?: string;

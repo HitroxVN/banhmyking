@@ -62,6 +62,15 @@ public class OrderResponse {
     @Schema(description = "Trạng thái thanh toán", example = "PENDING")
     private PaymentStatus paymentStatus;
 
+    @Schema(description = "Số tiền đã hoàn cho khách (chỉ có khi paymentStatus = REFUNDED)", example = "115000.00")
+    private BigDecimal refundAmount;
+
+    @Schema(description = "Lý do hoàn tiền", example = "Khách huỷ đơn sau khi đã chuyển khoản")
+    private String refundReason;
+
+    @Schema(description = "Thời điểm hoàn tiền", example = "2026-09-08T23:30:00")
+    private LocalDateTime refundedAt;
+
     @Schema(description = "Ghi chú đơn hàng", example = "Giao giờ trưa, không ớt")
     private String note;
 

@@ -6,6 +6,7 @@ import com.banhmyking.banhmyking.dto.order.AssignShipperRequest;
 import com.banhmyking.banhmyking.dto.order.CancelOrderRequest;
 import com.banhmyking.banhmyking.dto.order.OrderResponse;
 import com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse;
+import com.banhmyking.banhmyking.dto.order.RefundOrderRequest;
 import com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.security.SecurityUtils;
@@ -21,6 +22,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -103,6 +105,19 @@ public class AdminOrderController {
         Long userId = SecurityUtils.requireUserId(principal);
         OrderResponse response = orderService.cancelOrder(userId, orderCode, request);
         return ResponseEntity.ok(ApiResponse.ok("Hủy đơn hàng thành công", response));
+    }
+
+    @PostMapping("/{orderCode}/refund")
+    @Operation(summary = "Hoàn tiền cho đơn đã thu (Staff/Admin)",
+            description = "Chuyển thanh toán sang REFUNDED kèm vết số tiền/lý do/người hoàn. Chỉ áp dụng cho đơn đã PAID.")
+    public ResponseEntity<ApiResponse<OrderResponse>> refundOrder(
+            @AuthenticationPrincipal UserDetails principal,
+            @Parameter(description = "Mã đơn hàng", example = "BMK-20260908-A1B2C")
+            @PathVariable String orderCode,
+            @Valid @RequestBody RefundOrderRequest request) {
+        Long userId = SecurityUtils.requireUserId(principal);
+        OrderResponse response = orderService.refundOrder(userId, orderCode, request);
+        return ResponseEntity.ok(ApiResponse.ok("Hoàn tiền cho đơn hàng thành công", response));
     }
 
     @GetMapping("/{orderCode}/history")

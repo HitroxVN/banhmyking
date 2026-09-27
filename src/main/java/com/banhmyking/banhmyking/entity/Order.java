@@ -39,6 +39,13 @@ public class Order extends BaseEntity {
     @Column(name = "order_code", nullable = false, length = 30)
     private String orderCode;
 
+    /**
+     * Khoá chống trùng do client sinh cho mỗi lần chốt đơn. Bấm "Đặt hàng" hai lần
+     * với cùng khoá sẽ trả về đúng đơn cũ thay vì tạo đơn thứ hai.
+     */
+    @Column(name = "idempotency_key", length = 64)
+    private String idempotencyKey;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;

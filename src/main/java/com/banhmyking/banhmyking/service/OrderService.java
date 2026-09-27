@@ -88,4 +88,18 @@ public interface OrderService {
      * Lấy danh sách tài xế (Shipper) kèm số lượng đơn đang giao để phục vụ điều phối (Staff/Admin).
      */
     List<com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse> getAvailableShippers(Long userId);
+
+    /**
+     * Hoàn tiền cho đơn đã thu (STAFF/ADMIN): ghi vết số tiền/lý do/ai/lúc nào, chuyển
+     * payment sang REFUNDED và ghi lại một dòng lịch sử trạng thái.
+     */
+    OrderResponse refundOrder(Long userId, String orderCode, com.banhmyking.banhmyking.dto.order.RefundOrderRequest request);
+
+    /**
+     * Tự động huỷ các đơn còn PENDING và chưa thu được đồng nào đã quá hạn thanh toán.
+     * Hoàn lại lượt khuyến mãi và ghi lịch sử trạng thái cho từng đơn.
+     *
+     * @return số đơn đã huỷ
+     */
+    int cancelStalePendingOrders();
 }

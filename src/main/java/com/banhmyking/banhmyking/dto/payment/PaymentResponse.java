@@ -46,4 +46,13 @@ public class PaymentResponse {
 
     @Schema(description = "Thời điểm khởi tạo bản ghi thanh toán", example = "2026-09-08T12:00:00")
     private LocalDateTime createdAt;
+
+    @Schema(description = "Số tiền đã hoàn (chỉ có khi status = REFUNDED)", example = "115000.00")
+    private BigDecimal refundAmount;
+
+    @Schema(description = "Lý do hoàn tiền", example = "Khách huỷ đơn sau khi đã chuyển khoản")
+    private String refundReason;
+
+    @Schema(description = "Thời điểm hoàn tiền", example = "2026-09-08T13:00:00")
+    private LocalDateTime refundedAt;
 }

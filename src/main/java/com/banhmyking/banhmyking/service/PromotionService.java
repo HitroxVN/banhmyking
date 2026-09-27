@@ -80,4 +80,16 @@ public interface PromotionService {
      * Lấy thông tin chi tiết mã giảm giá theo ID.
      */
     PromotionResponse getPromotionById(Long id);
+
+    /**
+     * Hoàn lại lượt đã tiêu cho mã của đơn bị huỷ / giao thất bại: xoá bản ghi PromotionUsage
+     * và giảm usedCount. Idempotent — gọi lại trên đơn không còn usage thì không làm gì.
+     */
+    void releaseForOrder(Order order);
+
+    /**
+     * Kiểm tra lại mã của đơn vẫn còn hiệu lực ở bước xác nhận (active, trong khoảng ngày,
+     * không hết lượt). Bỏ qua kiểm tra "user đã dùng" vì usage của chính đơn này đã tồn tại.
+     */
+    void assertStillValidForConfirm(Order order);
 }

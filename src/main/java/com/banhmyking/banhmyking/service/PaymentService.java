@@ -38,4 +38,12 @@ public interface PaymentService {
      * Tiếp nhận và xử lý webhook tự động từ SePay khi tài khoản ngân hàng nhận tiền.
      */
     PaymentResponse processSepayWebhook(String authHeader, com.banhmyking.banhmyking.dto.payment.SepayWebhookRequest request);
+
+    /**
+     * Ghi nhận hoàn tiền cho một đơn đã thu tiền: chuyển payment sang REFUNDED kèm vết
+     * (số tiền, lý do, ai, lúc nào). Idempotent — payment đã REFUNDED thì trả về nguyên trạng.
+     *
+     * @param actorId người bấm hoàn (STAFF/ADMIN); null = hệ thống tự hoàn
+     */
+    Payment refundPayment(Order order, BigDecimal amount, String reason, Long actorId);
 }

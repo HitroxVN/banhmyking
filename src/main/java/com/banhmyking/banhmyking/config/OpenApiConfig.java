@@ -18,7 +18,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("Bánh Mỳ King API")
-                        .version("1.0.0")
+                        .version("0.0.1-SNAPSHOT")
                         .description("REST API cho hệ thống Bánh Mỳ King"))
                 .addSecurityItem(new SecurityRequirement().addList(schemeName))
                 .components(new Components()

@@ -37,4 +37,12 @@ public interface PromotionRepository extends JpaRepository<Promotion, Long> {
     @Query("UPDATE Promotion p SET p.usedCount = p.usedCount + 1 "
             + "WHERE p.id = :id AND (p.maxUsage IS NULL OR p.maxUsage <= 0 OR p.usedCount < p.maxUsage)")
     int incrementUsedCountAtomic(@Param("id") Long id);
+
+    /**
+     * Hoàn lại 1 lượt khi đơn bị huỷ/giao thất bại. Guard `usedCount > 0` để không âm
+     * (đơn cũ chưa từng trừ lượt, hoặc job chạy hai lần). Trả số row cập nhật.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Promotion p SET p.usedCount = p.usedCount - 1 WHERE p.id = :id AND p.usedCount > 0")
+    int decrementUsedCountAtomic(@Param("id") Long id);
 }

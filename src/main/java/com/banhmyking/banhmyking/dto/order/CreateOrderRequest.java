@@ -42,4 +42,9 @@ public class CreateOrderRequest {
 
     @Schema(description = "Ghi chú cho quán hoặc shipper", example = "Giao trước 12h trưa, không ớt")
     private String note;
+
+    @jakarta.validation.constraints.Size(max = 64, message = "idempotencyKey tối đa 64 ký tự")
+    @Schema(description = "Khoá chống trùng do client sinh cho mỗi lần bấm Đặt hàng; gửi lại cùng khoá sẽ nhận đúng đơn cũ",
+            example = "f47ac10b-58cc-4372-a567-0e02b2c3d479")
+    private String idempotencyKey;
 }

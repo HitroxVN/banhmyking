@@ -6,8 +6,11 @@ import com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse;
 import com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.OrderStatusHistory;
+import com.banhmyking.banhmyking.entity.Payment;
 import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.enums.OrderStatus;
+import com.banhmyking.banhmyking.enums.PaymentMethod;
+import com.banhmyking.banhmyking.enums.PaymentStatus;
 import com.banhmyking.banhmyking.enums.RoleName;
 import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ErrorCode;
@@ -41,6 +44,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -82,6 +86,9 @@ class OrderServiceStateMachineTest {
 
     @Mock
     private PaymentService paymentService;
+
+    @Mock
+    private PromotionService promotionService;
 
     @Mock
     private OrderCodeGenerator orderCodeGenerator;
@@ -368,6 +375,94 @@ class OrderServiceStateMachineTest {
 
         assertThat(response.getStatus()).isEqualTo(OrderStatus.DELIVERING);
         assertThat(testOrder.getShipper().getId()).isEqualTo(3L);
+    }
+
+    // ─── Khép kín dòng tiền & trả lượt khuyến mãi khi huỷ đơn ────────────────
+
+    @Test
+    @DisplayName("Huỷ đơn đã thu tiền: payment chuyển REFUNDED kèm vết hoàn và lượt khuyến mãi được trả lại")
+    void cancelOrder_whenPaid_refundsAndReleasesPromotion() {
+        Payment paid = new Payment();
+        paid.setId(9L);
+        paid.setOrder(testOrder);
+        paid.setMethod(PaymentMethod.BANK_TRANSFER);
+        paid.setStatus(PaymentStatus.PAID);
+        paid.setAmount(BigDecimal.valueOf(65000));
+        testOrder.setPayment(paid);
+        testOrder.setStatus(OrderStatus.CONFIRMED);
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(customer));
+        when(orderRepository.findByOrderCode("BMK-20260909-ABCDE")).thenReturn(Optional.of(testOrder));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        OrderResponse response = orderService.cancelOrder(2L, "BMK-20260909-ABCDE",
+                CancelOrderRequest.builder().cancelReason("Khách đổi ý").build());
+
+        assertThat(response.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        // paymentService là mock ở đây; việc set vết hoàn tiền được kiểm ở PaymentServiceTest.
+        verify(paymentService).refundPayment(testOrder, BigDecimal.valueOf(65000), "Khách đổi ý", 2L);
+        verify(promotionService).releaseForOrder(testOrder);
+    }
+
+    @Test
+    @DisplayName("Huỷ đơn chưa thu tiền: không sinh vết hoàn tiền")
+    void cancelOrder_whenUnpaid_doesNotRefund() {
+        when(userRepository.findById(2L)).thenReturn(Optional.of(customer));
+        when(orderRepository.findByOrderCode("BMK-20260909-ABCDE")).thenReturn(Optional.of(testOrder));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        orderService.cancelOrder(2L, "BMK-20260909-ABCDE",
+                CancelOrderRequest.builder().cancelReason("Hết nguyên liệu").build());
+
+        verify(paymentService, never()).refundPayment(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Không cho huỷ 'câm' qua đổi trạng thái — phải dùng luồng huỷ đơn kèm lý do")
+    void updateOrderStatus_toCancelled_blocked() {
+        when(userRepository.findById(4L)).thenReturn(Optional.of(staff));
+        when(orderRepository.findByOrderCode("BMK-20260909-ABCDE")).thenReturn(Optional.of(testOrder));
+
+        UpdateOrderStatusRequest request = UpdateOrderStatusRequest.builder()
+                .newStatus(OrderStatus.CANCELLED)
+                .build();
+
+        assertThatThrownBy(() -> orderService.updateOrderStatus(4L, "BMK-20260909-ABCDE", request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("chức năng huỷ đơn");
+    }
+
+    @Test
+    @DisplayName("Xác nhận đơn kiểm tra lại hiệu lực khuyến mãi; giao thất bại thì trả lượt mã")
+    void confirmRevalidatesPromotion_andFailedReleasesPromotion() {
+        when(userRepository.findById(4L)).thenReturn(Optional.of(staff));
+        when(orderRepository.findByOrderCode("BMK-20260909-ABCDE")).thenReturn(Optional.of(testOrder));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        orderService.updateOrderStatus(4L, "BMK-20260909-ABCDE",
+                UpdateOrderStatusRequest.builder().newStatus(OrderStatus.CONFIRMED).build());
+        verify(promotionService).assertStillValidForConfirm(testOrder);
+
+        testOrder.setStatus(OrderStatus.DELIVERING);
+        orderService.updateOrderStatus(4L, "BMK-20260909-ABCDE",
+                UpdateOrderStatusRequest.builder().newStatus(OrderStatus.FAILED).build());
+        verify(promotionService).releaseForOrder(testOrder);
+    }
+
+    @Test
+    @DisplayName("Dọn đơn treo: quá hạn thì huỷ, trả lượt mã và ghi lịch sử")
+    void cancelStalePendingOrders_cancelsAndReleases() {
+        testOrder.setStatus(OrderStatus.PENDING);
+        when(orderRepository.findStalePendingUnpaid(any())).thenReturn(List.of(testOrder));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        int cancelled = orderService.cancelStalePendingOrders();
+
+        assertThat(cancelled).isEqualTo(1);
+        assertThat(testOrder.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(testOrder.getCancelReason()).contains("quá hạn thanh toán");
+        verify(promotionService).releaseForOrder(testOrder);
+        verify(orderStatusHistoryRepository).save(any(OrderStatusHistory.class));
     }
 
     /** Shipper khác (id 7) — fixture cho test ownership. */

@@ -136,6 +136,17 @@ export const staffOrderApi = {
   },
 
   /**
+   * Hoàn tiền cho đơn đã thu (Staff/Admin). Bỏ trống amount = hoàn toàn bộ.
+   */
+  async refundOrder(orderCode: string, reason: string, amount?: number): Promise<OrderResponse> {
+    const res = await axiosClient.post<ApiResponse<OrderResponse>>(
+      `/admin/orders/${orderCode}/refund`,
+      { reason, amount }
+    );
+    return res.data.data;
+  },
+
+  /**
    * Lịch sử chuyển trạng thái của một đơn (dành cho Staff/Admin)
    */
   async getOrderHistory(orderCode: string): Promise<OrderStatusHistoryItem[]> {

@@ -62,6 +62,14 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of("Tham số '" + ex.getName() + "' không hợp lệ", ErrorCode.VALIDATION_ERROR));
     }
 
+    /** Tệp tải lên vượt giới hạn multipart (spring.servlet.multipart.max-file-size) — 413, không phải 500. */
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSize(org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+        log.warn("Tệp tải lên vượt giới hạn: {}", ex.getMessage());
+        return ResponseEntity.status(ErrorCode.PAYLOAD_TOO_LARGE.getHttpStatus())
+                .body(ErrorResponse.of("Tệp tải lên vượt quá dung lượng cho phép, vui lòng chọn tệp nhỏ hơn", ErrorCode.PAYLOAD_TOO_LARGE));
+    }
+
     /** Vi phạm ràng buộc DB (unique email, FK...) — 409, không lộ chi tiết schema. */
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrity(org.springframework.dao.DataIntegrityViolationException ex) {

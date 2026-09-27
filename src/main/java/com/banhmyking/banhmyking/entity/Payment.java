@@ -8,6 +8,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
@@ -43,4 +44,21 @@ public class Payment extends BaseEntity {
 
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
+
+    // ---- Vết hoàn tiền: chỉ có giá trị khi status = REFUNDED ----
+
+    /** Số tiền đã hoàn — luôn bằng `amount` ở luồng hoàn toàn phần. */
+    @Column(name = "refund_amount", precision = 12, scale = 2)
+    private BigDecimal refundAmount;
+
+    @Column(name = "refund_reason", length = 300)
+    private String refundReason;
+
+    @Column(name = "refunded_at")
+    private LocalDateTime refundedAt;
+
+    /** Người bấm hoàn tiền (STAFF/ADMIN); null = hệ thống tự hoàn. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "refunded_by")
+    private User refundedBy;
 }

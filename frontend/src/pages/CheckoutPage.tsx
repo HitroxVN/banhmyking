@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Banknote, MapPin, QrCode, Receipt, Sandwich, ShieldCheck, ShoppingBag, Ticket, Timer, Truck } from 'lucide-react';
@@ -63,6 +63,8 @@ export const CheckoutPage = () => {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  /** Giữ nguyên khoá giữa các lần bấm lại cùng một lượt đặt để backend không tạo đơn trùng. */
+  const idempotencyKeyRef = useRef<string>('');
 
   const [fee, setFee] = useState<DeliveryFeeResult | null>(null);
   const [isLoadingFee, setIsLoadingFee] = useState(false);
@@ -181,6 +183,8 @@ export const CheckoutPage = () => {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    // Chặn bấm đúp ngay từ tầng handler: state isSubmitting có thể chưa kịp flush giữa 2 lần click.
+    if (isSubmitting) return;
     setApiError(null);
 
     const nextErrors: FormErrors = {
@@ -198,7 +202,14 @@ export const CheckoutPage = () => {
 
     setIsSubmitting(true);
     try {
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current =
+          typeof crypto !== 'undefined' && 'randomUUID' in crypto
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      }
       const payload: CreateOrderRequest = {
+        idempotencyKey: idempotencyKeyRef.current,
         addressId: addressMode === 'saved' && selectedAddressId ? selectedAddressId : undefined,
         receiverName: receiverName.trim(),
         receiverPhone: receiverPhone.trim(),

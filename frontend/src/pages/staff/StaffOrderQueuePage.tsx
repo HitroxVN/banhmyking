@@ -8,6 +8,7 @@ import {
   MapPin,
   PackageCheck,
   Phone,
+  RotateCcw,
   Search,
   StickyNote,
   XCircle,
@@ -25,6 +26,7 @@ import {
 } from '../../components/ui';
 import { AssignShipperModal } from '../../components/order/AssignShipperModal';
 import { CancelOrderModal } from '../../components/order/CancelOrderModal';
+import { RefundOrderModal } from '../../components/order/RefundOrderModal';
 import { staffOrderApi } from '../../api/staffOrderApi';
 import type { OrderResponse, OrderStatus } from '../../types/order';
 import { isFinalStatus } from '../../types/order';
@@ -60,6 +62,7 @@ export const StaffOrderQueuePage = () => {
 
   const [assigningOrder, setAssigningOrder] = useState<OrderResponse | null>(null);
   const [cancellingOrder, setCancellingOrder] = useState<OrderResponse | null>(null);
+  const [refundingOrder, setRefundingOrder] = useState<OrderResponse | null>(null);
 
   const toast = useToast();
 
@@ -382,6 +385,16 @@ export const StaffOrderQueuePage = () => {
                       </Button>
                     )}
 
+                    {order.paymentStatus === 'PAID' && (
+                      <Button
+                        variant="ghost"
+                        icon={<RotateCcw size={17} />}
+                        onClick={() => setRefundingOrder(order)}
+                      >
+                        Hoàn tiền
+                      </Button>
+                    )}
+
                     {!isFinalStatus(order.status) && (
                       <Button
                         variant="ghost"
@@ -419,6 +432,18 @@ export const StaffOrderQueuePage = () => {
             replaceOrder(updated);
             setCancellingOrder(null);
             toast.success(`Đã huỷ đơn ${updated.orderCode} — lý do: ${reason}`);
+          }}
+        />
+      )}
+
+      {refundingOrder && (
+        <RefundOrderModal
+          order={refundingOrder}
+          onClose={() => setRefundingOrder(null)}
+          onSuccess={(updated, reason) => {
+            replaceOrder(updated);
+            setRefundingOrder(null);
+            toast.success(`Đã hoàn tiền đơn ${updated.orderCode} — lý do: ${reason}`);
           }}
         />
       )}

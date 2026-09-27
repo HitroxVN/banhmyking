@@ -22,6 +22,19 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     Optional<Order> findByOrderCodeAndUserId(String orderCode, Long userId);
 
+    Optional<Order> findByIdempotencyKey(String idempotencyKey);
+
+    /**
+     * Đơn online (không COD) còn PENDING và chưa thu được đồng nào quá hạn `cutoff` — dùng cho
+     * job tự huỷ đơn treo. Loại COD vì COD trả tiền lúc nhận hàng, không phải lỗi nếu chưa PAID.
+     */
+    @Query("SELECT o FROM Order o JOIN o.payment p "
+           + "WHERE o.status = com.banhmyking.banhmyking.enums.OrderStatus.PENDING "
+           + "AND p.status = com.banhmyking.banhmyking.enums.PaymentStatus.PENDING "
+           + "AND p.method <> com.banhmyking.banhmyking.enums.PaymentMethod.COD "
+           + "AND o.createdAt < :cutoff")
+    List<Order> findStalePendingUnpaid(@Param("cutoff") java.time.LocalDateTime cutoff);
+
     @Query("SELECT DISTINCT o FROM Order o " +
            "LEFT JOIN FETCH o.items i " +
            "LEFT JOIN FETCH o.payment " +

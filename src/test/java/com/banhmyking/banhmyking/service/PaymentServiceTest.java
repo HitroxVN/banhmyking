@@ -14,6 +14,7 @@ import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
 import com.banhmyking.banhmyking.repository.OrderRepository;
+import com.banhmyking.banhmyking.repository.OrderStatusHistoryRepository;
 import com.banhmyking.banhmyking.repository.PaymentRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
 import com.banhmyking.banhmyking.service.impl.PaymentServiceImpl;
@@ -47,6 +48,9 @@ class PaymentServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private OrderStatusHistoryRepository orderStatusHistoryRepository;
 
     @InjectMocks
     private PaymentServiceImpl paymentService;
@@ -463,7 +467,7 @@ class PaymentServiceTest {
                 .gateway("Techcombank")
                 .content("BMK20260912TEST1 chuyen tien")
                 .transferType("in")
-                .transferAmount(BigDecimal.valueOf(120000)) // chuyển dư tiền
+                .transferAmount(BigDecimal.valueOf(115000)) // khớp đúng số tiền đơn
                 .referenceCode("FT26999")
                 .build();
 
@@ -475,9 +479,11 @@ class PaymentServiceTest {
     }
 
     @Test
-    @DisplayName("processSepayWebhook: Chuyển thiếu tiền -> ném BusinessException")
-    void processSepayWebhook_amountMismatch_throwsException() {
+    @DisplayName("processSepayWebhook: Chuyển thiếu tiền -> bỏ qua, không xác nhận thanh toán")
+    void processSepayWebhook_amountMismatch_ignored() {
+        testOrder.setStatus(OrderStatus.PENDING);
         when(orderRepository.findByOrderCodeWithDetails("BMK-20260912-TEST1")).thenReturn(Optional.of(testOrder));
+        when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.empty());
 
         SepayWebhookRequest req = SepayWebhookRequest.builder()
                 .id(92706L)
@@ -487,9 +493,36 @@ class PaymentServiceTest {
                 .transferAmount(BigDecimal.valueOf(50000)) // Đơn cần 115k nhưng chỉ chuyển 50k
                 .build();
 
-        assertThatThrownBy(() -> paymentService.processSepayWebhook(SEPAY_AUTH, req))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("không đủ cho đơn hàng");
+        PaymentResponse res = paymentService.processSepayWebhook(SEPAY_AUTH, req);
+
+        assertThat(res).isNotNull();
+        assertThat(res.getStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(testOrder.getStatus()).isEqualTo(OrderStatus.PENDING);
+        verify(paymentRepository, never()).save(any(Payment.class));
+    }
+
+    @Test
+    @DisplayName("processSepayWebhook: Chuyển thừa tiền -> bỏ qua, không tự nhận (phải đối soát tay)")
+    void processSepayWebhook_overpaid_ignored() {
+        testOrder.setStatus(OrderStatus.PENDING);
+        when(orderRepository.findByOrderCodeWithDetails("BMK-20260912-TEST1")).thenReturn(Optional.of(testOrder));
+        when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.empty());
+
+        SepayWebhookRequest req = SepayWebhookRequest.builder()
+                .id(92710L)
+                .gateway("Techcombank")
+                .content("BMK-20260912-TEST1")
+                .transferType("in")
+                .transferAmount(BigDecimal.valueOf(200000)) // nhiều hơn giá trị đơn
+                .referenceCode("FT27001")
+                .build();
+
+        PaymentResponse res = paymentService.processSepayWebhook(SEPAY_AUTH, req);
+
+        assertThat(res).isNotNull();
+        assertThat(res.getStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(testOrder.getStatus()).isEqualTo(OrderStatus.PENDING);
+        verify(paymentRepository, never()).save(any(Payment.class));
     }
 
     @Test
@@ -588,6 +621,7 @@ class PaymentServiceTest {
 
         when(orderRepository.findByOrderCodeWithDetails("BMK-20260912-TEST1")).thenReturn(Optional.of(testOrder));
         when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.of(paidPayment));
+        when(paymentRepository.existsByGatewayTxnId("FT26258012345678")).thenReturn(true); // mã giao dịch đã ghi nhận
 
         SepayWebhookRequest req = SepayWebhookRequest.builder()
                 .id(92709L)
@@ -603,5 +637,49 @@ class PaymentServiceTest {
         assertThat(res).isNotNull();
         assertThat(res.getStatus()).isEqualTo(PaymentStatus.PAID);
         assertThat(res.getGatewayTxnId()).isEqualTo("FT26258012345678");
+    }
+
+    // ─── Hoàn tiền (Refund) ──────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("refundPayment: ghi vết hoàn tiền và chuyển payment sang REFUNDED")
+    void refundPayment_marksRefundedWithAudit() {
+        Payment paid = new Payment();
+        paid.setId(5L);
+        paid.setOrder(testOrder);
+        paid.setMethod(PaymentMethod.BANK_TRANSFER);
+        paid.setStatus(PaymentStatus.PAID);
+        paid.setAmount(BigDecimal.valueOf(115000));
+        when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.of(paid));
+        when(userRepository.findById(40L)).thenReturn(Optional.of(staff));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(i -> i.getArgument(0));
+
+        Payment result = paymentService.refundPayment(
+                testOrder, BigDecimal.valueOf(50000), "Khách chuyển nhầm", 40L);
+
+        assertThat(result.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(result.getRefundAmount()).isEqualByComparingTo(BigDecimal.valueOf(50000));
+        assertThat(result.getRefundReason()).isEqualTo("Khách chuyển nhầm");
+        assertThat(result.getRefundedAt()).isNotNull();
+        assertThat(result.getRefundedBy().getId()).isEqualTo(40L);
+    }
+
+    @Test
+    @DisplayName("refundPayment: bỏ trống số tiền = hoàn toàn bộ; gọi lại lần hai không nhân đôi")
+    void refundPayment_fullAmount_andIdempotent() {
+        Payment paid = new Payment();
+        paid.setId(5L);
+        paid.setOrder(testOrder);
+        paid.setStatus(PaymentStatus.PAID);
+        paid.setAmount(BigDecimal.valueOf(115000));
+        when(paymentRepository.findByOrderId(100L)).thenReturn(Optional.of(paid));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(i -> i.getArgument(0));
+
+        Payment first = paymentService.refundPayment(testOrder, null, "Giao thất bại", null);
+        assertThat(first.getRefundAmount()).isEqualByComparingTo(BigDecimal.valueOf(115000));
+
+        Payment second = paymentService.refundPayment(testOrder, BigDecimal.valueOf(1000), "Gọi lại", null);
+        assertThat(second.getRefundAmount()).isEqualByComparingTo(BigDecimal.valueOf(115000));
+        assertThat(second.getRefundReason()).isEqualTo("Giao thất bại");
     }
 }

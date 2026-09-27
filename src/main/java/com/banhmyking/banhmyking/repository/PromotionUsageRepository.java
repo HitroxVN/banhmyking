@@ -14,6 +14,8 @@ public interface PromotionUsageRepository extends JpaRepository<PromotionUsage, 
     Optional<PromotionUsage> findByPromotionIdAndUserId(Long promotionId, Long userId);
     boolean existsByPromotionId(Long promotionId);
 
+    Optional<PromotionUsage> findByOrderId(Long orderId);
+
     /** Các promotion user này đã dùng — mỗi mã chỉ dùng được 1 lần (xem validateForOrder). */
     @Query("SELECT u.promotion.id FROM PromotionUsage u WHERE u.user.id = :userId")
     List<Long> findPromotionIdsByUserId(@Param("userId") Long userId);

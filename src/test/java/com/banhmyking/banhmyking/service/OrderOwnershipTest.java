@@ -71,6 +71,9 @@ class OrderOwnershipTest {
     @Mock
     private PaymentService paymentService;
 
+    @Mock
+    private PromotionService promotionService;
+
     @InjectMocks
     private OrderServiceImpl orderService;
 
@@ -88,7 +91,8 @@ class OrderOwnershipTest {
 
     @BeforeEach
     void setUp() {
-        internalPaymentService = new PaymentServiceImpl(paymentRepository, orderRepository, userRepository);
+        internalPaymentService = new PaymentServiceImpl(
+                paymentRepository, orderRepository, userRepository, orderStatusHistoryRepository);
 
         customerA = new User();
         customerA.setId(10L);

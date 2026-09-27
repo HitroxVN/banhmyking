@@ -16,4 +16,13 @@ export interface PaymentResponse {
   paidAt?: string;
   gatewayTxnId?: string;
   createdAt: string;
+  refundAmount?: number;
+  refundReason?: string;
+  refundedAt?: string;
+}
+
+export interface RefundOrderRequest {
+  reason: string;
+  /** Bỏ trống = hoàn toàn bộ số tiền đã thu. */
+  amount?: number;
 }

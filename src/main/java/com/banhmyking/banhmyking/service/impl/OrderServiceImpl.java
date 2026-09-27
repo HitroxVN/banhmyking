@@ -70,6 +70,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -92,6 +93,10 @@ public class OrderServiceImpl implements OrderService {
     private final OrderCodeGenerator orderCodeGenerator;
     private final OrderStatusValidator orderStatusValidator;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+
+    /** Số phút tối đa một đơn PENDING chưa thanh toán được phép treo trước khi bị tự huỷ. */
+    @org.springframework.beans.factory.annotation.Value("${order.pending-timeout-minutes:30}")
+    private long pendingTimeoutMinutes;
 
     // ─── Helpers dùng chung ───────────────────────────────────────
 
@@ -125,7 +130,8 @@ public class OrderServiceImpl implements OrderService {
         if (paidPayment != null) {
             order.setPayment(paidPayment);
         }
-        if (order.getPayment() != null) {
+        // Không hồi sinh payment đã hoàn tiền (admin hoàn trước khi shipper kịp xác nhận giao).
+        if (order.getPayment() != null && order.getPayment().getStatus() != PaymentStatus.REFUNDED) {
             order.getPayment().setStatus(PaymentStatus.PAID);
             order.getPayment().setPaidAt(now);
         }
@@ -150,6 +156,18 @@ public class OrderServiceImpl implements OrderService {
 
         // 1. Kiểm tra User
         User user = requireUser(userId);
+
+        // Chống double-submit: cùng idempotencyKey thì trả về đúng đơn đã tạo, không tạo đơn thứ hai.
+        String idempotencyKey = (request.getIdempotencyKey() != null && !request.getIdempotencyKey().trim().isEmpty())
+                ? request.getIdempotencyKey().trim()
+                : null;
+        if (idempotencyKey != null) {
+            Optional<Order> existing = orderRepository.findByIdempotencyKey(idempotencyKey);
+            if (existing.isPresent()) {
+                log.info("Idempotent create: trả về đơn {} cho key {}", existing.get().getOrderCode(), idempotencyKey);
+                return toOrderResponse(existing.get());
+            }
+        }
 
         // 2. Validate giỏ hàng hợp lệ (AC 3)
         Cart cart = cartRepository.findByUserIdWithDetails(userId)
@@ -229,6 +247,7 @@ public class OrderServiceImpl implements OrderService {
         Order order = new Order();
         order.setOrderCode(orderCode);
         order.setUser(user);
+        order.setIdempotencyKey(idempotencyKey);
         order.setStatus(OrderStatus.PENDING);
         order.setReceiverName(receiverName);
         order.setReceiverPhone(receiverPhone);
@@ -272,6 +291,9 @@ public class OrderServiceImpl implements OrderService {
 
         // Lưu Order (cascade lưu order_items và order_item_options)
         order = orderRepository.save(order);
+
+        // Mọi đơn đều có mốc khởi tạo trong lịch sử — không còn đơn "trần" thiếu dòng đầu.
+        recordHistory(order, OrderStatus.PENDING, OrderStatus.PENDING, user, "Đơn hàng được tạo");
 
         // Khởi tạo Payment với trạng thái PENDING khi chốt đơn (AC 2)
         // paymentService là bean bắt buộc — bỏ null-check + nhánh tự tạo Payment (dead code).
@@ -556,6 +578,16 @@ public class OrderServiceImpl implements OrderService {
         OrderStatus fromStatus = order.getStatus();
         order.setStatus(OrderStatus.CANCELLED);
         order.setCancelReason(reason);
+
+        // Khép kín dòng tiền: đã thu tiền thì bắt buộc hoàn, không để tồn tại cặp (CANCELLED, PAID).
+        Payment payment = order.getPayment();
+        if (payment != null && payment.getStatus() == PaymentStatus.PAID) {
+            paymentService.refundPayment(order, payment.getAmount(),
+                    reason != null ? reason : "Huỷ đơn sau khi đã thanh toán", actor.getId());
+        }
+        // Trả lại lượt mã khuyến mãi đã tiêu cho đơn này.
+        promotionService.releaseForOrder(order);
+
         Order updatedOrder = orderRepository.save(order);
 
         // AC 2: Tự động ghi 1 dòng vào order_status_history
@@ -565,6 +597,58 @@ public class OrderServiceImpl implements OrderService {
                 orderCode, fromStatus, userId, actor.getRole(), reason);
 
         return toOrderResponse(updatedOrder);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderResponse refundOrder(Long userId, String orderCode, com.banhmyking.banhmyking.dto.order.RefundOrderRequest request) {
+        User actor = requireUser(userId);
+        if (actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN,
+                    "Chỉ nhân viên hoặc quản trị viên mới có quyền hoàn tiền");
+        }
+
+        Order order = requireOrderByCode(orderCode);
+
+        Payment payment = order.getPayment();
+        if (payment == null) {
+            payment = paymentRepository.findByOrderId(order.getId()).orElse(null);
+            order.setPayment(payment);
+        }
+        if (payment == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Đơn hàng chưa có bản ghi thanh toán");
+        }
+        if (payment.getStatus() != PaymentStatus.PAID) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Chỉ hoàn tiền cho đơn đã thu tiền (trạng thái hiện tại: " + payment.getStatus() + ")");
+        }
+
+        paymentService.refundPayment(order, request.getAmount(), request.getReason(), actor.getId());
+        recordHistory(order, order.getStatus(), order.getStatus(), actor,
+                "Hoàn tiền: " + request.getReason());
+
+        log.info("Order {} refunded by user {} (role: {})", orderCode, userId, actor.getRole());
+        return toOrderResponse(order);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int cancelStalePendingOrders() {
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(pendingTimeoutMinutes);
+        List<Order> staleOrders = orderRepository.findStalePendingUnpaid(cutoff);
+        if (staleOrders.isEmpty()) {
+            return 0;
+        }
+        for (Order order : staleOrders) {
+            order.setStatus(OrderStatus.CANCELLED);
+            order.setCancelReason("Tự động huỷ: quá hạn thanh toán " + pendingTimeoutMinutes + " phút");
+            promotionService.releaseForOrder(order);
+            orderRepository.save(order);
+            recordHistory(order, OrderStatus.PENDING, OrderStatus.CANCELLED, null, order.getCancelReason());
+        }
+        log.info("Auto-cancelled {} stale unpaid order(s) older than {} minutes",
+                staleOrders.size(), pendingTimeoutMinutes);
+        return staleOrders.size();
     }
 
     @Override
@@ -581,6 +665,16 @@ public class OrderServiceImpl implements OrderService {
 
         // AC 1: Validate state machine (chặn nhảy cóc, FAILED chỉ từ DELIVERING, phân quyền vận hành)
         orderStatusValidator.validateTransition(order, toStatus, actor);
+
+        // Huỷ đơn phải kèm lý do → đi qua /cancel, không cho huỷ "câm" qua đổi trạng thái.
+        if (toStatus == OrderStatus.CANCELLED) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Vui lòng huỷ đơn qua chức năng huỷ đơn (bắt buộc kèm lý do)");
+        }
+        // Xác nhận đơn: mã khuyến mãi phải còn hiệu lực tại thời điểm xác nhận.
+        if (toStatus == OrderStatus.CONFIRMED) {
+            promotionService.assertStillValidForConfirm(order);
+        }
 
         // Shipper chỉ được thao tác trên đơn được phân công cho mình (khác confirmDelivery đã check ở trên)
         if (actor.getRole() == RoleName.SHIPPER
@@ -611,6 +705,16 @@ public class OrderServiceImpl implements OrderService {
 
         if (toStatus == OrderStatus.FAILED && request.getNote() != null && !request.getNote().trim().isEmpty()) {
             order.setCancelReason(request.getNote().trim());
+        }
+
+        // Giao thất bại cũng là kết thúc không thu được tiền: hoàn tiền (nếu đã thu) và trả lượt KM.
+        if (toStatus == OrderStatus.FAILED) {
+            Payment failedPayment = order.getPayment();
+            if (failedPayment != null && failedPayment.getStatus() == PaymentStatus.PAID) {
+                paymentService.refundPayment(order, failedPayment.getAmount(),
+                        "Giao hàng thất bại, hoàn tiền cho khách", actor.getId());
+            }
+            promotionService.releaseForOrder(order);
         }
 
         order.setStatus(toStatus);
@@ -708,6 +812,9 @@ public class OrderServiceImpl implements OrderService {
                 .promotionCode(order.getPromotionCode())
                 .paymentMethod(payment != null ? payment.getMethod() : PaymentMethod.COD)
                 .paymentStatus(payment != null ? payment.getStatus() : PaymentStatus.PENDING)
+                .refundAmount(payment != null ? payment.getRefundAmount() : null)
+                .refundReason(payment != null ? payment.getRefundReason() : null)
+                .refundedAt(payment != null ? payment.getRefundedAt() : null)
                 .note(order.getNote())
                 .createdAt(order.getCreatedAt())
                 .cancelReason(order.getCancelReason())

@@ -5,7 +5,8 @@ import { orderApi } from '../api/orderApi';
 import { Badge, Button, EmptyState, Spinner, StatusBadge, useConfirm, useToast } from '../components/ui';
 import { ReviewFormModal } from '../components/review/ReviewFormModal';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
-import type { OrderItemResponse, OrderResponse, OrderStatus, OrderStatusHistoryItem, PaymentStatus } from '../types/order';
+import { PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL, PAYMENT_STATUS_TONE } from '../utils/payment';
+import type { OrderItemResponse, OrderResponse, OrderStatus, OrderStatusHistoryItem } from '../types/order';
 import '../styles/components/order.css';
 import '../styles/components/tracking.css';
 
@@ -23,26 +24,6 @@ const STEP_LABELS: Partial<Record<OrderStatus, string>> = {
 
 const TERMINAL: OrderStatus[] = ['DELIVERED', 'CANCELLED', 'FAILED'];
 const CUSTOMER_CANCELABLE: OrderStatus[] = ['PENDING', 'CONFIRMED'];
-
-const PAYMENT_METHOD_LABEL: Record<string, string> = {
-  COD: 'Tiền mặt khi nhận hàng',
-  BANK_TRANSFER: 'Chuyển khoản VietQR',
-  E_WALLET: 'Ví điện tử',
-};
-
-const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
-  PENDING: 'Chờ thanh toán',
-  PAID: 'Đã thanh toán',
-  FAILED: 'Thanh toán lỗi',
-  REFUNDED: 'Đã hoàn tiền',
-};
-
-const PAYMENT_STATUS_TONE: Record<PaymentStatus, 'warning' | 'success' | 'danger' | 'neutral'> = {
-  PENDING: 'warning',
-  PAID: 'success',
-  FAILED: 'danger',
-  REFUNDED: 'neutral',
-};
 
 const ROLE_LABEL: Record<string, string> = {
   CUSTOMER: 'Khách hàng',

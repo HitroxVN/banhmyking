@@ -110,6 +110,50 @@ public class PromotionServiceImpl implements PromotionService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void releaseForOrder(Order order) {
+        if (order == null || order.getId() == null) {
+            return;
+        }
+        Optional<PromotionUsage> usage = promotionUsageRepository.findByOrderId(order.getId());
+        if (usage.isEmpty()) {
+            // Đơn không dùng mã, hoặc lượt đã được hoàn trước đó — gọi lại không gây âm lượt.
+            return;
+        }
+        PromotionUsage redeemed = usage.get();
+        Long promotionId = redeemed.getPromotion() != null ? redeemed.getPromotion().getId() : null;
+        promotionUsageRepository.delete(redeemed);
+        if (promotionId != null) {
+            promotionRepository.decrementUsedCountAtomic(promotionId);
+        }
+        log.info("Released promotion usage for order {}", order.getOrderCode());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void assertStillValidForConfirm(Order order) {
+        String code = order.getPromotionCode();
+        if (code == null || code.trim().isEmpty()) {
+            return;
+        }
+        String normalizedCode = code.trim().toUpperCase();
+        Promotion promotion = promotionRepository.findByCodeAndActiveTrue(normalizedCode)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BUSINESS_ERROR,
+                        "Mã khuyến mãi '" + normalizedCode + "' không còn hiệu lực, không thể xác nhận đơn"));
+
+        LocalDateTime now = LocalDateTime.now();
+        if (promotion.getStartsAt() != null && now.isBefore(promotion.getStartsAt())) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Mã khuyến mãi '" + normalizedCode + "' chưa tới thời gian áp dụng, không thể xác nhận đơn");
+        }
+        if (promotion.getEndsAt() != null && now.isAfter(promotion.getEndsAt())) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Mã khuyến mãi '" + normalizedCode + "' đã hết hạn, không thể xác nhận đơn");
+        }
+        // Không kiểm tra lượt/user: lượt của chính đơn này đã được giữ chỗ lúc tạo đơn.
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public PromotionResponse validatePromotion(ValidatePromotionRequest request) {
         Long userId = request.getUserId();

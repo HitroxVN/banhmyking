@@ -22,6 +22,7 @@ import com.banhmyking.banhmyking.repository.AddressRepository;
 import com.banhmyking.banhmyking.repository.CartRepository;
 import com.banhmyking.banhmyking.repository.OrderItemRepository;
 import com.banhmyking.banhmyking.repository.OrderRepository;
+import com.banhmyking.banhmyking.repository.OrderStatusHistoryRepository;
 import com.banhmyking.banhmyking.repository.PaymentRepository;
 import com.banhmyking.banhmyking.repository.PromotionRepository;
 import com.banhmyking.banhmyking.repository.PromotionUsageRepository;
@@ -80,6 +81,9 @@ class OrderServiceTest {
 
     @Mock
     private PaymentRepository paymentRepository;
+
+    @Mock
+    private OrderStatusHistoryRepository orderStatusHistoryRepository;
 
     @Mock
     private PriceCalculator priceCalculator;
@@ -387,6 +391,39 @@ when(promotionService.validateForOrder(eq("SALE10"), eq(1L), any())).thenThrow(n
 
         verify(promotionRepository).incrementUsedCountAtomic(50L);
         verify(promotionUsageRepository, never()).saveAndFlush(any());
+        verify(cartService, never()).clearCart(any());
+    }
+
+    @Test
+    @DisplayName("Chống double-submit: gửi lại cùng idempotencyKey trả về đơn cũ, không tạo đơn thứ hai")
+    void createFromCart_sameIdempotencyKey_returnsExistingOrder() {
+        Order existingOrder = new Order();
+        existingOrder.setId(500L);
+        existingOrder.setOrderCode("BMK-20260909-EXIST");
+        existingOrder.setStatus(OrderStatus.PENDING);
+        existingOrder.setUser(testUser);
+        existingOrder.setReceiverName("Nguyễn Văn A");
+        existingOrder.setReceiverPhone("0901234567");
+        existingOrder.setShippingAddress("123 Lê Lợi, Q1, TP.HCM");
+        existingOrder.setSubtotal(BigDecimal.valueOf(50000));
+        existingOrder.setShippingFee(BigDecimal.valueOf(15000));
+        existingOrder.setDiscountAmount(BigDecimal.ZERO);
+        existingOrder.setTotal(BigDecimal.valueOf(65000));
+        existingOrder.setCreatedAt(java.time.LocalDateTime.now());
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(orderRepository.findByIdempotencyKey("key-1")).thenReturn(Optional.of(existingOrder));
+
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .addressId(200L)
+                .paymentMethod(PaymentMethod.COD)
+                .idempotencyKey("key-1")
+                .build();
+
+        OrderResponse response = orderService.createFromCart(1L, request);
+
+        assertThat(response.getOrderCode()).isEqualTo("BMK-20260909-EXIST");
+        verify(orderRepository, never()).save(any(Order.class));
         verify(cartService, never()).clearCart(any());
     }
 }
