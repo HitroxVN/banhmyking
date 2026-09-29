@@ -57,6 +57,25 @@ export interface PublicPromotionResponse {
   endsAt?: string;
 }
 
+/**
+ * Một dòng trong ví mã — khớp `WalletPromotionResponse`.
+ * `used = false` là mã khả dụng (3 field cuối rỗng); `used = true` là mã đã dùng kèm đơn đã áp.
+ */
+export interface WalletPromotion {
+  code: string;
+  description?: string;
+  discountType: DiscountType;
+  /** PERCENTAGE: 1–100 · FIXED_AMOUNT/FREE_SHIP: số tiền */
+  value: number;
+  maxDiscountAmount?: number;
+  minOrderAmount?: number;
+  endsAt?: string;
+  used: boolean;
+  usedAt?: string;
+  orderCode?: string;
+  discountApplied?: number;
+}
+
 export interface ValidatePromotionPayload {
   code: string;
   /** Giá trị đơn trước phí ship — khớp `validateForOrder(code, userId, subtotal)` của backend */

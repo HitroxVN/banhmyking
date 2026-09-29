@@ -5,6 +5,7 @@ import type {
   PromotionResponse,
   PublicPromotionResponse,
   ValidatePromotionPayload,
+  WalletPromotion,
 } from '../types/promotion';
 
 /** Mã giảm giá của khách — kiểm tra & tính số tiền giảm trước khi đặt đơn. */
@@ -25,6 +26,12 @@ export const promotionApi = {
    */
   async validate(payload: ValidatePromotionPayload): Promise<PromotionResponse> {
     const res = await axiosClient.post<ApiResponse<PromotionResponse>>('/promotions/validate', payload);
+    return res.data.data;
+  },
+
+  /** Ví mã của khách đang đăng nhập: mã còn dùng được + mã đã dùng. */
+  async getWallet(): Promise<WalletPromotion[]> {
+    const res = await axiosClient.get<ApiResponse<WalletPromotion[]>>('/promotions/wallet');
     return res.data.data;
   },
 

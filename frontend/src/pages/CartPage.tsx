@@ -107,7 +107,7 @@ export const CartPage = () => {
       <div className="page-bar">
         <div>
           <p className="page-bar__crumb">
-            <Link to="/">Thực đơn</Link> / Giỏ hàng
+            <Link to="/menu">Thực đơn</Link> / Giỏ hàng
           </p>
           <h1 className="page-bar__title">Giỏ hàng của bạn</h1>
         </div>
@@ -129,7 +129,7 @@ export const CartPage = () => {
           icon={<ShoppingBag size={30} />}
           title="Giỏ hàng đang trống"
           description="Thêm vài chiếc bánh mì nóng giòn rồi quay lại đây nhé."
-          action={<Button onClick={() => navigate('/')}>Xem thực đơn</Button>}
+          action={<Button onClick={() => navigate('/menu')}>Xem thực đơn</Button>}
         />
       ) : (
         <div className="order-grid">

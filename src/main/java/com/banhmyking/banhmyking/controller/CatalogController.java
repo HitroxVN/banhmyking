@@ -1,9 +1,12 @@
 package com.banhmyking.banhmyking.controller;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,8 +21,14 @@ import com.banhmyking.banhmyking.dto.catalog.CategoryRequest;
 import com.banhmyking.banhmyking.dto.catalog.CategoryResponse;
 import com.banhmyking.banhmyking.dto.catalog.ProductRequest;
 import com.banhmyking.banhmyking.dto.catalog.ProductResponse;
+import com.banhmyking.banhmyking.dto.catalog.StockChangeRequest;
+import com.banhmyking.banhmyking.dto.catalog.StockMovementResponse;
 import com.banhmyking.banhmyking.dto.common.ApiResponse;
+import com.banhmyking.banhmyking.dto.common.PageResponse;
+import com.banhmyking.banhmyking.enums.ProductSort;
+import com.banhmyking.banhmyking.security.SecurityUtils;
 import com.banhmyking.banhmyking.service.CatalogService;
+import com.banhmyking.banhmyking.service.InventoryService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -34,6 +43,7 @@ import lombok.RequiredArgsConstructor;
 public class CatalogController {
 
     private final CatalogService catalogService;
+    private final InventoryService inventoryService;
 
     @GetMapping("/categories")
     @Operation(summary = "Danh sách danh mục",
@@ -69,14 +79,28 @@ public class CatalogController {
 
     @GetMapping("/products")
     @Operation(summary = "Danh sách sản phẩm",
-            description = "Chưa phân trang — trả toàn bộ danh sách khớp điều kiện lọc.")
-    public ResponseEntity<ApiResponse<List<ProductResponse>>> getProducts(
+            description = "Phân trang + tìm kiếm/lọc/sắp xếp phía server. Từ khoá tìm trên tên và mô tả, "
+                    + "không phân biệt hoa-thường và không phân biệt dấu.")
+    public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getProducts(
             @Parameter(description = "Lọc theo danh mục", example = "1")
             @RequestParam(required = false) Long categoryId,
             @Parameter(description = "Chỉ lấy sản phẩm đang bán", example = "true")
-            @RequestParam(defaultValue = "true") boolean availableOnly) {
+            @RequestParam(defaultValue = "true") boolean availableOnly,
+            @Parameter(description = "Từ khoá tìm theo tên/mô tả (bỏ dấu vẫn khớp)")
+            @RequestParam(required = false) String keyword,
+            @Parameter(description = "Chỉ lấy món nổi bật", example = "true")
+            @RequestParam(required = false) Boolean featured,
+            @Parameter(description = "Giá thấp nhất (bỏ trống = không lọc)")
+            @RequestParam(required = false) BigDecimal minPrice,
+            @Parameter(description = "Giá cao nhất (bỏ trống = không lọc)")
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @Parameter(description = "Cách sắp xếp")
+            @RequestParam(defaultValue = "FEATURED") ProductSort sort,
+            @Parameter(description = "Trang (0-based)") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Số món mỗi trang (tối đa 50)") @RequestParam(defaultValue = "12") int size) {
         return ResponseEntity.ok(ApiResponse.ok("Lấy danh sách sản phẩm thành công",
-                catalogService.getProducts(categoryId, availableOnly)));
+                catalogService.getProducts(categoryId, availableOnly, keyword, featured,
+                        minPrice, maxPrice, sort, page, size)));
     }
 
     @GetMapping("/products/{productId}")
@@ -109,6 +133,31 @@ public class CatalogController {
     public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable Long productId) {
         catalogService.deleteProduct(productId);
         return ResponseEntity.ok(ApiResponse.ok("Xóa sản phẩm thành công"));
+    }
+
+    @PostMapping("/products/{productId}/stock")
+    @Operation(summary = "Nhập hoặc điều chỉnh tồn kho",
+            description = "changeQty dương = nhập thêm, âm = giảm bớt. Sản phẩm chưa quản tồn thì "
+                    + "số dương đầu tiên đặt luôn tồn ban đầu. Cần quyền STAFF hoặc ADMIN.")
+    public ResponseEntity<ApiResponse<ProductResponse>> adjustStock(
+            @PathVariable Long productId,
+            @Valid @RequestBody StockChangeRequest request,
+            @AuthenticationPrincipal UserDetails principal) {
+        inventoryService.adjustStock(productId, request, SecurityUtils.requireUserId(principal));
+        return ResponseEntity.ok(ApiResponse.ok("Cập nhật tồn kho thành công", catalogService.getProduct(productId)));
+    }
+
+    @GetMapping("/products/{productId}/stock-movements")
+    @Operation(summary = "Sổ kho của sản phẩm",
+            description = "Các lần nhập/giảm tồn, mới nhất trước. Cần quyền STAFF hoặc ADMIN.")
+    public ResponseEntity<ApiResponse<PageResponse<StockMovementResponse>>> getStockMovements(
+            @PathVariable Long productId,
+            @Parameter(description = "Trang, bắt đầu từ 0", example = "0")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Số dòng mỗi trang, tối đa 50", example = "20")
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok("Lấy sổ kho thành công",
+                inventoryService.getMovements(productId, page, size)));
     }
 
     @PostMapping(value = "/products/upload-image", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)

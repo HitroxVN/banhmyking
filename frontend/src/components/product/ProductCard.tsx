@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Flame, Plus, Sandwich, Star } from 'lucide-react';
 import type { ProductItem } from '../../types/staff';
 import { formatCurrency } from '../../utils/formatters';
@@ -6,35 +7,25 @@ import '../../styles/components/product-card.css';
 
 export interface ProductCardProps {
   product: ProductItem;
-  /** Bấm ảnh / tên món → mở modal chọn topping */
-  onOpen: (product: ProductItem) => void;
-  /** Bấm nút + → thêm thẳng vào giỏ với số lượng 1 */
+  /** Bấm nút + (món không có topping) → thêm thẳng vào giỏ với số lượng 1 */
   onQuickAdd: (product: ProductItem) => void;
   isQuickAdding?: boolean;
 }
 
-export const ProductCard = ({ product, onOpen, onQuickAdd, isQuickAdding = false }: ProductCardProps) => {
+export const ProductCard = ({ product, onQuickAdd, isQuickAdding = false }: ProductCardProps) => {
   const [imgFailed, setImgFailed] = useState(false);
 
   const hasOptions = (product.options?.length ?? 0) > 0;
-  const disabled = !product.available;
+  // null = món không quản tồn: giữ nguyên hành vi cũ, chỉ chặn khi hết sạch hàng
+  const stock = product.stockQuantity ?? null;
+  const disabled = !product.available || (stock !== null && stock <= 0);
   const averageRating = product.averageRating ?? 0;
   const totalReviews = product.totalReviews ?? 0;
-
-  // Món có topping thì nút + mở modal để khách không vô tình bỏ quên lựa chọn
-  const handleAdd = () => {
-    if (hasOptions) onOpen(product);
-    else onQuickAdd(product);
-  };
+  const detailPath = `/products/${product.id}`;
 
   return (
     <article className={`pcard${disabled ? ' pcard--out' : ''}`}>
-      <div className="pcard__media" onClick={() => onOpen(product)} role="button" tabIndex={0}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') onOpen(product);
-        }}
-        aria-label={`Xem chi tiết ${product.name}`}
-      >
+      <Link className="pcard__media" to={detailPath} aria-label={`Xem chi tiết ${product.name}`}>
         {product.imageUrl && !imgFailed ? (
           <img
             className="pcard__img"
@@ -65,29 +56,47 @@ export const ProductCard = ({ product, onOpen, onQuickAdd, isQuickAdding = false
             <span className="pcard__rating-count">({totalReviews})</span>
           </span>
         )}
-      </div>
+      </Link>
 
       <div className="pcard__body">
         <h3 className="pcard__name" title={product.name}>
-          {product.name}
+          <Link className="pcard__name-link" to={detailPath}>
+            {product.name}
+          </Link>
         </h3>
         {product.description && <p className="pcard__desc">{product.description}</p>}
 
-        {/* Món có topping: nút + mở modal nên nói trước cho khách khỏi bất ngờ */}
+        {/* Món có topping: nút + dẫn sang trang chi tiết để khách không vô tình bỏ quên lựa chọn */}
         {hasOptions && !disabled && <span className="pcard__hint">Chọn topping</span>}
 
         <div className="pcard__foot">
           <span className="pcard__price">{formatCurrency(product.price)}</span>
-          <button
-            type="button"
-            className="pcard__add"
-            onClick={handleAdd}
-            disabled={disabled || isQuickAdding}
-            title={hasOptions ? 'Chọn topping' : 'Thêm vào giỏ'}
-            aria-label={`Thêm ${product.name} vào giỏ`}
-          >
-            <Plus size={18} />
-          </button>
+          {stock !== null && (
+            <span className={`pcard__stock${product.lowStock || stock <= 0 ? ' pcard__stock--low' : ''}`}>
+              {stock <= 0 ? 'Hết hàng' : product.lowStock ? `Sắp hết: ${stock}` : `Còn ${stock}`}
+            </span>
+          )}
+          {hasOptions && !disabled ? (
+            <Link
+              className="pcard__add"
+              to={detailPath}
+              title="Chọn topping"
+              aria-label={`Chọn topping cho ${product.name}`}
+            >
+              <Plus size={18} />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              className="pcard__add"
+              onClick={() => onQuickAdd(product)}
+              disabled={disabled || isQuickAdding}
+              title="Thêm vào giỏ"
+              aria-label={`Thêm ${product.name} vào giỏ`}
+            >
+              <Plus size={18} />
+            </button>
+          )}
         </div>
       </div>
     </article>

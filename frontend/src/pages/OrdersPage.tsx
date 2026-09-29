@@ -79,10 +79,10 @@ export const OrdersPage = () => {
     <div>
       <div className="page-bar">
         <div>
-          <p className="page-bar__crumb">Trang chủ / Đơn hàng</p>
+          <p className="page-bar__crumb">Thực đơn / Đơn hàng</p>
           <h1 className="page-bar__title">Đơn hàng của tôi</h1>
         </div>
-        <Button variant="secondary" icon={<Receipt size={17} />} onClick={() => navigate('/')}>
+        <Button variant="secondary" icon={<Receipt size={17} />} onClick={() => navigate('/menu')}>
           Đặt món mới
         </Button>
       </div>
@@ -120,7 +120,7 @@ export const OrdersPage = () => {
           }
           action={
             filter === 'ALL' ? (
-              <Button onClick={() => navigate('/')}>Xem thực đơn</Button>
+              <Button onClick={() => navigate('/menu')}>Xem thực đơn</Button>
             ) : (
               <Button variant="secondary" onClick={() => changeFilter('ALL')}>
                 Xem tất cả

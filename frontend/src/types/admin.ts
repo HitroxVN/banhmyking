@@ -77,3 +77,22 @@ export interface PageResponse<T> {
   totalPages: number;
   last: boolean;
 }
+
+/** Một dòng bảng "món bán chạy" từ /admin/reports/top-products */
+export interface TopProduct {
+  /** null khi món đã bị xoá cứng — tên vẫn hiện theo snapshot lúc bán */
+  productId: number | null;
+  productName: string;
+  quantitySold: number;
+  revenue: number;
+}
+
+/** Loại báo cáo xuất CSV — khớp enum ReportType ở backend */
+export type ReportType = 'TOP_PRODUCTS' | 'REVENUE_BY_DAY' | 'REVENUE_BY_CATEGORY' | 'REVENUE_BY_SHIPPER';
+
+export interface ReportFilterParams {
+  /** yyyy-MM-dd; bỏ trống = backend tự lấy 30 ngày gần nhất */
+  fromDate?: string;
+  toDate?: string;
+  limit?: number;
+}

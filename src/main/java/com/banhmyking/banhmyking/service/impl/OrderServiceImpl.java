@@ -93,6 +93,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderCodeGenerator orderCodeGenerator;
     private final OrderStatusValidator orderStatusValidator;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private final com.banhmyking.banhmyking.service.InventoryService inventoryService;
 
     /** Số phút tối đa một đơn PENDING chưa thanh toán được phép treo trước khi bị tự huỷ. */
     @org.springframework.beans.factory.annotation.Value("${order.pending-timeout-minutes:30}")
@@ -585,8 +586,9 @@ public class OrderServiceImpl implements OrderService {
             paymentService.refundPayment(order, payment.getAmount(),
                     reason != null ? reason : "Huỷ đơn sau khi đã thanh toán", actor.getId());
         }
-        // Trả lại lượt mã khuyến mãi đã tiêu cho đơn này.
+        // Trả lại lượt mã khuyến mãi đã tiêu cho đơn này, và hoàn hàng đã giữ về kho.
         promotionService.releaseForOrder(order);
+        inventoryService.restoreForOrder(order);
 
         Order updatedOrder = orderRepository.save(order);
 
@@ -715,6 +717,12 @@ public class OrderServiceImpl implements OrderService {
                         "Giao hàng thất bại, hoàn tiền cho khách", actor.getId());
             }
             promotionService.releaseForOrder(order);
+            inventoryService.restoreForOrder(order);
+        }
+
+        // Xác nhận đơn là lúc giữ hàng: trừ tồn ngay, không đủ thì fail cả đơn.
+        if (toStatus == OrderStatus.CONFIRMED) {
+            inventoryService.decreaseForOrder(order);
         }
 
         order.setStatus(toStatus);

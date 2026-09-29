@@ -60,6 +60,9 @@ class OrderServiceApisTest {
     @Mock
     private PaymentService paymentService;
 
+    @Mock
+    private InventoryService inventoryService;
+
     @InjectMocks
     private OrderServiceImpl orderService;
 

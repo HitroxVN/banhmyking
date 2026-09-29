@@ -60,4 +60,20 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     long countByShipperIdAndStatusInAndIdNot(Long shipperId, List<OrderStatus> statuses, Long orderId);
 
     List<Order> findByCreatedAtGreaterThanEqualOrderByCreatedAtAsc(java.time.LocalDateTime startDate);
+
+    /** Đơn trong [from, to) — dùng cho báo cáo doanh thu theo ngày (gộp ở tầng service, xem dashboard). */
+    List<Order> findByCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+            java.time.LocalDateTime from, java.time.LocalDateTime to);
+
+    /** Doanh thu theo tài xế trong [from, to). Đơn chưa gán tài xế không thuộc báo cáo này. */
+    @Query("SELECT new com.banhmyking.banhmyking.dto.report.ShipperRevenueResponse("
+            + "s.id, s.fullName, COUNT(o.id), SUM(o.total)) "
+            + "FROM Order o JOIN o.shipper s "
+            + "WHERE o.status NOT IN (com.banhmyking.banhmyking.enums.OrderStatus.CANCELLED, "
+            + "com.banhmyking.banhmyking.enums.OrderStatus.FAILED) "
+            + "AND o.createdAt >= :from AND o.createdAt < :to "
+            + "GROUP BY s.id, s.fullName "
+            + "ORDER BY SUM(o.total) DESC")
+    java.util.List<com.banhmyking.banhmyking.dto.report.ShipperRevenueResponse> findRevenueByShipper(
+            @Param("from") java.time.LocalDateTime from, @Param("to") java.time.LocalDateTime to);
 }

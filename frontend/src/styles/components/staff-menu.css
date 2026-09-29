@@ -148,6 +148,57 @@
   accent-color: var(--primary-600);
 }
 
+/* Nhóm lựa chọn (Size/Topping) trong form món */
+.smenu__groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--stone-50);
+}
+
+.smenu__groups-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.smenu__groups-empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--stone-500);
+}
+
+.smenu__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.smenu__group-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.smenu__group-row .ui-field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Hàng lựa chọn thụt vào để thấy nó thuộc nhóm nào */
+.smenu__group-row--opt {
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--border);
+}
+
 .smenu__uploading {
   display: flex;
   align-items: center;
@@ -227,6 +278,159 @@
 }
 
 .smenu__url-toggle:hover { text-decoration: underline; }
+
+/* Hàng tồn kho trên thẻ món (màn bếp) */
+.smenu__stock-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.smenu__stock {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--stone-500);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Chạm ngưỡng cảnh báo: đổi màu để bếp liếc là thấy */
+.smenu__stock--low { color: var(--warning); }
+
+/* Modal nhập kho */
+.stockadj__now {
+  margin: 0;
+  font-weight: 700;
+  color: var(--stone-700);
+}
+
+.stockadj__after {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--stone-600);
+}
+
+.stockadj__log {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.stockadj__log-title {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--stone-500);
+}
+
+.stockadj__log-empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--stone-500);
+}
+
+.stockadj__log-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.stockadj__log-item {
+  display: grid;
+  grid-template-columns: 46px 1fr auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.stockadj__delta {
+  font-weight: 800;
+  color: var(--success);
+  font-variant-numeric: tabular-nums;
+}
+
+.stockadj__delta--out { color: var(--danger); }
+
+.stockadj__log-main {
+  color: var(--stone-700);
+  overflow-wrap: anywhere;
+}
+
+.stockadj__log-time {
+  font-size: var(--text-xs);
+  color: var(--stone-500);
+  white-space: nowrap;
+}
+
+/* Bộ ảnh chi tiết — ô thêm ảnh trong form món */
+.gal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.gal__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.gal__img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.gal__actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.gal__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--stone-600);
+  cursor: pointer;
+}
+
+.gal__btn:hover:not(:disabled) {
+  border-color: var(--primary-300);
+  color: var(--primary-700);
+}
+
+.gal__btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.gal__btn--del:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.gal__hint {
+  font-size: var(--text-xs);
+  color: var(--stone-500);
+  font-style: normal;
+}
 
 @media (max-width: 720px) {
   .smenu__search,

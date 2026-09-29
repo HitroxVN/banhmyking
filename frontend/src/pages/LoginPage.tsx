@@ -4,6 +4,7 @@ import { CircleCheck, Eye, EyeOff, Hand, Lock, Mail, TriangleAlert } from 'lucid
 import { authApi } from '../api/authApi';
 import type { ApiError } from '../api/axiosClient';
 import { BrandLockup } from '../components/layout/BrandLockup';
+import { roleHomePath } from '../components/layout/navItems';
 import { useAuth } from '../context/useAuth';
 
 import { tokenStorage } from '../utils/tokenStorage';
@@ -26,18 +27,10 @@ export const LoginPage: React.FC = () => {
   const [resendNotice, setResendNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isResending, setIsResending] = useState(false);
 
-  // Nếu đã đăng nhập: Admin chuyển thẳng về /admin, Staff về /staff, user thông thường về trang chủ
+  // Nếu đã đăng nhập: mỗi vai trò về đúng phân hệ của mình (khách về thực đơn)
   useEffect(() => {
     if (isAuthenticated) {
-      if (user?.role === 'ADMIN') {
-        navigate('/admin', { replace: true });
-      } else if (user?.role === 'STAFF') {
-        navigate('/staff', { replace: true });
-      } else if (user?.role === 'SHIPPER') {
-        navigate('/shipper', { replace: true });
-      } else {
-        navigate('/', { replace: true });
-      }
+      navigate(roleHomePath(user?.role), { replace: true });
     }
   }, [isAuthenticated, user, navigate]);
 
@@ -88,16 +81,9 @@ export const LoginPage: React.FC = () => {
     try {
       await login({ email: email.trim(), password });
       const current = tokenStorage.getUserInfo();
-      if (current?.role === 'ADMIN') {
-        navigate('/admin', { replace: true });
-      } else if (current?.role === 'STAFF') {
-        navigate('/staff', { replace: true });
-      } else if (current?.role === 'SHIPPER') {
-        navigate('/shipper', { replace: true });
-      } else {
-        const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/';
-        navigate(from, { replace: true });
-      }
+      // Bị đá về đăng nhập từ một trang cụ thể thì quay lại đó, không thì về trang chủ của vai trò
+      const from = (location.state as { from?: { pathname?: string } })?.from?.pathname;
+      navigate(from || roleHomePath(current?.role), { replace: true });
     } catch (err: unknown) {
       const errObj = err as ApiError;
       setErrorMessage(errObj.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại email hoặc mật khẩu.');

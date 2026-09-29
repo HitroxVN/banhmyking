@@ -5,6 +5,7 @@ import {
   Crown,
   FolderTree,
   LayoutDashboard,
+  LineChart,
   Settings,
   Star,
   Ticket,
@@ -73,6 +74,7 @@ export const ADMIN_NAV: NavItem[] = [
   { to: '/admin/orders', label: 'Đơn hàng', icon: ClipboardList },
   { to: '/admin/categories', label: 'Danh mục món', icon: FolderTree },
   { to: '/admin/promotions', label: 'Mã giảm giá', icon: Ticket },
+  { to: '/admin/reports', label: 'Báo cáo', icon: LineChart },
   { to: '/admin/reviews', label: 'Đánh giá', icon: Star },
   { to: '/admin/users', label: 'Tài khoản', icon: Users },
   { to: '/admin/settings', label: 'Cấu hình trang web', icon: Settings },
@@ -88,6 +90,7 @@ export const roleHomePath = (role: RoleName | undefined): string => {
     case 'SHIPPER':
       return '/shipper';
     default:
-      return '/';
+      // Khách vào thẳng thực đơn: `/` giờ là trang giới thiệu, không phải chỗ đặt món
+      return '/menu';
   }
 };

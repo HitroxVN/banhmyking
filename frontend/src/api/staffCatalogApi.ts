@@ -1,10 +1,12 @@
 import { axiosClient } from './axiosClient';
 import type { ApiResponse } from '../types/auth';
+import type { PageResponse } from '../types/admin';
 import type {
   CategoryItem,
   ProductItem,
   ProductCreatePayload,
   ProductUpdatePayload,
+  StockMovement,
 } from '../types/staff';
 
 export interface CategoryPayload {
@@ -46,16 +48,28 @@ export const staffCatalogApi = {
   },
 
   /**
-   * Lấy danh sách món ăn (Staff cần xem cả món còn lẫn món đã hết -> availableOnly = false)
+   * Lấy danh sách món ăn (Staff cần xem cả món còn lẫn món đã hết -> availableOnly = false).
+   *
+   * Endpoint trả theo trang; màn quản lý cần đủ bộ món để đếm và tìm tại chỗ nên gom hết
+   * các trang lại. `content` rỗng cũng dừng vòng lặp — phòng khi cờ `last` sai thì không treo.
    */
   async getProducts(categoryId?: number, availableOnly: boolean = false): Promise<ProductItem[]> {
-    const res = await axiosClient.get<ApiResponse<ProductItem[]>>('/catalog/products', {
-      params: {
-        categoryId,
-        availableOnly,
-      },
-    });
-    return res.data.data;
+    const all: ProductItem[] = [];
+    for (let page = 0; ; page += 1) {
+      const res = await axiosClient.get<ApiResponse<PageResponse<ProductItem>>>('/catalog/products', {
+        params: {
+          categoryId,
+          availableOnly,
+          page,
+          size: 50,
+        },
+      });
+      const data = res.data.data;
+      all.push(...data.content);
+      if (data.last || data.content.length === 0) {
+        return all;
+      }
+    }
   },
 
   /**
@@ -75,7 +89,10 @@ export const staffCatalogApi = {
   },
 
   /**
-   * Bật/Tắt nhanh tình trạng còn hàng / hết hàng (1 chạm)
+   * Bật/Tắt nhanh tình trạng còn hàng / hết hàng (1 chạm).
+   *
+   * Cố ý KHÔNG gửi `options`/`optionGroups`: bỏ trống hai field đó nghĩa là giữ nguyên, còn
+   * gửi lên sẽ thay toàn bộ — gửi `options` ở đây sẽ kéo lựa chọn đang thuộc nhóm ra phẳng.
    */
   async toggleProductAvailability(product: ProductItem): Promise<ProductItem> {
     const payload: ProductUpdatePayload = {
@@ -86,7 +103,6 @@ export const staffCatalogApi = {
       price: product.price,
       available: !product.available,
       featured: product.featured,
-      options: product.options?.map((o) => ({ name: o.name, extraPrice: o.extraPrice })),
     };
     const res = await axiosClient.put<ApiResponse<ProductItem>>(`/catalog/products/${product.id}`, payload);
     return res.data.data;
@@ -111,6 +127,28 @@ export const staffCatalogApi = {
       },
     });
     return res.data.data;
+  },
+
+  /**
+   * Nhập hoặc điều chỉnh tồn kho (changeQty âm = giảm). Mọi thay đổi đều vào sổ kho.
+   */
+  async adjustStock(productId: number, changeQty: number, note?: string): Promise<ProductItem> {
+    const res = await axiosClient.post<ApiResponse<ProductItem>>(`/catalog/products/${productId}/stock`, {
+      changeQty,
+      note,
+    });
+    return res.data.data;
+  },
+
+  /**
+   * Sổ kho gần đây của một món (mới nhất trước)
+   */
+  async getStockMovements(productId: number, size = 8): Promise<StockMovement[]> {
+    const res = await axiosClient.get<ApiResponse<PageResponse<StockMovement>>>(
+      `/catalog/products/${productId}/stock-movements`,
+      { params: { size } },
+    );
+    return res.data.data.content;
   },
 };
 

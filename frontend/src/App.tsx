@@ -15,18 +15,23 @@ import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { MenuPage } from './pages/MenuPage';
+import { LandingPage } from './pages/LandingPage';
+import { ProductDetailPage } from './pages/ProductDetailPage';
+import { AboutPage, ContactPage, FaqPage, PrivacyPage, TermsPage } from './pages/static/StaticPages';
 import { CartPage } from './pages/CartPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { PaymentPage } from './pages/PaymentPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { OrderTrackingPage } from './pages/OrderTrackingPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { PromotionsPage } from './pages/PromotionsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ReviewManagerPage } from './pages/ReviewManagerPage';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
 import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage';
 import { AdminPromotionsPage } from './pages/admin/AdminPromotionsPage';
+import { AdminReportsPage } from './pages/admin/AdminReportsPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminSiteSettingsPage } from './pages/admin/AdminSiteSettingsPage';
 import { StaffOrderQueuePage } from './pages/staff/StaffOrderQueuePage';
@@ -50,16 +55,26 @@ export const App: FC = () => (
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-              {/* Khách hàng */}
+              {/* Khách hàng — phần này mở cho cả người chưa đăng nhập */}
               <Route element={<CustomerLayout />}>
+                <Route index element={<LandingPage />} />
+                <Route path="menu" element={<MenuPage />} />
+                <Route path="products/:productId" element={<ProductDetailPage />} />
+                <Route path="about" element={<AboutPage />} />
+                <Route path="contact" element={<ContactPage />} />
+                <Route path="faq" element={<FaqPage />} />
+                <Route path="terms" element={<TermsPage />} />
+                <Route path="privacy" element={<PrivacyPage />} />
+
+                {/* Cần đăng nhập */}
                 <Route element={<RequireAuth />}>
-                  <Route index element={<MenuPage />} />
                   <Route path="cart" element={<CartPage />} />
                   <Route path="checkout" element={<CheckoutPage />} />
                   <Route path="payment/:orderCode" element={<PaymentPage />} />
                   <Route path="orders" element={<OrdersPage />} />
                   <Route path="orders/:orderCode" element={<OrderTrackingPage />} />
                   <Route path="profile" element={<ProfilePage />} />
+                  <Route path="promotions" element={<PromotionsPage />} />
                 </Route>
               </Route>
 
@@ -71,6 +86,7 @@ export const App: FC = () => (
                   <Route path="orders" element={<AdminOrdersPage />} />
                   <Route path="categories" element={<AdminCategoriesPage />} />
                   <Route path="promotions" element={<AdminPromotionsPage />} />
+                  <Route path="reports" element={<AdminReportsPage />} />
                   <Route path="reviews" element={<ReviewManagerPage />} />
                   <Route path="users" element={<AdminUsersPage />} />
                   <Route path="settings" element={<AdminSiteSettingsPage />} />

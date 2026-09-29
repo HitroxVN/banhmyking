@@ -228,6 +228,13 @@
   border-radius: var(--radius-full);
 }
 
+/* Khách chưa đăng nhập: hai nút thay cho cụm avatar + dropdown */
+.cshop__auth {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .cshop__user {
   position: relative;
 }
@@ -396,6 +403,20 @@ img.dash__avatar {
   color: var(--stone-600);
   font-weight: 500;
   text-decoration: none;
+}
+
+.cshop__foot-legal {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.cshop__foot-legal a {
+  color: var(--stone-500);
+  text-decoration: none;
+}
+
+.cshop__foot-legal a:hover {
+  color: var(--primary-700);
 }
 
 .cshop__foot-col a:hover {

@@ -6,6 +6,7 @@ import com.banhmyking.banhmyking.dto.cart.UpdateCartItemRequest;
 import com.banhmyking.banhmyking.entity.Cart;
 import com.banhmyking.banhmyking.entity.CartItem;
 import com.banhmyking.banhmyking.entity.CartItemOption;
+import com.banhmyking.banhmyking.entity.OptionGroup;
 import com.banhmyking.banhmyking.entity.Product;
 import com.banhmyking.banhmyking.entity.ProductOption;
 import com.banhmyking.banhmyking.entity.User;
@@ -14,6 +15,7 @@ import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
 import com.banhmyking.banhmyking.repository.CartItemRepository;
 import com.banhmyking.banhmyking.repository.CartRepository;
+import com.banhmyking.banhmyking.repository.OptionGroupRepository;
 import com.banhmyking.banhmyking.repository.ProductOptionRepository;
 import com.banhmyking.banhmyking.repository.ProductRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
@@ -54,7 +56,13 @@ class CartServiceTest {
     private ProductOptionRepository productOptionRepository;
 
     @Mock
+    private OptionGroupRepository optionGroupRepository;
+
+    @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private InventoryService inventoryService;
 
     @InjectMocks
     private CartServiceImpl cartService;
@@ -383,5 +391,132 @@ class CartServiceTest {
         assertThat(response.getItems().get(0).getUnitPrice()).isEqualByComparingTo(BigDecimal.valueOf(35000));
         assertThat(response.getItems().get(0).getSubtotal()).isEqualByComparingTo(BigDecimal.valueOf(105000));
         assertThat(response.getSubtotal()).isEqualByComparingTo(BigDecimal.valueOf(105000));
+    }
+
+    // ─── Luật nhóm lựa chọn (size bắt buộc / topping tối đa) ────────────────────────
+
+    /** Nhóm "Size": bắt buộc, tối đa 1. */
+    private OptionGroup requiredSingleChoiceGroup(Long id, String name) {
+        OptionGroup group = new OptionGroup();
+        group.setId(id);
+        group.setProduct(availableProduct);
+        group.setName(name);
+        group.setRequired(true);
+        group.setMaxChoices(1);
+        return group;
+    }
+
+    private ProductOption optionInGroup(Long id, String name, OptionGroup group) {
+        ProductOption option = new ProductOption();
+        option.setId(id);
+        option.setProduct(availableProduct);
+        option.setName(name);
+        option.setExtraPrice(BigDecimal.valueOf(5000));
+        option.setGroup(group);
+        return option;
+    }
+
+    private AddToCartRequest cartRequest(List<Long> optionIds) {
+        return AddToCartRequest.builder()
+                .productId(10L)
+                .quantity(1)
+                .optionIds(optionIds)
+                .build();
+    }
+
+    /** Phần dựng sẵn chung cho mọi test addToCart: user, món đang bán. */
+    private void stubCartPrologue() {
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testUser));
+        when(productRepository.findByIdAndDeletedFalse(10L)).thenReturn(Optional.of(availableProduct));
+    }
+
+    /** Phần dựng sẵn cho nhánh đi tới lúc lưu được món vào giỏ. */
+    private void stubSuccessfulSave() {
+        when(cartRepository.findByUserId(1L)).thenReturn(Optional.empty());
+        when(cartRepository.save(any(Cart.class))).thenAnswer(invocation -> {
+            Cart cart = invocation.getArgument(0);
+            cart.setId(100L);
+            return cart;
+        });
+    }
+
+    /** Món có nhóm "Size" bắt buộc; {@code allOptions} là toàn bộ lựa chọn của món. */
+    private void stubSizeGroup(ProductOption... allOptions) {
+        OptionGroup group = requiredSingleChoiceGroup(200L, "Size");
+        when(optionGroupRepository.findByProductIdOrderBySortOrderAscIdAsc(10L)).thenReturn(List.of(group));
+        when(productOptionRepository.findByProductIdOrderByIdAsc(10L)).thenReturn(List.of(allOptions));
+    }
+
+    @Test
+    @DisplayName("Nhóm bắt buộc: bỏ trống lựa chọn thì bị chặn")
+    void addToCart_whenRequiredGroupNotChosen_shouldReject() {
+        stubCartPrologue();
+        stubSizeGroup();
+
+        assertThatThrownBy(() -> cartService.addToCart(1L, cartRequest(List.of())))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Size");
+
+        verify(cartRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Nhóm maxChoices = 1: chọn 2 lựa chọn thì bị chặn")
+    void addToCart_whenExceedingMaxChoices_shouldReject() {
+        OptionGroup group = requiredSingleChoiceGroup(200L, "Size");
+        ProductOption small = optionInGroup(101L, "Size nhỏ", group);
+        ProductOption large = optionInGroup(102L, "Size lớn", group);
+        stubCartPrologue();
+        stubSizeGroup(small, large);
+        when(productOptionRepository.findAllById(any())).thenReturn(List.of(small, large));
+
+        assertThatThrownBy(() -> cartService.addToCart(1L, cartRequest(List.of(101L, 102L))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("tối đa 1");
+
+        verify(cartRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Nhóm bắt buộc: chọn đúng 1 lựa chọn thì qua")
+    void addToCart_whenRequiredGroupSatisfied_shouldSucceed() {
+        OptionGroup group = requiredSingleChoiceGroup(200L, "Size");
+        ProductOption large = optionInGroup(102L, "Size lớn", group);
+        stubCartPrologue();
+        stubSuccessfulSave();
+        stubSizeGroup(large);
+        when(productOptionRepository.findAllById(any())).thenReturn(List.of(large));
+
+        CartResponse response = cartService.addToCart(1L, cartRequest(List.of(102L)));
+
+        assertThat(response.getItems()).hasSize(1);
+        assertThat(response.getItems().get(0).getOptions()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Lựa chọn phẳng (không nhóm) KHÔNG tính là đã chọn nhóm bắt buộc")
+    void addToCart_whenOnlyLegacyOptionChosen_shouldStillRequireGroup() {
+        // Món có nhóm bắt buộc "Size", khách chọn đúng option phẳng cũ → vẫn phải bị chặn:
+        // option không nhóm không thuộc nhóm nào để mà thoả điều kiện bắt buộc.
+        stubCartPrologue();
+        stubSizeGroup(optionPate);
+        when(productOptionRepository.findAllById(any())).thenReturn(List.of(optionPate));
+
+        assertThatThrownBy(() -> cartService.addToCart(1L, cartRequest(List.of(101L))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Size");
+    }
+
+    @Test
+    @DisplayName("Món không có nhóm nào: giữ nguyên hành vi cũ, không chặn gì")
+    void addToCart_whenProductHasNoGroups_shouldNotEnforceAnything() {
+        stubCartPrologue();
+        stubSuccessfulSave();
+        when(optionGroupRepository.findByProductIdOrderBySortOrderAscIdAsc(10L)).thenReturn(List.of());
+        when(productOptionRepository.findAllById(any())).thenReturn(List.of(optionPate));
+
+        CartResponse response = cartService.addToCart(1L, cartRequest(List.of(101L)));
+
+        assertThat(response.getItems()).hasSize(1);
     }
 }

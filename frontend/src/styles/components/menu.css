@@ -255,6 +255,7 @@
   font-weight: 700;
   color: var(--primary-700);
   cursor: pointer;
+  text-decoration: none;
   transition: background .15s, color .15s;
 }
 
@@ -268,10 +269,79 @@
   position: sticky;
   top: var(--cshop-nav-h);
   z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   margin-bottom: var(--space-5);
   padding: var(--space-3) 0;
   background: var(--bg-page);
   border-bottom: 1px solid var(--border);
+}
+
+/* Dãy chip chiếm phần còn lại và tự cuộn ngang; giấu thanh cuộn để không lệch hàng với ô sắp xếp */
+.menu__filterbar .ui-chips {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 0;
+  scrollbar-width: none;
+}
+
+.menu__filterbar .ui-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.menu__filterbar .ui-field {
+  flex-shrink: 0;
+}
+
+.menu__sort {
+  width: 170px;
+}
+
+/* Khoảng giá: hai ô nhỏ cạnh nhau, không dùng ui-field cho gọn thanh lọc */
+.menu__price {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.menu__price-input {
+  width: 96px;
+  padding: 7px var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--stone-800);
+}
+
+.menu__price-input:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px var(--primary-100);
+}
+
+.menu__price-dash {
+  color: var(--stone-400);
+}
+
+.menu__clear {
+  flex-shrink: 0;
+  padding: 8px var(--space-3);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--danger);
+  cursor: pointer;
+}
+
+.menu__clear:hover {
+  background: var(--stone-100);
 }
 
 .menu__featured {
@@ -369,4 +439,10 @@
 
 @media (max-width: 560px) {
   .menu__promise-grid { grid-template-columns: minmax(0, 1fr); }
+  /* Một hàng không đủ chỗ: chip giữ hàng riêng, ô sắp xếp giãn hết bề ngang */
+  .menu__filterbar { flex-wrap: wrap; }
+  .menu__filterbar .ui-field { width: 100%; }
+  .menu__sort { width: 100%; }
+  .menu__price { width: 100%; }
+  .menu__price-input { flex: 1; width: auto; }
 }

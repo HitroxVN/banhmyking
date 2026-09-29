@@ -1,24 +1,42 @@
 import { axiosClient } from './axiosClient';
 import type { ApiResponse } from '../types/auth';
+import type { PageResponse } from '../types/admin';
 import type { CategoryItem, ProductItem } from '../types/staff';
 
+/** Cách sắp xếp thực đơn — phải khớp whitelist `ProductSort` của backend. */
+export type ProductSortValue = 'FEATURED' | 'PRICE_ASC' | 'PRICE_DESC' | 'NAME' | 'NEWEST';
+
 /**
- * Thực đơn dành cho khách.
- * Lưu ý: backend `GET /catalog/products` chỉ nhận `categoryId` + `availableOnly`
- * (trả về List, không phân trang) — nên tìm kiếm/lọc/phân trang được xử lý ở client.
+ * Bộ lọc thực đơn. Backend tìm/lọc/sắp xếp/phân trang hết — frontend không lọc lại
+ * trên kết quả, vì kết quả chỉ là một trang chứ không phải toàn bộ danh sách.
  */
+export interface ProductSearchParams {
+  keyword?: string;
+  categoryId?: number;
+  availableOnly?: boolean;
+  featured?: boolean;
+  /** Giá thấp nhất — bỏ trống = không lọc. Backend bỏ qua mốc <= 0. */
+  minPrice?: number;
+  /** Giá cao nhất — bỏ trống = không lọc. */
+  maxPrice?: number;
+  sort?: ProductSortValue;
+  /** 0-based, khớp backend (UI hiển thị 1-based) */
+  page?: number;
+  size?: number;
+}
+
 export const catalogApi = {
   async getCategories(): Promise<CategoryItem[]> {
     const res = await axiosClient.get<ApiResponse<CategoryItem[]>>('/catalog/categories');
     return res.data.data ?? [];
   },
 
-  /** Chỉ lấy món đang bán (availableOnly mặc định true) */
-  async getProducts(categoryId?: number, availableOnly: boolean = true): Promise<ProductItem[]> {
-    const res = await axiosClient.get<ApiResponse<ProductItem[]>>('/catalog/products', {
-      params: { categoryId, availableOnly },
+  /** Một trang thực đơn đã lọc/sắp xếp sẵn ở server */
+  async getProducts(params: ProductSearchParams = {}): Promise<PageResponse<ProductItem>> {
+    const res = await axiosClient.get<ApiResponse<PageResponse<ProductItem>>>('/catalog/products', {
+      params,
     });
-    return res.data.data ?? [];
+    return res.data.data;
   },
 
   /** Chi tiết 1 món kèm danh sách topping */

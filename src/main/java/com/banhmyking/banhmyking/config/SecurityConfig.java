@@ -76,7 +76,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/health/**").permitAll()
                         // Nội dung website: trang login cũng cần đọc tên web nên mở công khai phần GET
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/site-settings").permitAll()
-                        .requestMatchers("/api/v1/promotions/**").permitAll()
+                        // Chỉ 2 endpoint tra cứu mã là công khai; ví mã yêu cầu đăng nhập (khớp rule authenticated bên dưới)
+                        .requestMatchers("/api/v1/promotions/public", "/api/v1/promotions/validate").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/products/**").permitAll()
                         .requestMatchers(
                                 "/swagger-ui/**",

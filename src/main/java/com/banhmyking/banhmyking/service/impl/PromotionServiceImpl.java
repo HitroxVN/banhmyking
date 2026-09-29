@@ -5,6 +5,7 @@ import com.banhmyking.banhmyking.dto.promotion.PromotionResponse;
 import com.banhmyking.banhmyking.dto.promotion.PublicPromotionResponse;
 import com.banhmyking.banhmyking.dto.promotion.UpdatePromotionRequest;
 import com.banhmyking.banhmyking.dto.promotion.ValidatePromotionRequest;
+import com.banhmyking.banhmyking.dto.promotion.WalletPromotionResponse;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.Promotion;
 import com.banhmyking.banhmyking.entity.PromotionUsage;
@@ -24,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -334,6 +336,42 @@ public class PromotionServiceImpl implements PromotionService {
                         promotion.getMinOrderAmount(),
                         promotion.getEndsAt()))
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<WalletPromotionResponse> getWallet(Long userId) {
+        Set<Long> usedPromotionIds = new HashSet<>(promotionUsageRepository.findPromotionIdsByUserId(userId));
+
+        List<WalletPromotionResponse> wallet = new ArrayList<>(promotionRepository.findUsableAt(LocalDateTime.now())
+                .stream()
+                .filter(promotion -> !usedPromotionIds.contains(promotion.getId()))
+                .map(promotion -> toWalletItem(promotion, false, null, null, null))
+                .toList());
+
+        promotionUsageRepository.findByUserIdWithDetails(userId)
+                .stream()
+                .map(usage -> toWalletItem(usage.getPromotion(), true, usage.getCreatedAt(),
+                        usage.getOrder().getOrderCode(), usage.getDiscountApplied()))
+                .forEach(wallet::add);
+
+        return wallet;
+    }
+
+    private WalletPromotionResponse toWalletItem(Promotion promotion, boolean used,
+            LocalDateTime usedAt, String orderCode, BigDecimal discountApplied) {
+        return new WalletPromotionResponse(
+                promotion.getCode(),
+                promotion.getDescription(),
+                promotion.getDiscountType(),
+                promotion.getValue(),
+                promotion.getMaxDiscountAmount(),
+                promotion.getMinOrderAmount(),
+                promotion.getEndsAt(),
+                used,
+                usedAt,
+                orderCode,
+                discountApplied);
     }
 
     @Override

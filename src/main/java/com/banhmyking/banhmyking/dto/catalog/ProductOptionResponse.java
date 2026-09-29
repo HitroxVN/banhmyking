@@ -11,4 +11,6 @@ public class ProductOptionResponse {
     private Long id;
     private String name;
     private BigDecimal extraPrice;
+    /** NULL = option phẳng không thuộc nhóm nào (dữ liệu cũ). */
+    private Long groupId;
 }

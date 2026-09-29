@@ -1,6 +1,7 @@
 package com.banhmyking.banhmyking.service;
 
 import com.banhmyking.banhmyking.dto.promotion.PublicPromotionResponse;
+import com.banhmyking.banhmyking.dto.promotion.WalletPromotionResponse;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.Promotion;
 import com.banhmyking.banhmyking.entity.PromotionUsage;
@@ -377,5 +378,79 @@ class PromotionServiceTest {
         List<PublicPromotionResponse> result = promotionService.getPublicPromotions();
 
         assertThat(result).extracting(PublicPromotionResponse::code).containsExactly("CON_DUNG");
+    }
+
+    // ---------- getWallet: ví mã của khách ----------
+
+    @Test
+    @DisplayName("Ví mã: mã còn dùng được đánh dấu chưa dùng, các field đơn hàng để trống")
+    void getWallet_availableItems_areMarkedUnusedWithoutOrderFields() {
+        when(promotionRepository.findUsableAt(any(LocalDateTime.class)))
+                .thenReturn(List.of(usablePromotion(100L, "CON_DUNG", BigDecimal.valueOf(50000))));
+        when(promotionUsageRepository.findPromotionIdsByUserId(1L)).thenReturn(List.of());
+
+        List<WalletPromotionResponse> wallet = promotionService.getWallet(1L);
+
+        assertThat(wallet).hasSize(1);
+        WalletPromotionResponse item = wallet.get(0);
+        assertThat(item.code()).isEqualTo("CON_DUNG");
+        assertThat(item.used()).isFalse();
+        assertThat(item.usedAt()).isNull();
+        assertThat(item.orderCode()).isNull();
+        assertThat(item.discountApplied()).isNull();
+    }
+
+    @Test
+    @DisplayName("Ví mã: mã đã dùng rời khỏi phần khả dụng và kèm đơn đã áp + số tiền đã giảm")
+    void getWallet_usedCode_movesToUsedSectionWithOrderDetails() {
+        Promotion usedPromo = usablePromotion(100L, "DA_DUNG", BigDecimal.valueOf(50000));
+        when(promotionRepository.findUsableAt(any(LocalDateTime.class)))
+                .thenReturn(List.of(usedPromo, usablePromotion(200L, "CON_DUNG", BigDecimal.ZERO)));
+        when(promotionUsageRepository.findPromotionIdsByUserId(1L)).thenReturn(List.of(100L));
+
+        Order order = new Order();
+        order.setOrderCode("BMK-20260928-ABCDE");
+        PromotionUsage usage = new PromotionUsage();
+        usage.setPromotion(usedPromo);
+        usage.setUser(testUser);
+        usage.setOrder(order);
+        usage.setDiscountApplied(BigDecimal.valueOf(25000));
+        usage.setCreatedAt(LocalDateTime.now().minusDays(2));
+        when(promotionUsageRepository.findByUserIdWithDetails(1L)).thenReturn(List.of(usage));
+
+        List<WalletPromotionResponse> wallet = promotionService.getWallet(1L);
+
+        assertThat(wallet).extracting(WalletPromotionResponse::code)
+                .containsExactly("CON_DUNG", "DA_DUNG");
+
+        WalletPromotionResponse used = wallet.get(1);
+        assertThat(used.used()).isTrue();
+        assertThat(used.orderCode()).isEqualTo("BMK-20260928-ABCDE");
+        assertThat(used.discountApplied()).isEqualByComparingTo(BigDecimal.valueOf(25000));
+        assertThat(used.usedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("Ví mã: mã đã dùng nhưng đã hết hiệu lực vẫn nằm trong ví (lịch sử không phụ thuộc findUsableAt)")
+    void getWallet_usedCodeNoLongerUsable_stillListedAsUsed() {
+        Promotion expired = usablePromotion(300L, "HET_HAN", BigDecimal.ZERO);
+        // findUsableAt chỉ trả mã còn hiệu lực — mã đã dùng/đã hết hạn không nằm trong đó
+        when(promotionRepository.findUsableAt(any(LocalDateTime.class))).thenReturn(List.of());
+        when(promotionUsageRepository.findPromotionIdsByUserId(1L)).thenReturn(List.of(300L));
+
+        Order order = new Order();
+        order.setOrderCode("BMK-20260920-ZZZZZ");
+        PromotionUsage usage = new PromotionUsage();
+        usage.setPromotion(expired);
+        usage.setUser(testUser);
+        usage.setOrder(order);
+        usage.setDiscountApplied(BigDecimal.valueOf(15000));
+        when(promotionUsageRepository.findByUserIdWithDetails(1L)).thenReturn(List.of(usage));
+
+        List<WalletPromotionResponse> wallet = promotionService.getWallet(1L);
+
+        assertThat(wallet).hasSize(1);
+        assertThat(wallet.get(0).code()).isEqualTo("HET_HAN");
+        assertThat(wallet.get(0).used()).isTrue();
     }
 }

@@ -97,6 +97,9 @@ class OrderServiceTest {
     @Mock
     private OrderCodeGenerator orderCodeGenerator;
 
+    @Mock
+    private InventoryService inventoryService;
+
     @InjectMocks
     private OrderServiceImpl orderService;
 

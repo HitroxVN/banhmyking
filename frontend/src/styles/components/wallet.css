@@ -1,0 +1,113 @@
+/* PromotionsPage — ví mã giảm giá của khách */
+.wallet__section {
+  margin-top: var(--space-6);
+}
+
+.wallet__section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-lg);
+  color: var(--stone-900);
+}
+
+.wallet__count {
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  background: var(--stone-100);
+  color: var(--stone-600);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.wallet__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-3);
+}
+
+.wallet__hint {
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--stone-500);
+  font-size: var(--text-sm);
+}
+
+.wallet-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary-500);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Mã đã dùng: hạ tông xuống để không tranh mắt với mã còn dùng được */
+.wallet-card--used {
+  border-left-color: var(--stone-300);
+  background: var(--stone-50);
+}
+
+.wallet-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.wallet-card__code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--stone-900);
+}
+
+.wallet-card__value {
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  background: var(--primary-100);
+  color: var(--primary-800);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.wallet-card--used .wallet-card__value {
+  background: var(--stone-100);
+  color: var(--stone-500);
+}
+
+.wallet-card__desc {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--stone-600);
+}
+
+.wallet-card__meta {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--stone-500);
+}
+
+.wallet-card__order {
+  align-self: flex-start;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--primary-700);
+  text-decoration: none;
+}
+
+.wallet-card__order:hover {
+  text-decoration: underline;
+}
+
+.wallet-card .ui-btn {
+  align-self: flex-start;
+}

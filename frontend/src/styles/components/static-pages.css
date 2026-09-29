@@ -1,0 +1,120 @@
+/* Các trang nội dung tĩnh: giới thiệu / liên hệ / FAQ / điều khoản / bảo mật */
+@import './card.css';
+
+.static__sub {
+  margin: var(--space-2) 0 0;
+  max-width: 62ch;
+  font-size: var(--text-sm);
+  color: var(--stone-500);
+}
+
+.static__prose {
+  padding: var(--space-6);
+  max-width: 78ch;
+}
+
+.static__prose h2 {
+  margin: var(--space-6) 0 var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--stone-900);
+}
+
+.static__prose h2:first-child {
+  margin-top: 0;
+}
+
+.static__prose h3 {
+  margin: var(--space-5) 0 var(--space-1);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--stone-800);
+}
+
+.static__prose p {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--stone-600);
+}
+
+.static__prose a {
+  color: var(--primary-700);
+  font-weight: 600;
+}
+
+.static__list {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-5);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--stone-600);
+}
+
+.static__list li + li {
+  margin-top: var(--space-1);
+}
+
+/* FAQ: mỗi câu hỏi là một mục nhỏ, dấu phân cách bằng đường kẻ mảnh */
+.static__qa h3 {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.static__qa h3:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.static__contact {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-3);
+}
+
+.static__contact-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--stone-50);
+  color: inherit;
+  text-decoration: none;
+}
+
+a.static__contact-item:hover {
+  border-color: var(--primary-300);
+  background: var(--primary-50);
+}
+
+.static__contact-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  background: var(--primary-100);
+  color: var(--primary-700);
+}
+
+.static__contact-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.static__contact-text strong {
+  font-size: var(--text-sm);
+  color: var(--stone-900);
+}
+
+.static__contact-text span {
+  font-size: var(--text-sm);
+  color: var(--stone-600);
+  overflow-wrap: anywhere;
+}

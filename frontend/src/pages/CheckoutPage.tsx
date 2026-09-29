@@ -280,7 +280,7 @@ export const CheckoutPage = () => {
           icon={<ShoppingBag size={30} />}
           title="Chưa có món nào để thanh toán"
           description="Giỏ hàng của bạn đang trống. Chọn món trong thực đơn trước nhé."
-          action={<Button onClick={() => navigate('/')}>Xem thực đơn</Button>}
+          action={<Button onClick={() => navigate('/menu')}>Xem thực đơn</Button>}
         />
       </>
     );
@@ -291,7 +291,7 @@ export const CheckoutPage = () => {
       <div className="page-bar">
         <div>
           <p className="page-bar__crumb">
-            <Link to="/">Thực đơn</Link> / <Link to="/cart">Giỏ hàng</Link> / Thanh toán
+            <Link to="/menu">Thực đơn</Link> / <Link to="/cart">Giỏ hàng</Link> / Thanh toán
           </p>
           <h1 className="page-bar__title">Thanh toán</h1>
         </div>

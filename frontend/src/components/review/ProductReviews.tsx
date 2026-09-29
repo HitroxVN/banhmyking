@@ -12,7 +12,7 @@ export interface ProductReviewsProps {
   productId: number;
 }
 
-/** Khối đánh giá trong modal chi tiết món: điểm trung bình + danh sách nhận xét thật từ backend. */
+/** Khối đánh giá ở trang chi tiết món: điểm trung bình + danh sách nhận xét thật từ backend. */
 export const ProductReviews = ({ productId }: ProductReviewsProps) => {
   const [summary, setSummary] = useState<ProductRatingSummary | null>(null);
   const [reviews, setReviews] = useState<ReviewResponse[]>([]);

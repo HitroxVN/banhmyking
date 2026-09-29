@@ -8,6 +8,7 @@ import com.banhmyking.banhmyking.dto.cart.UpdateCartItemRequest;
 import com.banhmyking.banhmyking.entity.Cart;
 import com.banhmyking.banhmyking.entity.CartItem;
 import com.banhmyking.banhmyking.entity.CartItemOption;
+import com.banhmyking.banhmyking.entity.OptionGroup;
 import com.banhmyking.banhmyking.entity.Product;
 import com.banhmyking.banhmyking.entity.ProductOption;
 import com.banhmyking.banhmyking.entity.User;
@@ -17,10 +18,12 @@ import com.banhmyking.banhmyking.exception.NotFoundMessages;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
 import com.banhmyking.banhmyking.repository.CartItemRepository;
 import com.banhmyking.banhmyking.repository.CartRepository;
+import com.banhmyking.banhmyking.repository.OptionGroupRepository;
 import com.banhmyking.banhmyking.repository.ProductOptionRepository;
 import com.banhmyking.banhmyking.repository.ProductRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
 import com.banhmyking.banhmyking.service.CartService;
+import com.banhmyking.banhmyking.service.InventoryService;
 import com.banhmyking.banhmyking.service.PriceCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,7 +49,8 @@ public class CartServiceImpl implements CartService {
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
     private final ProductOptionRepository productOptionRepository;
-    private final UserRepository userRepository;
+    private final OptionGroupRepository optionGroupRepository;    private final UserRepository userRepository;
+    private final InventoryService inventoryService;
 
     @Override
     @Transactional(readOnly = true)
@@ -95,6 +99,7 @@ public class CartServiceImpl implements CartService {
                 }
             }
         }
+        validateOptionGroups(product, options);
 
         // 4. AC 1: Lazy init giỏ hàng nếu chưa có
         Cart cart = cartRepository.findByUserId(userId).orElseGet(() -> {
@@ -142,6 +147,11 @@ public class CartServiceImpl implements CartService {
             cart.getItems().add(newItem);
         }
 
+        // Chặn sớm tại giỏ. Đây chỉ là cảnh báo: lúc xác nhận đơn mới là lúc giữ hàng thật.
+        inventoryService.assertEnough(product, matchingItem != null
+                ? matchingItem.getQuantity()
+                : request.getQuantity());
+
         cart = cartRepository.save(cart);
         // AC 4: Tạm tính hoàn toàn ở server
         return toCartResponse(cart);
@@ -160,6 +170,7 @@ public class CartServiceImpl implements CartService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món có ID " + itemId + " trong giỏ hàng"));
 
         item.setQuantity(request.getQuantity());
+        inventoryService.assertEnough(item.getProduct(), request.getQuantity());
         cart = cartRepository.save(cart);
 
         return toCartResponse(cart);
@@ -193,6 +204,41 @@ public class CartServiceImpl implements CartService {
         }
 
         return CartResponse.empty();
+    }
+
+    /**
+     * Luật của nhóm lựa chọn: nhóm bắt buộc phải được chọn ít nhất 1, và không nhóm nào được
+     * chọn quá {@code maxChoices} (0 = không giới hạn). Lựa chọn không thuộc nhóm nào (dữ liệu
+     * cũ, {@code group_id NULL}) không chịu luật nào.
+     *
+     * <p>Đặt ở đây — chỗ duy nhất lựa chọn đi vào giỏ ({@code updateItemQuantity} chỉ sửa số
+     * lượng) — nên không phải nhân bản luật sang nơi khác.
+     */
+    private void validateOptionGroups(Product product, List<ProductOption> selectedOptions) {
+        List<OptionGroup> groups = optionGroupRepository.findByProductIdOrderBySortOrderAscIdAsc(product.getId());
+        if (groups.isEmpty()) {
+            return;
+        }
+
+        Set<Long> selectedIds = selectedOptions.stream().map(ProductOption::getId).collect(Collectors.toSet());
+        // Nạp lựa chọn của cả món trong 1 query thay vì duyệt collection LAZY của từng nhóm (N+1).
+        List<ProductOption> allOptions = productOptionRepository.findByProductIdOrderByIdAsc(product.getId());
+
+        for (OptionGroup group : groups) {
+            long chosen = allOptions.stream()
+                    .filter(option -> option.getGroup() != null && group.getId().equals(option.getGroup().getId()))
+                    .filter(option -> selectedIds.contains(option.getId()))
+                    .count();
+
+            if (group.isRequired() && chosen == 0) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                        "Vui lòng chọn " + group.getName() + " cho món '" + product.getName() + "'");
+            }
+            if (group.getMaxChoices() > 0 && chosen > group.getMaxChoices()) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                        "Nhóm " + group.getName() + " chỉ được chọn tối đa " + group.getMaxChoices() + " lựa chọn");
+            }
+        }
     }
 
     /**

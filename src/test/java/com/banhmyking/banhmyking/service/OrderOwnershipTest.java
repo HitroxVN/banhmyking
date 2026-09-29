@@ -74,6 +74,9 @@ class OrderOwnershipTest {
     @Mock
     private PromotionService promotionService;
 
+    @Mock
+    private InventoryService inventoryService;
+
     @InjectMocks
     private OrderServiceImpl orderService;
 

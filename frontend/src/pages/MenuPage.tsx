@@ -1,35 +1,39 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Bike, Flame, Sandwich, SearchX, ShieldCheck, Star, Timer } from 'lucide-react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { SearchX, SlidersHorizontal } from 'lucide-react';
 import { catalogApi } from '../api/catalogApi';
-import { useCart } from '../context/useCart';
-import { useSiteSettings } from '../context/useSiteSettings';
-import { Button, ChipGroup, EmptyState, Pagination, Skeleton, useToast } from '../components/ui';
+import type { ProductSortValue } from '../api/catalogApi';
+import { Button, ChipGroup, EmptyState, Pagination, Select, Skeleton } from '../components/ui';
 import { ProductCard } from '../components/product/ProductCard';
-import { ProductModal } from '../components/product/ProductModal';
+import { PromiseGrid } from '../components/home/HomeSections';
+import { useQuickAdd } from '../hooks/useQuickAdd';
 import type { CategoryItem, ProductItem } from '../types/staff';
 import '../styles/components/menu.css';
 
 const PAGE_SIZE = 8;
+const DEFAULT_SORT: ProductSortValue = 'FEATURED';
 
-/** Bốn điều lò bánh luôn làm — nội dung tĩnh, mô tả đúng thứ app đang phục vụ */
-const PROMISES = [
-  { icon: Flame, title: 'Nướng theo từng đơn', desc: 'Bánh vào lò sau khi bạn chốt đơn, không làm sẵn từ trước.' },
-  { icon: Timer, title: 'Giao nội thành 30 phút', desc: 'Đóng gói giữ giòn và giao nóng trong vòng 30 phút.' },
-  { icon: Bike, title: 'Miễn phí giao hàng', desc: 'Áp dụng cho mọi đơn hàng từ 200.000đ.' },
-  { icon: ShieldCheck, title: 'Thanh toán linh hoạt', desc: 'Tiền mặt khi nhận hàng hoặc chuyển khoản VietQR.' },
+/** Ô nhập giá: rỗng hoặc không phải số dương đều coi như không lọc */
+const parsePrice = (raw: string | null): number | null => {
+  if (!raw) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : null;
+};
+
+const SORT_OPTIONS: { value: ProductSortValue; label: string }[] = [
+  { value: 'FEATURED', label: 'Nổi bật trước' },
+  { value: 'PRICE_ASC', label: 'Giá thấp → cao' },
+  { value: 'PRICE_DESC', label: 'Giá cao → thấp' },
+  { value: 'NAME', label: 'Tên A → Z' },
+  { value: 'NEWEST', label: 'Mới nhất' },
 ];
 
-/** Bỏ dấu tiếng Việt để tìm "banh mi" vẫn ra "Bánh mì" */
-const normalize = (text: string): string =>
-  text
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase()
-    .trim();
-
+/**
+ * Trang thực đơn — mở cho cả khách chưa đăng nhập, nên chỉ tải dữ liệu công khai.
+ *
+ * <p>Hero và dải "món nổi bật" đã chuyển sang trang chủ (`/`); ở đây chỉ còn bộ lọc và
+ * lưới món để tránh hai nơi cùng làm một việc.
+ */
 export const MenuPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const keyword = searchParams.get('keyword') ?? '';
@@ -37,18 +41,33 @@ export const MenuPage = () => {
   const categoryId = categoryParam ? Number(categoryParam) : null;
   const pageParam = Number(searchParams.get('page') ?? '1');
   const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
+  const sortParam = searchParams.get('sort');
+  const sort = SORT_OPTIONS.some((option) => option.value === sortParam)
+    ? (sortParam as ProductSortValue)
+    : DEFAULT_SORT;
+  const minPriceParam = searchParams.get('minPrice') ?? '';
+  const maxPriceParam = searchParams.get('maxPrice') ?? '';
+  const minPrice = parsePrice(minPriceParam);
+  const maxPrice = parsePrice(maxPriceParam);
 
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [detailId, setDetailId] = useState<number | null>(null);
-  const [quickAddingId, setQuickAddingId] = useState<number | null>(null);
+  // Ô nhập giá giữ bản nháp riêng: chỉ đẩy lên URL khi rời ô/nhấn Enter, tránh gọi API mỗi ký tự
+  const [minPriceDraft, setMinPriceDraft] = useState(minPriceParam);
+  const [maxPriceDraft, setMaxPriceDraft] = useState(maxPriceParam);
 
-  const { addItem } = useCart();
-  const { settings } = useSiteSettings();
-  const toast = useToast();
+  const { quickAddingId, quickAdd } = useQuickAdd();
+
+  // URL đổi từ chỗ khác (xoá lọc, back/forward) thì ô nhập phải theo kịp
+  useEffect(() => {
+    setMinPriceDraft(minPriceParam);
+    setMaxPriceDraft(maxPriceParam);
+  }, [minPriceParam, maxPriceParam]);
 
   useEffect(() => {
     catalogApi
@@ -57,15 +76,27 @@ export const MenuPage = () => {
       .catch(() => setCategories([]));
   }, [reloadKey]);
 
+  // Tìm/lọc/sắp xếp/phân trang đều do server làm — ở đây chỉ giữ đúng một trang
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
     setError(null);
 
     catalogApi
-      .getProducts(categoryId ?? undefined, true)
-      .then((list) => {
-        if (!cancelled) setProducts(list);
+      .getProducts({
+        keyword: keyword || undefined,
+        categoryId: categoryId ?? undefined,
+        minPrice: minPrice ?? undefined,
+        maxPrice: maxPrice ?? undefined,
+        sort,
+        page: page - 1,
+        size: PAGE_SIZE,
+      })
+      .then((res) => {
+        if (cancelled) return;
+        setProducts(res.content);
+        setTotalElements(res.totalElements);
+        setTotalPages(res.totalPages);
       })
       .catch(() => {
         if (!cancelled) setError('Không tải được thực đơn. Vui lòng kiểm tra kết nối và thử lại.');
@@ -77,183 +108,85 @@ export const MenuPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [categoryId, reloadKey]);
+  }, [keyword, categoryId, minPrice, maxPrice, sort, page, reloadKey]);
 
-  const filtered = useMemo(() => {
-    if (!keyword) return products;
-    const needle = normalize(keyword);
-    return products.filter(
-      (product) => normalize(product.name).includes(needle) || normalize(product.description ?? '').includes(needle)
-    );
-  }, [products, keyword]);
+  // URL có thể còn ?page=5 từ lần xem trước — vượt tổng số trang thì kéo về trang cuối còn dữ liệu
+  useEffect(() => {
+    if (isLoading) return;
+    const maxPage = Math.max(1, totalPages);
+    if (page <= maxPage) return;
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const featured = products.filter((product) => product.featured);
-  const showFeatured = !keyword && categoryId === null && currentPage === 1;
+    const params = new URLSearchParams(searchParams);
+    if (maxPage > 1) {
+      params.set('page', String(maxPage));
+    } else {
+      params.delete('page');
+    }
+    setSearchParams(params, { preventScrollReset: true });
+  }, [page, totalPages, isLoading, searchParams, setSearchParams]);
 
-  const updateParams = (next: { keyword?: string; categoryId?: number | null; page?: number }) => {
+  /** Trang hiển thị đã kẹp vào khoảng hợp lệ — URL sai lệch chỉ còn một khung hình */
+  const currentPage = Math.min(page, Math.max(1, totalPages));
+
+  const updateParams = (next: {
+    keyword?: string;
+    categoryId?: number | null;
+    minPrice?: number | null;
+    maxPrice?: number | null;
+    sort?: ProductSortValue;
+    page?: number;
+  }) => {
     const params = new URLSearchParams();
     const nextKeyword = next.keyword !== undefined ? next.keyword : keyword;
     const nextCategory = next.categoryId !== undefined ? next.categoryId : categoryId;
+    const nextMinPrice = next.minPrice !== undefined ? next.minPrice : minPrice;
+    const nextMaxPrice = next.maxPrice !== undefined ? next.maxPrice : maxPrice;
+    const nextSort = next.sort ?? sort;
     const nextPage = next.page ?? 1;
 
     if (nextKeyword) params.set('keyword', nextKeyword);
     if (nextCategory !== null && nextCategory !== undefined) params.set('categoryId', String(nextCategory));
+    if (nextMinPrice) params.set('minPrice', String(nextMinPrice));
+    if (nextMaxPrice) params.set('maxPrice', String(nextMaxPrice));
+    if (nextSort !== DEFAULT_SORT) params.set('sort', nextSort);
     if (nextPage > 1) params.set('page', String(nextPage));
 
     setSearchParams(params, { preventScrollReset: true });
   };
 
-  /** Link "Xem toàn bộ" ở mục nổi bật — chỉ cuộn xuống lưới, không đổi bộ lọc */
-  const scrollToFullList = () => {
-    document.getElementById('menu-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  /** Đọc ô nhập và chỉ đẩy lên URL khi giá trị thật sự khác — bấm ra ngoài không nên gọi lại API */
+  const commitPrice = () => {
+    if (minPriceDraft === minPriceParam && maxPriceDraft === maxPriceParam) return;
+    updateParams({ minPrice: parsePrice(minPriceDraft), maxPrice: parsePrice(maxPriceDraft) });
   };
 
-  const handleQuickAdd = async (product: ProductItem) => {
-    setQuickAddingId(product.id);
-    try {
-      await addItem(product.id, 1);
-      toast.success(`Đã thêm ${product.name} vào giỏ`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Thêm món vào giỏ thất bại');
-    } finally {
-      setQuickAddingId(null);
+  const onPriceKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commitPrice();
     }
   };
 
-  const hasFilter = Boolean(keyword) || categoryId !== null;
+  const hasPriceFilter = minPrice !== null || maxPrice !== null;
+  const hasFilter = Boolean(keyword) || categoryId !== null || hasPriceFilter;
+
+  const clearFilters = () => updateParams({ keyword: '', categoryId: null, minPrice: null, maxPrice: null });
 
   return (
-    <div>
-      <section className="menu__hero">
-        {/* Vệt sáng ấm mờ sau nội dung — tạo chiều sâu mà không cần ảnh nền */}
-        <span className="menu__hero-glow" aria-hidden="true" />
-
-        <div className="menu__hero-copy">
-          {settings.heroBadge && (
-            <span className="menu__hero-badge">
-              <span className="menu__hero-badge-dot" aria-hidden="true" />
-              {settings.heroBadge}
-            </span>
-          )}
-          <h1 className="menu__hero-title">
-            {settings.heroTitle}
-            <br />
-            {settings.heroTitleLead} <em>{settings.heroTitleHighlight}</em>
-          </h1>
-          <p className="menu__hero-desc">{settings.heroDescription}</p>
-
-          <div className="menu__hero-actions">
-            <Button
-              size="lg"
-              icon={<Sandwich size={18} />}
-              onClick={() => {
-                const firstCategory = categories[0];
-                updateParams({ categoryId: firstCategory ? firstCategory.id : null });
-                document.getElementById('menu-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }}
-            >
-              Đặt ngay
-            </Button>
-            <Button
-              size="lg"
-              variant="secondary"
-              icon={<Star size={18} />}
-              onClick={() => {
-                updateParams({ categoryId: null, keyword: '' });
-                document.getElementById('menu-featured')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }}
-            >
-              Xem món nổi bật
-            </Button>
-          </div>
-
-          <div className="menu__hero-facts">
-            <span className="menu__hero-fact">
-              <span className="menu__hero-fact-icon">
-                <Timer size={18} />
-              </span>
-              <span className="menu__hero-fact-text">
-                <strong>30 phút</strong>
-                <span>Giao trong nội thành</span>
-              </span>
-            </span>
-            <span className="menu__hero-fact">
-              <span className="menu__hero-fact-icon">
-                <Bike size={18} />
-              </span>
-              <span className="menu__hero-fact-text">
-                <strong>Miễn phí</strong>
-                <span>Đơn từ 200.000đ</span>
-              </span>
-            </span>
-            <span className="menu__hero-fact">
-              <span className="menu__hero-fact-icon">
-                <ShieldCheck size={18} />
-              </span>
-              <span className="menu__hero-fact-text">
-                <strong>Tươi mới</strong>
-                <span>Nướng theo đơn</span>
-              </span>
-            </span>
-          </div>
+    <div className="menu">
+      <div className="page-bar">
+        <div>
+          <p className="page-bar__crumb">
+            <Link to="/">Trang chủ</Link> / Thực đơn
+          </p>
+          <h1 className="page-bar__title">Thực đơn</h1>
         </div>
-
-        <div className="menu__hero-art" aria-hidden="true">
-          {settings.heroImageUrl ? (
-            <span className="menu__hero-art-inner menu__hero-art-inner--photo">
-              <img src={settings.heroImageUrl} alt="" />
-            </span>
-          ) : (
-            <span className="menu__hero-art-inner">
-              <Sandwich size={104} strokeWidth={1.2} />
-            </span>
-          )}
-          <span className="menu__hero-chip menu__hero-chip--a">
-            <Flame size={15} />
-            Vỏ giòn
-          </span>
-          <span className="menu__hero-chip menu__hero-chip--b">
-            <Sandwich size={15} />
-            Nhân đầy
-          </span>
-        </div>
-      </section>
-
-      {showFeatured && featured.length > 0 && (
-        <section className="menu__section" id="menu-featured">
-          <div className="menu__section-head">
-            <div>
-              <h2 className="menu__section-title">
-                <Flame size={22} />
-                Món nổi bật
-              </h2>
-              <p className="menu__section-sub">Khách gọi nhiều nhất tuần này</p>
-            </div>
-            <button type="button" className="menu__section-link" onClick={scrollToFullList}>
-              Xem toàn bộ {filtered.length} món
-            </button>
-          </div>
-          <div className="menu__featured">
-            {featured.map((product) => (
-              <ProductCard
-                key={`featured-${product.id}`}
-                product={product}
-                onOpen={(item) => setDetailId(item.id)}
-                onQuickAdd={handleQuickAdd}
-                isQuickAdding={quickAddingId === product.id}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+      </div>
 
       <section className="menu__section" id="menu-list">
         <div className="menu__section-head">
           <div>
-            <h2 className="menu__section-title">Thực đơn</h2>
+            <h2 className="menu__section-title">Chọn món của bạn</h2>
             <p className="menu__section-sub">{categories.length} danh mục</p>
           </div>
         </div>
@@ -269,6 +202,57 @@ export const MenuPage = () => {
               ...categories.map((category) => ({ value: category.id, label: category.name })),
             ]}
           />
+          {/* Khoảng giá: chỉ áp dụng khi rời ô hoặc nhấn Enter */}
+          <div className="menu__price">
+            <input
+              className="menu__price-input"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              step={1000}
+              placeholder="Giá từ"
+              aria-label="Giá thấp nhất"
+              value={minPriceDraft}
+              onChange={(event) => setMinPriceDraft(event.target.value)}
+              onBlur={commitPrice}
+              onKeyDown={onPriceKeyDown}
+            />
+            <span className="menu__price-dash" aria-hidden="true">
+              –
+            </span>
+            <input
+              className="menu__price-input"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              step={1000}
+              placeholder="đến"
+              aria-label="Giá cao nhất"
+              value={maxPriceDraft}
+              onChange={(event) => setMaxPriceDraft(event.target.value)}
+              onBlur={commitPrice}
+              onKeyDown={onPriceKeyDown}
+            />
+          </div>
+
+          <Select
+            aria-label="Sắp xếp thực đơn"
+            className="menu__sort"
+            value={sort}
+            onChange={(event) => updateParams({ sort: event.target.value as ProductSortValue })}
+          >
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+
+          {hasFilter && (
+            <button type="button" className="menu__clear" onClick={clearFilters}>
+              Xoá lọc
+            </button>
+          )}
         </div>
 
         {isLoading && (
@@ -284,20 +268,24 @@ export const MenuPage = () => {
             icon={<SearchX size={30} />}
             title="Chưa tải được thực đơn"
             description={error}
-            action={
-              <Button onClick={() => setReloadKey((key) => key + 1)}>Thử lại</Button>
-            }
+            action={<Button onClick={() => setReloadKey((key) => key + 1)}>Thử lại</Button>}
           />
         )}
 
-        {!isLoading && !error && filtered.length === 0 && (
+        {!isLoading && !error && totalElements === 0 && (
           <EmptyState
-            icon={<SearchX size={30} />}
+            icon={hasFilter ? <SearchX size={30} /> : <SlidersHorizontal size={30} />}
             title="Không tìm thấy món nào"
-            description={keyword ? `Không có kết quả cho "${keyword}". Thử từ khoá khác nhé.` : 'Danh mục này hiện chưa có món nào.'}
+            description={
+              keyword
+                ? `Không có kết quả cho "${keyword}". Thử từ khoá khác nhé.`
+                : hasPriceFilter
+                  ? 'Không có món nào trong khoảng giá này. Thử nới rộng khoảng giá.'
+                  : 'Danh mục này hiện chưa có món nào.'
+            }
             action={
               hasFilter ? (
-                <Button variant="secondary" onClick={() => updateParams({ keyword: '', categoryId: null })}>
+                <Button variant="secondary" onClick={clearFilters}>
                   Xoá bộ lọc
                 </Button>
               ) : undefined
@@ -305,11 +293,11 @@ export const MenuPage = () => {
           />
         )}
 
-        {!isLoading && !error && filtered.length > 0 && (
+        {!isLoading && !error && totalElements > 0 && (
           <>
             <div className="menu__meta">
               <span>
-                {keyword ? `${filtered.length} kết quả cho "${keyword}"` : `${filtered.length} món đang bán`}
+                {keyword ? `${totalElements} kết quả cho "${keyword}"` : `${totalElements} món đang bán`}
               </span>
               {totalPages > 1 && (
                 <span>
@@ -319,46 +307,28 @@ export const MenuPage = () => {
             </div>
 
             <div className="menu__grid">
-              {pageItems.map((product) => (
+              {products.map((product) => (
                 <ProductCard
                   key={product.id}
                   product={product}
-                  onOpen={(item) => setDetailId(item.id)}
-                  onQuickAdd={handleQuickAdd}
+                  onQuickAdd={quickAdd}
                   isQuickAdding={quickAddingId === product.id}
                 />
               ))}
             </div>
 
             {totalPages > 1 && (
-              <Pagination page={currentPage} totalPages={totalPages} onChange={(next) => updateParams({ page: next })} />
+              <Pagination
+                page={currentPage}
+                totalPages={Math.max(1, totalPages)}
+                onChange={(next) => updateParams({ page: next })}
+              />
             )}
           </>
         )}
       </section>
 
-      <section className="menu__promise">
-        <div className="menu__section-head">
-          <div>
-            <h2 className="menu__section-title">Cam kết của lò bánh</h2>
-            <p className="menu__section-sub">Bốn điều Bánh Mỳ King luôn làm cho mỗi đơn hàng</p>
-          </div>
-        </div>
-
-        <div className="menu__promise-grid">
-          {PROMISES.map(({ icon: Icon, title, desc }) => (
-            <article className="menu__promise-card" key={title}>
-              <span className="menu__promise-icon">
-                <Icon size={22} />
-              </span>
-              <h3 className="menu__promise-title">{title}</h3>
-              <p className="menu__promise-desc">{desc}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <ProductModal productId={detailId} onClose={() => setDetailId(null)} />
+      <PromiseGrid />
     </div>
   );
 };

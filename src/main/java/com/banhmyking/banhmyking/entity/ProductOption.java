@@ -27,4 +27,12 @@ public class ProductOption extends BaseEntity {
     /** Giá cộng thêm, DECIMAL(12,2). */
     @Column(name = "extra_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal extraPrice;
+
+    /**
+     * Nhóm chứa lựa chọn này. NULL = option phẳng còn lại từ trước khi có nhóm —
+     * không bắt buộc và không giới hạn số lượng, giữ nguyên hành vi cũ.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "group_id")
+    private OptionGroup group;
 }

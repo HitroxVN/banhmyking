@@ -148,7 +148,7 @@ export const OrderTrackingPage = () => {
               Huỷ đơn
             </Button>
           )}
-          <Button icon={<Receipt size={17} />} onClick={() => navigate('/')}>
+          <Button icon={<Receipt size={17} />} onClick={() => navigate('/menu')}>
             Đặt món mới
           </Button>
         </div>

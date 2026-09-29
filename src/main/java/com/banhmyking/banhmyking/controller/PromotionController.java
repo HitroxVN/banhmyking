@@ -6,6 +6,8 @@ import com.banhmyking.banhmyking.dto.promotion.PromotionResponse;
 import com.banhmyking.banhmyking.dto.promotion.PublicPromotionResponse;
 import com.banhmyking.banhmyking.dto.promotion.UpdatePromotionRequest;
 import com.banhmyking.banhmyking.dto.promotion.ValidatePromotionRequest;
+import com.banhmyking.banhmyking.dto.promotion.WalletPromotionResponse;
+import com.banhmyking.banhmyking.security.SecurityUtils;
 import com.banhmyking.banhmyking.service.PromotionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -14,6 +16,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -40,6 +44,15 @@ public class PromotionController {
     public ResponseEntity<ApiResponse<List<PublicPromotionResponse>>> getPublicPromotions() {
         List<PublicPromotionResponse> response = promotionService.getPublicPromotions();
         return ResponseEntity.ok(ApiResponse.ok("Lấy danh sách mã giảm giá thành công", response));
+    }
+
+    @Operation(summary = "Ví mã của tôi (CUSTOMER)", description = "Mã khách còn dùng được kèm các mã đã dùng (biết đã áp cho đơn nào, giảm bao nhiêu).")
+    @GetMapping("/promotions/wallet")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<WalletPromotionResponse>>> getWallet(
+            @AuthenticationPrincipal UserDetails principal) {
+        List<WalletPromotionResponse> response = promotionService.getWallet(SecurityUtils.requireUserId(principal));
+        return ResponseEntity.ok(ApiResponse.ok("Lấy ví mã giảm giá thành công", response));
     }
 
     @Operation(summary = "Kiểm tra mã giảm giá (CUSTOMER)", description = "Kiểm tra mã giảm giá còn hiệu lực, đạt điều kiện đơn hàng và tính số tiền được giảm")

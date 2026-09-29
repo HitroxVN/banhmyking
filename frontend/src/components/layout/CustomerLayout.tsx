@@ -13,6 +13,7 @@ import {
   Search,
   ShieldCheck,
   ShoppingCart,
+  Ticket,
   Timer,
   UserRound,
 } from 'lucide-react';
@@ -27,7 +28,7 @@ const FLOAT_CART_HIDDEN_ON = ['/cart', '/checkout', '/payment'];
 
 /** Khung trang dành cho khách: dải promo + navbar sticky + footer + pill giỏ hàng nổi. */
 export const CustomerLayout = () => {
-  const { user, logout } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const { totalQuantity, subtotal } = useCart();
   const { settings } = useSiteSettings();
   const confirm = useConfirm();
@@ -51,7 +52,7 @@ export const CustomerLayout = () => {
     if (trimmed === urlKeyword) return;
 
     const timer = window.setTimeout(() => {
-      navigate(trimmed ? `/?keyword=${encodeURIComponent(trimmed)}` : '/', { replace: true });
+      navigate(trimmed ? `/menu?keyword=${encodeURIComponent(trimmed)}` : '/menu', { replace: true });
     }, 300);
 
     return () => window.clearTimeout(timer);
@@ -79,7 +80,7 @@ export const CustomerLayout = () => {
   const handleSearch = (event: FormEvent) => {
     event.preventDefault();
     const trimmed = keyword.trim();
-    navigate(trimmed ? `/?keyword=${encodeURIComponent(trimmed)}` : '/');
+    navigate(trimmed ? `/menu?keyword=${encodeURIComponent(trimmed)}` : '/menu');
   };
 
   const handleLogout = async () => {
@@ -100,7 +101,9 @@ export const CustomerLayout = () => {
     `cshop__link${isActive ? ' cshop__link--active' : ''}`;
 
   const showFloatCart =
-    totalQuantity > 0 && !FLOAT_CART_HIDDEN_ON.some((prefix) => pathname.startsWith(prefix));
+    isAuthenticated &&
+    totalQuantity > 0 &&
+    !FLOAT_CART_HIDDEN_ON.some((prefix) => pathname.startsWith(prefix));
 
   const hasContact = Boolean(
     settings.contactPhone || settings.contactEmail || settings.contactAddress,
@@ -138,14 +141,17 @@ export const CustomerLayout = () => {
           </Link>
 
           <div className="cshop__links">
-            <NavLink to="/" end className={navLinkClass}>
+            <NavLink to="/menu" className={navLinkClass}>
               Thực đơn
+            </NavLink>
+            <NavLink to="/about" className={navLinkClass}>
+              Giới thiệu
+            </NavLink>
+            <NavLink to="/contact" className={navLinkClass}>
+              Liên hệ
             </NavLink>
             <NavLink to="/orders" className={navLinkClass}>
               Đơn của tôi
-            </NavLink>
-            <NavLink to="/profile" className={navLinkClass}>
-              Hồ sơ
             </NavLink>
           </div>
 
@@ -164,69 +170,90 @@ export const CustomerLayout = () => {
           </form>
 
           <div className="cshop__actions">
-            <Link
-              to="/cart"
-              className="cshop__cart-pill"
-              aria-label={`Giỏ hàng, ${totalQuantity} món, tạm tính ${formatCurrency(subtotal)}`}
-            >
-              <span className="cshop__cart-pill-icon">
-                <ShoppingCart size={19} />
-                {totalQuantity > 0 && <span className="cshop__cart-badge">{totalQuantity}</span>}
-              </span>
-              <span className="cshop__cart-pill-total">{formatCurrency(subtotal)}</span>
-            </Link>
-
-            <div className="cshop__user" ref={userRef}>
-              <button
-                type="button"
-                className="cshop__avatar-btn"
-                onClick={() => setMenuOpen((open) => !open)}
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
+            {isAuthenticated && (
+              <Link
+                to="/cart"
+                className="cshop__cart-pill"
+                aria-label={`Giỏ hàng, ${totalQuantity} món, tạm tính ${formatCurrency(subtotal)}`}
               >
-                {user?.image ? (
-                  <img className="cshop__avatar" src={user.image} alt="" />
-                ) : (
-                  <span className="cshop__avatar">{user?.fullName?.charAt(0)?.toUpperCase() ?? 'K'}</span>
-                )}
-                <span>{user?.fullName?.split(' ').pop() ?? 'Khách'}</span>
-              </button>
+                <span className="cshop__cart-pill-icon">
+                  <ShoppingCart size={19} />
+                  {totalQuantity > 0 && <span className="cshop__cart-badge">{totalQuantity}</span>}
+                </span>
+                <span className="cshop__cart-pill-total">{formatCurrency(subtotal)}</span>
+              </Link>
+            )}
 
-              {menuOpen && (
-                <div className="cshop__dropdown" role="menu">
-                  <div className="cshop__dropdown-head">
-                    <span className="cshop__dropdown-name">{user?.fullName}</span>
-                    <span className="cshop__dropdown-email">{user?.email}</span>
+            {!user ? (
+              <div className="cshop__auth">
+                <Link to="/login" className="ui-btn ui-btn--ghost ui-btn--sm">
+                  Đăng nhập
+                </Link>
+                <Link to="/register" className="ui-btn ui-btn--primary ui-btn--sm">
+                  Đăng ký
+                </Link>
+              </div>
+            ) : (
+              <div className="cshop__user" ref={userRef}>
+                <button
+                  type="button"
+                  className="cshop__avatar-btn"
+                  onClick={() => setMenuOpen((open) => !open)}
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                >
+                  {user.image ? (
+                    <img className="cshop__avatar" src={user.image} alt="" />
+                  ) : (
+                    <span className="cshop__avatar">{user.fullName?.charAt(0)?.toUpperCase() ?? 'K'}</span>
+                  )}
+                  <span>{user.fullName?.split(' ').pop() ?? 'Khách'}</span>
+                </button>
+
+                {menuOpen && (
+                  <div className="cshop__dropdown" role="menu">
+                    <div className="cshop__dropdown-head">
+                      <span className="cshop__dropdown-name">{user.fullName}</span>
+                      <span className="cshop__dropdown-email">{user.email}</span>
+                    </div>
+
+                    <Link to="/menu" className="cshop__dropdown-item" role="menuitem" onClick={() => setMenuOpen(false)}>
+                      <Sandwich size={16} />
+                      Thực đơn
+                    </Link>
+                    <Link to="/" className="cshop__dropdown-item" role="menuitem" onClick={() => setMenuOpen(false)}>
+                      <Home size={16} />
+                      Trang chủ
+                    </Link>
+                    <Link to="/orders" className="cshop__dropdown-item" role="menuitem" onClick={() => setMenuOpen(false)}>
+                      <Receipt size={16} />
+                      Đơn của tôi
+                    </Link>
+                    <Link to="/promotions" className="cshop__dropdown-item" role="menuitem" onClick={() => setMenuOpen(false)}>
+                      <Ticket size={16} />
+                      Ưu đãi của tôi
+                    </Link>
+                    <Link to="/profile" className="cshop__dropdown-item" role="menuitem" onClick={() => setMenuOpen(false)}>
+                      <UserRound size={16} />
+                      Hồ sơ cá nhân
+                    </Link>
+                    <Link to="/cart" className="cshop__dropdown-item" role="menuitem" onClick={() => setMenuOpen(false)}>
+                      <ShoppingCart size={16} />
+                      Giỏ hàng
+                    </Link>
+                    <button
+                      type="button"
+                      className="cshop__dropdown-item cshop__dropdown-item--danger"
+                      role="menuitem"
+                      onClick={handleLogout}
+                    >
+                      <LogOut size={16} />
+                      Đăng xuất
+                    </button>
                   </div>
-
-                  <Link to="/" className="cshop__dropdown-item" role="menuitem" onClick={() => setMenuOpen(false)}>
-                    <Home size={16} />
-                    Trang chủ
-                  </Link>
-                  <Link to="/orders" className="cshop__dropdown-item" role="menuitem" onClick={() => setMenuOpen(false)}>
-                    <Receipt size={16} />
-                    Đơn của tôi
-                  </Link>
-                  <Link to="/profile" className="cshop__dropdown-item" role="menuitem" onClick={() => setMenuOpen(false)}>
-                    <UserRound size={16} />
-                    Hồ sơ cá nhân
-                  </Link>
-                  <Link to="/cart" className="cshop__dropdown-item" role="menuitem" onClick={() => setMenuOpen(false)}>
-                    <ShoppingCart size={16} />
-                    Giỏ hàng
-                  </Link>
-                  <button
-                    type="button"
-                    className="cshop__dropdown-item cshop__dropdown-item--danger"
-                    role="menuitem"
-                    onClick={handleLogout}
-                  >
-                    <LogOut size={16} />
-                    Đăng xuất
-                  </button>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </nav>
@@ -252,10 +279,12 @@ export const CustomerLayout = () => {
 
           <div className="cshop__foot-col">
             <p className="cshop__foot-title">Khám phá</p>
-            <Link to="/">Thực đơn</Link>
+            <Link to="/menu">Thực đơn</Link>
             <Link to="/cart">Giỏ hàng</Link>
             <Link to="/orders">Đơn của tôi</Link>
-            <Link to="/profile">Hồ sơ cá nhân</Link>
+            <Link to="/about">Giới thiệu</Link>
+            <Link to="/contact">Liên hệ</Link>
+            <Link to="/faq">Câu hỏi thường gặp</Link>
           </div>
 
           <div className="cshop__foot-col">
@@ -302,6 +331,10 @@ export const CustomerLayout = () => {
 
         <div className="cshop__foot-bottom">
           <span>© {new Date().getFullYear()} {settings.siteName}</span>
+          <span className="cshop__foot-legal">
+            <Link to="/terms">Điều khoản</Link>
+            <Link to="/privacy">Bảo mật</Link>
+          </span>
           <span className="cshop__foot-pay">
             <span className="cshop__foot-pay-pill">Tiền mặt khi nhận hàng</span>
             <span className="cshop__foot-pay-pill">VietQR</span>

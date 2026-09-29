@@ -96,6 +96,9 @@ class OrderPriceSnapshotTest {
     @Mock
     private OrderStatusHistoryRepository orderStatusHistoryRepository;
 
+    @Mock
+    private InventoryService inventoryService;
+
     @InjectMocks
     private OrderServiceImpl orderService;
 

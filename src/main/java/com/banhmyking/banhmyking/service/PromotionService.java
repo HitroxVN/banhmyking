@@ -4,6 +4,7 @@ import com.banhmyking.banhmyking.dto.promotion.CreatePromotionRequest;
 import com.banhmyking.banhmyking.dto.promotion.PromotionResponse;
 import com.banhmyking.banhmyking.dto.promotion.PublicPromotionResponse;
 import com.banhmyking.banhmyking.dto.promotion.ValidatePromotionRequest;
+import com.banhmyking.banhmyking.dto.promotion.WalletPromotionResponse;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.Promotion;
 import com.banhmyking.banhmyking.entity.PromotionUsage;
@@ -75,6 +76,9 @@ public interface PromotionService {
      * không lộ số lượt / id nội bộ.
      */
     List<PublicPromotionResponse> getPublicPromotions();
+
+    /** Ví mã của một khách: mã còn dùng được + mã khách đã dùng (kèm đơn và số tiền đã giảm). */
+    List<WalletPromotionResponse> getWallet(Long userId);
 
     /**
      * Lấy thông tin chi tiết mã giảm giá theo ID.

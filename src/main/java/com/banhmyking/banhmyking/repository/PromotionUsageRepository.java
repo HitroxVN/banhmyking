@@ -19,4 +19,9 @@ public interface PromotionUsageRepository extends JpaRepository<PromotionUsage, 
     /** Các promotion user này đã dùng — mỗi mã chỉ dùng được 1 lần (xem validateForOrder). */
     @Query("SELECT u.promotion.id FROM PromotionUsage u WHERE u.user.id = :userId")
     List<Long> findPromotionIdsByUserId(@Param("userId") Long userId);
+
+    /** Ví mã: mã user đã dùng, fetch sẵn promotion + order để mapper khỏi query thêm. */
+    @Query("SELECT u FROM PromotionUsage u JOIN FETCH u.promotion JOIN FETCH u.order "
+            + "WHERE u.user.id = :userId ORDER BY u.createdAt DESC")
+    List<PromotionUsage> findByUserIdWithDetails(@Param("userId") Long userId);
 }
