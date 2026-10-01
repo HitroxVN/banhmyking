@@ -111,6 +111,12 @@ axiosClient.interceptors.response.use(
         return axiosClient(originalRequest);
       } catch (refreshErr) {
         processQueue(refreshErr as AxiosError, null);
+        // Mất mạng / server tạm lỗi (không có response hoặc 5xx) → giữ token, để lần sau thử lại.
+        // Chỉ khi server trả lời từ chối refresh token (4xx) mới coi là hết phiên.
+        const refreshStatus = (refreshErr as AxiosError).response?.status;
+        if (refreshStatus === undefined || refreshStatus >= 500) {
+          return Promise.reject(extractErrorMessage(refreshErr as AxiosError<ErrorResponse>));
+        }
         tokenStorage.clearAuth();
         if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
           window.location.href = '/login?expired=true';

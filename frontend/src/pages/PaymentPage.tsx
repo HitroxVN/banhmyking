@@ -6,7 +6,7 @@ import { paymentApi } from '../api/paymentApi';
 import { Badge, Button, EmptyState, Spinner, StatusBadge, useToast } from '../components/ui';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
 import { VIETQR_CONFIG, generateVietQrUrl } from '../config/vietqr';
-import type { OrderResponse } from '../types/order';
+import { isFinalStatus, type OrderResponse } from '../types/order';
 import type { PaymentResponse, ProcessPaymentRequest } from '../types/payment';
 import '../styles/components/order.css';
 import '../styles/components/payment.css';
@@ -98,6 +98,8 @@ export const PaymentPage = () => {
   useEffect(() => {
     if (!orderCode || order?.paymentMethod !== 'BANK_TRANSFER') return;
     if (payment?.status === 'PAID' || order?.paymentStatus === 'PAID' || order?.status === 'CONFIRMED') return;
+    // Đơn đã kết thúc (vd job tự huỷ đơn quá hạn thanh toán) → thôi poll, không treo "chờ chuyển khoản" mãi.
+    if (order?.status && isFinalStatus(order.status)) return;
 
     const intervalId = window.setInterval(async () => {
       try {
@@ -105,6 +107,12 @@ export const PaymentPage = () => {
         if (latestPayment?.status === 'PAID') {
           setPayment(latestPayment);
           setOrder(await orderApi.getOrderByCode(orderCode));
+          return;
+        }
+        const latestOrder = await orderApi.getOrderByCode(orderCode);
+        if (isFinalStatus(latestOrder.status)) {
+          setPayment(latestPayment);
+          setOrder(latestOrder);
         }
       } catch {
         // Polling ngầm — bỏ qua lỗi mạng tạm thời
