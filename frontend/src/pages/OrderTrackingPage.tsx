@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Check, Info, Receipt, SearchX, Star, Truck, XCircle } from 'lucide-react';
+import { AlertTriangle, Check, Info, Receipt, SearchX, Star, Truck, XCircle } from 'lucide-react';
 import { orderApi } from '../api/orderApi';
 import { Badge, Button, EmptyState, Spinner, StatusBadge, useConfirm, useToast } from '../components/ui';
 import { ReviewFormModal } from '../components/review/ReviewFormModal';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
 import { PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL, PAYMENT_STATUS_TONE } from '../utils/payment';
+import { ORDER_STATUS_LABEL } from '../utils/orderStatus';
+import { usePolling } from '../hooks/usePolling';
 import type { OrderItemResponse, OrderResponse, OrderStatus, OrderStatusHistoryItem } from '../types/order';
 import '../styles/components/order.css';
 import '../styles/components/tracking.css';
@@ -23,6 +25,10 @@ const STEP_LABELS: Partial<Record<OrderStatus, string>> = {
 };
 
 const TERMINAL: OrderStatus[] = ['DELIVERED', 'CANCELLED', 'FAILED'];
+/** Chu kỳ tự cập nhật trạng thái đơn (ms) */
+const POLL_MS = 5000;
+/** Lỗi tải ngầm liên tiếp bao nhiêu lần thì báo cho khách biết trạng thái có thể đã cũ */
+const STALE_AFTER_FAILURES = 3;
 const CUSTOMER_CANCELABLE: OrderStatus[] = ['PENDING', 'CONFIRMED'];
 
 const ROLE_LABEL: Record<string, string> = {
@@ -45,6 +51,11 @@ export const OrderTrackingPage = () => {
   const [isCancelling, setIsCancelling] = useState(false);
   /** Món đang mở form đánh giá — null = đóng modal */
   const [reviewItem, setReviewItem] = useState<OrderItemResponse | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  /** Số lần tải ngầm thất bại liên tiếp — trước đây lỗi bị nuốt im lặng, trang đứng ở trạng thái cũ */
+  const [failedRefreshes, setFailedRefreshes] = useState(0);
+  /** Trạng thái lần tải trước — để báo khách khi staff/shipper vừa đổi trạng thái */
+  const lastStatusRef = useRef<OrderStatus | null>(null);
 
   const load = useCallback(
     async (silent = false) => {
@@ -57,34 +68,33 @@ export const OrderTrackingPage = () => {
           // Lịch sử là thông tin phụ — lỗi ở đây không nên chặn cả trang
           orderApi.getOrderHistory(orderCode).catch(() => [] as OrderStatusHistoryItem[]),
         ]);
+        const previous = lastStatusRef.current;
+        if (silent && previous && previous !== orderData.status) {
+          toast.info(`Đơn hàng đã chuyển sang: ${ORDER_STATUS_LABEL[orderData.status]}`);
+        }
+        lastStatusRef.current = orderData.status;
         setOrder(orderData);
         setHistory(historyData);
         setError(null);
+        setLastUpdated(new Date());
+        setFailedRefreshes(0);
       } catch (err) {
-        if (!silent) setError(err instanceof Error ? err.message : 'Không tải được đơn hàng.');
+        if (silent) setFailedRefreshes((count) => count + 1);
+        else setError(err instanceof Error ? err.message : 'Không tải được đơn hàng.');
       } finally {
         if (!silent) setIsLoading(false);
       }
     },
-    [orderCode]
+    [orderCode, toast]
   );
 
   useEffect(() => {
     load();
   }, [load]);
 
-  // Đơn chưa kết thúc thì tự làm mới mỗi 10s, bỏ qua khi tab đang ẩn
+  // Đơn chưa kết thúc thì tự làm mới (5s + ngay khi quay lại tab / có tín hiệu từ tab staff)
   const isFinished = order != null && TERMINAL.includes(order.status);
-  useEffect(() => {
-    if (!order || isFinished) return;
-
-    const timer = window.setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
-      load(true);
-    }, 10000);
-
-    return () => window.clearInterval(timer);
-  }, [order, isFinished, load]);
+  usePolling(() => load(true), { intervalMs: POLL_MS, enabled: order != null && !isFinished });
 
   const handleCancel = async () => {
     if (!order) return;
@@ -173,6 +183,18 @@ export const OrderTrackingPage = () => {
             </div>
             <StatusBadge status={order.status} />
           </div>
+          {!isFinished && lastUpdated && (
+            <p className="track__time track__live" aria-live="polite">
+              {failedRefreshes >= STALE_AFTER_FAILURES ? (
+                <>
+                  <AlertTriangle size={14} /> Mất kết nối — trạng thái có thể chưa mới nhất (cập nhật lần cuối{' '}
+                  {lastUpdated.toLocaleTimeString('vi-VN')})
+                </>
+              ) : (
+                <>Tự động cập nhật · lần cuối {lastUpdated.toLocaleTimeString('vi-VN')}</>
+              )}
+            </p>
+          )}
 
           <ol className="track__steps">
             {STEPS.map((status, index) => {

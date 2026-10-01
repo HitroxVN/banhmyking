@@ -95,7 +95,7 @@ class AuthControllerTest {
                         .content("{\"email\":\"test@test.com\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value("Đã gửi lại email xác thực. Vui lòng kiểm tra hộp thư."));
+                .andExpect(jsonPath("$.message").value("Nếu email này đã đăng ký và chưa xác thực, chúng tôi đã gửi lại link xác thực. Vui lòng kiểm tra hộp thư."));
     }
 
     // ─── quên mật khẩu ──────────────────────────────────────────────────────

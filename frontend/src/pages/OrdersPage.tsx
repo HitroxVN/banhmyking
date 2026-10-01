@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PackageSearch, Receipt, SearchX } from 'lucide-react';
 import { orderApi } from '../api/orderApi';
 import { Button, ChipGroup, EmptyState, Pagination, Skeleton, StatusBadge } from '../components/ui';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
+import { usePolling } from '../hooks/usePolling';
 import type { OrderResponse, OrderStatus } from '../types/order';
 import '../styles/components/orders.css';
 
 const PAGE_SIZE = 10;
+/** Danh sách nhiều đơn — làm mới thưa hơn trang chi tiết */
+const LIST_POLL_MS = 15000;
 
 type FilterKey = 'ALL' | 'PENDING' | 'KITCHEN' | 'DELIVERING' | 'DELIVERED' | 'CLOSED';
 
@@ -69,6 +72,28 @@ export const OrdersPage = () => {
       cancelled = true;
     };
   }, [reloadKey, filter, page]);
+
+  // Tự làm mới khi staff/shipper đổi trạng thái. Kết quả của bộ lọc/trang cũ (người dùng vừa bấm đổi
+  // giữa chừng) bị bỏ qua để không ghi đè danh sách đang xem.
+  const queryKey = `${filter}|${page}`;
+  const queryKeyRef = useRef(queryKey);
+  useEffect(() => {
+    queryKeyRef.current = queryKey;
+  }, [queryKey]);
+  usePolling(
+    async () => {
+      const requestedKey = queryKey;
+      try {
+        const result = await orderApi.getUserOrders(page - 1, PAGE_SIZE, STATUS_OF_FILTER[filter] ?? undefined);
+        if (queryKeyRef.current !== requestedKey) return;
+        setOrders(result.content ?? []);
+        setTotalPages(Math.max(1, result.totalPages ?? 1));
+      } catch {
+        // Lỗi tải ngầm: giữ danh sách đang hiện, lượt sau thử lại
+      }
+    },
+    { intervalMs: LIST_POLL_MS, enabled: !isLoading && !error }
+  );
 
   const changeFilter = (next: FilterKey) => {
     setFilter(next);

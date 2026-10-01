@@ -89,6 +89,7 @@ public class OrderServiceImpl implements OrderService {
     private final PaymentRepository paymentRepository;
     private final PriceCalculator priceCalculator;
     private final DeliveryFeeCalculator deliveryFeeCalculator;
+    private final com.banhmyking.banhmyking.service.StoreDistanceService storeDistanceService;
     private final PaymentService paymentService;
     private final OrderCodeGenerator orderCodeGenerator;
     private final OrderStatusValidator orderStatusValidator;
@@ -132,7 +133,11 @@ public class OrderServiceImpl implements OrderService {
             order.setPayment(paidPayment);
         }
         // Không hồi sinh payment đã hoàn tiền (admin hoàn trước khi shipper kịp xác nhận giao).
-        if (order.getPayment() != null && order.getPayment().getStatus() != PaymentStatus.REFUNDED) {
+        // Chỉ COD mới thu tiền lúc giao — đơn chuyển khoản chưa có tiền về thì giữ nguyên trạng thái.
+        Payment payment = order.getPayment();
+        boolean isCod = payment != null
+                && (payment.getMethod() == null || payment.getMethod() == PaymentMethod.COD);
+        if (isCod && payment.getStatus() != PaymentStatus.REFUNDED) {
             order.getPayment().setStatus(PaymentStatus.PAID);
             order.getPayment().setPaidAt(now);
         }
@@ -164,6 +169,13 @@ public class OrderServiceImpl implements OrderService {
                 : null;
         if (idempotencyKey != null) {
             Optional<Order> existing = orderRepository.findByIdempotencyKey(idempotencyKey);
+            // Key là UNIQUE toàn bảng: trùng key của user khác thì KHÔNG được trả đơn đó về
+            // (lộ tên, SĐT, địa chỉ người nhận) — báo lỗi để client sinh key mới.
+            if (existing.isPresent() && (existing.get().getUser() == null
+                    || !userId.equals(existing.get().getUser().getId()))) {
+                throw new BusinessException(ErrorCode.CONFLICT,
+                        "Mã chống gửi trùng (idempotencyKey) đã được sử dụng, vui lòng thử lại");
+            }
             if (existing.isPresent()) {
                 log.info("Idempotent create: trả về đơn {} cho key {}", existing.get().getOrderCode(), idempotencyKey);
                 return toOrderResponse(existing.get());
@@ -193,6 +205,8 @@ public class OrderServiceImpl implements OrderService {
         String receiverName;
         String receiverPhone;
         String shippingAddress;
+        BigDecimal deliveryLatitude;
+        BigDecimal deliveryLongitude;
 
         if (request.getAddressId() != null) {
             Address address = addressRepository.findByIdAndUserId(request.getAddressId(), userId)
@@ -200,6 +214,8 @@ public class OrderServiceImpl implements OrderService {
             receiverName = address.getReceiverName();
             receiverPhone = address.getReceiverPhone();
             shippingAddress = address.getFullAddress();
+            deliveryLatitude = address.getLatitude();
+            deliveryLongitude = address.getLongitude();
         } else {
             if (request.getReceiverName() == null || request.getReceiverName().trim().isEmpty()) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Tên người nhận không được để trống");
@@ -213,7 +229,15 @@ public class OrderServiceImpl implements OrderService {
             receiverName = request.getReceiverName().trim();
             receiverPhone = request.getReceiverPhone().trim();
             shippingAddress = request.getShippingAddress().trim();
+            boolean pinned = request.getLatitude() != null && request.getLongitude() != null;
+            deliveryLatitude = pinned ? request.getLatitude() : null;
+            deliveryLongitude = pinned ? request.getLongitude() : null;
         }
+
+        // Khoảng cách do server tính từ vị trí quán — không tin số client gửi (plan.md §2.2).
+        // Ngoài bán kính phục vụ → BusinessException, chặn đặt đơn ngay tại đây.
+        BigDecimal distanceKm = storeDistanceService.roadDistanceKm(deliveryLatitude, deliveryLongitude)
+                .orElse(null);
 
         // 4. Resolve Promotion (nếu có)
         Promotion promotion = null;
@@ -235,7 +259,7 @@ public class OrderServiceImpl implements OrderService {
         // #18: deliveryFeeCalculator/paymentService là bean bắt buộc (@RequiredArgsConstructor)
         // — null-check và fallback tự tạo Payment là dead code, đã xóa.
         DeliveryFeeResult deliveryResult = deliveryFeeCalculator.calculateFee(
-                request.getDistanceKm(), shippingAddress, cartSubtotal);
+                distanceKm, shippingAddress, cartSubtotal);
         BigDecimal shippingFee = (deliveryResult != null && deliveryResult.getShippingFee() != null)
                 ? deliveryResult.getShippingFee()
                 : PriceCalculator.DEFAULT_SHIPPING_FEE;
@@ -253,6 +277,9 @@ public class OrderServiceImpl implements OrderService {
         order.setReceiverName(receiverName);
         order.setReceiverPhone(receiverPhone);
         order.setShippingAddress(shippingAddress);
+        order.setDistanceKm(distanceKm);
+        order.setDeliveryLatitude(deliveryLatitude);
+        order.setDeliveryLongitude(deliveryLongitude);
         order.setSubtotal(priceBreakdown.getSubtotal());
         order.setShippingFee(priceBreakdown.getShippingFee());
         order.setDiscountAmount(priceBreakdown.getDiscountAmount());
@@ -586,9 +613,10 @@ public class OrderServiceImpl implements OrderService {
             paymentService.refundPayment(order, payment.getAmount(),
                     reason != null ? reason : "Huỷ đơn sau khi đã thanh toán", actor.getId());
         }
-        // Trả lại lượt mã khuyến mãi đã tiêu cho đơn này, và hoàn hàng đã giữ về kho.
-        promotionService.releaseForOrder(order);
+        // Hoàn hàng đã giữ về kho, rồi trả lại lượt mã khuyến mãi đã tiêu cho đơn này.
+        // Hoàn kho TRƯỚC: release mã chạy bulk UPDATE, không đọc lazy items sau nó.
         inventoryService.restoreForOrder(order);
+        promotionService.releaseForOrder(order);
 
         Order updatedOrder = orderRepository.save(order);
 
@@ -716,8 +744,8 @@ public class OrderServiceImpl implements OrderService {
                 paymentService.refundPayment(order, failedPayment.getAmount(),
                         "Giao hàng thất bại, hoàn tiền cho khách", actor.getId());
             }
-            promotionService.releaseForOrder(order);
             inventoryService.restoreForOrder(order);
+            promotionService.releaseForOrder(order);
         }
 
         // Xác nhận đơn là lúc giữ hàng: trừ tồn ngay, không đủ thì fail cả đơn.
@@ -813,6 +841,9 @@ public class OrderServiceImpl implements OrderService {
                 .receiverName(order.getReceiverName())
                 .receiverPhone(order.getReceiverPhone())
                 .shippingAddress(order.getShippingAddress())
+                .distanceKm(order.getDistanceKm())
+                .deliveryLatitude(order.getDeliveryLatitude())
+                .deliveryLongitude(order.getDeliveryLongitude())
                 .subtotal(order.getSubtotal())
                 .shippingFee(order.getShippingFee())
                 .discountAmount(order.getDiscountAmount())

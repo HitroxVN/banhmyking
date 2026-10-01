@@ -15,6 +15,8 @@ import type { AddressResponse } from '../types/address';
 import type { CreateOrderRequest, PaymentMethod } from '../types/order';
 import type { PromotionResponse, PublicPromotionResponse } from '../types/promotion';
 import type { DeliveryFeeResult } from '../types/delivery';
+import { AddressLocationFields } from '../components/address/AddressLocationFields';
+import { EMPTY_LOCATION, type AddressLocation } from '../components/address/addressLocation';
 import '../styles/components/order.css';
 import '../styles/components/checkout.css';
 
@@ -23,6 +25,16 @@ interface FormErrors {
   receiverPhone?: string;
   shippingAddress?: string;
 }
+
+/** Địa chỉ trong sổ → dạng dùng cho form/phí ship (địa chỉ cũ chưa ghim thì toạ độ null) */
+const toLocation = (address: AddressResponse): AddressLocation => ({
+  street: address.street ?? '',
+  ward: address.ward ?? '',
+  province: address.province ?? '',
+  fullAddress: address.fullAddress,
+  latitude: address.latitude ?? null,
+  longitude: address.longitude ?? null,
+});
 
 const validateField = (name: keyof FormErrors, value: string): string | undefined => {
   const trimmed = value.trim();
@@ -56,7 +68,9 @@ export const CheckoutPage = () => {
 
   const [receiverName, setReceiverName] = useState('');
   const [receiverPhone, setReceiverPhone] = useState('');
-  const [shippingAddress, setShippingAddress] = useState('');
+  /** Địa chỉ giao đang chọn (từ sổ địa chỉ hoặc nhập mới) — toạ độ dùng để server tính phí ship */
+  const [location, setLocation] = useState<AddressLocation>(EMPTY_LOCATION);
+  const shippingAddress = location.fullAddress;
   const [note, setNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
 
@@ -68,6 +82,8 @@ export const CheckoutPage = () => {
 
   const [fee, setFee] = useState<DeliveryFeeResult | null>(null);
   const [isLoadingFee, setIsLoadingFee] = useState(false);
+  /** Lỗi tính phí (vd ngoài bán kính giao) — hiện cho khách thay vì nuốt im lặng */
+  const [feeError, setFeeError] = useState<string | null>(null);
 
   const [promoInput, setPromoInput] = useState('');
   const [appliedPromotion, setAppliedPromotion] = useState<PromotionResponse | null>(null);
@@ -109,7 +125,7 @@ export const CheckoutPage = () => {
         setSelectedAddressId(preferred.id);
         setReceiverName(preferred.receiverName);
         setReceiverPhone(preferred.receiverPhone);
-        setShippingAddress(preferred.fullAddress);
+        setLocation(toLocation(preferred));
       })
       .catch(() => {
         if (!alive) return;
@@ -126,11 +142,14 @@ export const CheckoutPage = () => {
     };
   }, [user]);
 
-  // Phí ship xem trước — gọi cùng tham số mà POST /orders sẽ dùng (không gửi distanceKm)
+  // Phí ship xem trước — cùng tham số (địa chỉ + toạ độ ghim) mà POST /orders sẽ dùng,
+  // server tự tính khoảng cách từ quán nên số xem trước khớp số chốt đơn.
+  const { latitude, longitude } = location;
   useEffect(() => {
     const address = shippingAddress.trim();
     if (subtotal <= 0 || address.length < 5) {
       setFee(null);
+      setFeeError(null);
       return;
     }
 
@@ -139,12 +158,16 @@ export const CheckoutPage = () => {
 
     const timer = window.setTimeout(() => {
       deliveryApi
-        .getFee({ subtotal, shippingAddress: address })
+        .getFee({ subtotal, shippingAddress: address, latitude, longitude })
         .then((result) => {
-          if (!cancelled) setFee(result);
+          if (cancelled) return;
+          setFee(result);
+          setFeeError(null);
         })
-        .catch(() => {
-          if (!cancelled) setFee(null);
+        .catch((err) => {
+          if (cancelled) return;
+          setFee(null);
+          setFeeError(err instanceof Error ? err.message : 'Không tính được phí giao hàng');
         })
         .finally(() => {
           if (!cancelled) setIsLoadingFee(false);
@@ -155,7 +178,7 @@ export const CheckoutPage = () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [shippingAddress, subtotal]);
+  }, [shippingAddress, subtotal, latitude, longitude]);
 
   const shippingFee = fee?.shippingFee ?? 0;
   // Số tiền giảm do backend tính (cùng công thức với lúc tạo đơn) — FE không tự tính lại
@@ -168,7 +191,7 @@ export const CheckoutPage = () => {
     setSelectedAddressId(address.id);
     setReceiverName(address.receiverName);
     setReceiverPhone(address.receiverPhone);
-    setShippingAddress(address.fullAddress);
+    setLocation(toLocation(address));
     setErrors({});
   };
 
@@ -177,7 +200,7 @@ export const CheckoutPage = () => {
     setSelectedAddressId(null);
     setReceiverName(user?.fullName ?? '');
     setReceiverPhone(user?.phone ?? '');
-    setShippingAddress('');
+    setLocation(EMPTY_LOCATION);
     setErrors({});
   };
 
@@ -214,6 +237,9 @@ export const CheckoutPage = () => {
         receiverName: receiverName.trim(),
         receiverPhone: receiverPhone.trim(),
         shippingAddress: shippingAddress.trim(),
+        // Địa chỉ trong sổ: server tự lấy toạ độ đã lưu theo addressId
+        latitude: addressMode === 'new' ? location.latitude : undefined,
+        longitude: addressMode === 'new' ? location.longitude : undefined,
         paymentMethod,
         note: note.trim() || undefined,
         promotionCode: appliedPromotion?.code,
@@ -390,16 +416,22 @@ export const CheckoutPage = () => {
                   )}
 
                   {addressMode === 'new' && (
-                    <Input
-                      label="Địa chỉ nhận hàng"
-                      required
-                      value={shippingAddress}
-                      onChange={(event) => setShippingAddress(event.target.value)}
-                      onBlur={() => setErrors((prev) => ({ ...prev, shippingAddress: validateField('shippingAddress', shippingAddress) }))}
-                      error={errors.shippingAddress}
-                      hint="Số nhà, đường, phường/quận, thành phố — giúp tính phí giao chính xác."
-                      placeholder="123 Lê Lợi, Quận 1, TP.HCM"
-                    />
+                    <div className="ck__block">
+                      <AddressLocationFields
+                        value={location}
+                        onChange={(next) => {
+                          setLocation(next);
+                          if (errors.shippingAddress) {
+                            setErrors((prev) => ({
+                              ...prev,
+                              shippingAddress: validateField('shippingAddress', next.fullAddress),
+                            }));
+                          }
+                        }}
+                        fullAddressLabel="Địa chỉ nhận hàng"
+                        fullAddressError={errors.shippingAddress}
+                      />
+                    </div>
                   )}
 
                   <div className="ck__block">
@@ -508,6 +540,11 @@ export const CheckoutPage = () => {
               </span>
             </div>
             {fee?.description && <p className="summary__row summary__row--note">{fee.description}</p>}
+            {feeError && !isLoadingFee && (
+              <p className="summary__row summary__row--note summary__row--error" role="alert">
+                {feeError}
+              </p>
+            )}
             {discount > 0 && (
               <div className="summary__row summary__row--free">
                 <span>Giảm giá ({appliedPromotion?.code})</span>

@@ -54,6 +54,12 @@ public class UserServiceImpl implements UserService {
         // Chỉ đổi ảnh khi client THỰC SỰ gửi field này. Form sửa tên/SĐT không gửi imageUrl
         // → gán thẳng sẽ vô tình xoá avatar mỗi lần lưu. Xoá ảnh có endpoint riêng.
         if (request.imageUrl() != null) {
+            // Ảnh trong /uploads/ chỉ được gán qua endpoint upload. Nếu cho gán tay, user có thể trỏ
+            // avatar vào file của người khác rồi gọi DELETE /users/me/avatar để xoá file đó.
+            if (request.imageUrl().startsWith("/uploads/")) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        "Ảnh đại diện phải được tải lên qua chức năng upload");
+            }
             user.setImage(request.imageUrl());
         }
         return toDetail(userRepository.save(user));
@@ -97,7 +103,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public PageResponse<UserDetailResponse> getUsers(RoleName role, Boolean banned, String keyword, int page, int size) {
         Pageable pageable = PageableFactory.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<UserDetailResponse> result = userRepository
@@ -108,7 +114,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public UserDetailResponse getUser(Long id) {
         User user = userRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy user"));
@@ -157,6 +163,8 @@ public class UserServiceImpl implements UserService {
 
         if (request.password() != null && !request.password().isBlank()) {
             target.setPassword(passwordEncoder.encode(request.password()));
+            // Giống changePassword/resetPassword: đổi mật khẩu thì đăng xuất mọi phiên cũ
+            revokeRefreshTokens(targetId);
         }
 
         if (request.role() != null && request.role() != target.getRole()) {

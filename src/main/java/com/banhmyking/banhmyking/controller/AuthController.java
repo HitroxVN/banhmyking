@@ -61,7 +61,7 @@ public class AuthController {
             description = "Gửi lại link xác thực cho tài khoản chưa kích hoạt.")
     public ApiResponse<Void> resendVerification(@Valid @RequestBody ResendVerificationRequest request) {
         authService.resendVerificationEmail(request.email());
-        return ApiResponse.ok("Đã gửi lại email xác thực. Vui lòng kiểm tra hộp thư.");
+        return ApiResponse.ok("Nếu email này đã đăng ký và chưa xác thực, chúng tôi đã gửi lại link xác thực. Vui lòng kiểm tra hộp thư.");
     }
 
     @PostMapping("/forgot-password")

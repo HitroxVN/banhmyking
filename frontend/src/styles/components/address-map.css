@@ -1,0 +1,111 @@
+/* ==========================================================================
+   Chọn địa chỉ trên bản đồ (AddressMapPicker + AddressLocationFields)
+   ========================================================================== */
+
+.addr-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.addr-fields__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.addr-map {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.addr-map__search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.addr-map__input {
+  flex: 1 1 200px;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--stone-800);
+}
+
+.addr-map__input:focus {
+  outline: 2px solid var(--primary-300);
+  outline-offset: 1px;
+  border-color: var(--primary-500);
+}
+
+.addr-map__results {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.addr-map__results button {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--stone-700);
+  text-align: left;
+  cursor: pointer;
+}
+
+.addr-map__results button:hover,
+.addr-map__results button:focus-visible {
+  background: var(--primary-50);
+}
+
+.addr-map__results svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--primary-600);
+}
+
+.addr-map__canvas {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  /* Leaflet tự đặt z-index cao cho các lớp bản đồ — cô lập để không đè lên header / modal */
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+}
+
+.addr-map__hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--stone-500);
+}
+
+.addr-map__hint--warn {
+  color: var(--warning);
+}
+
+@media (max-width: 560px) {
+  .addr-fields__row {
+    grid-template-columns: 1fr;
+  }
+}

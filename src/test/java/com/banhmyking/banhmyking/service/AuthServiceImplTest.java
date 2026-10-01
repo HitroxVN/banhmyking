@@ -165,15 +165,21 @@ class AuthServiceImplTest {
     }
 
     @Test
-    void resendVerification_alreadyVerified_throwsBusinessError() {
+    void resendVerification_alreadyVerified_silentlySendsNothing() {
         User user = buildUser(1L, "x@y.com", "hashed", false);
         user.setEmailVerified(true);
         when(userRepository.findByEmailAndDeletedFalse("x@y.com")).thenReturn(Optional.of(user));
 
-        assertThatThrownBy(() -> authService.resendVerificationEmail("x@y.com"))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.BUSINESS_ERROR);
+        authService.resendVerificationEmail("x@y.com");
+
+        verify(emailService, never()).sendVerificationEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void resendVerification_unknownEmail_silentlySendsNothing() {
+        when(userRepository.findByEmailAndDeletedFalse("nobody@y.com")).thenReturn(Optional.empty());
+
+        authService.resendVerificationEmail("nobody@y.com");
 
         verify(emailService, never()).sendVerificationEmail(anyString(), anyString(), anyString());
     }

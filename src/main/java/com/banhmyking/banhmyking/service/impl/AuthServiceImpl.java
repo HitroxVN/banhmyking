@@ -96,19 +96,15 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void resendVerificationEmail(String email) {
-        User user = userRepository.findByEmailAndDeletedFalse(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "Không tìm thấy tài khoản với email này"));
-
-        if (user.isEmailVerified()) {
-            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
-                    "Tài khoản đã được xác thực. Bạn có thể đăng nhập.");
-        }
-
-        String rawToken = assignVerificationToken(user);
-        userRepository.save(user);
-
-        emailService.sendVerificationEmail(user.getEmail(), user.getFullName(), rawToken);
+        // Giống forgotPassword: không báo "không tồn tại" / "đã xác thực" để người ngoài
+        // không dò được email nào đã đăng ký. Chỉ gửi khi tài khoản tồn tại và chưa xác thực.
+        userRepository.findByEmailAndDeletedFalse(email)
+                .filter(user -> !user.isEmailVerified())
+                .ifPresent(user -> {
+                    String rawToken = assignVerificationToken(user);
+                    userRepository.save(user);
+                    emailService.sendVerificationEmail(user.getEmail(), user.getFullName(), rawToken);
+                });
     }
 
     // ─── Quên mật khẩu ─────────────────────────────────────────────────────

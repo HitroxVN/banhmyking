@@ -36,6 +36,32 @@ public class SiteSettingServiceImpl implements SiteSettingService {
         return merged;
     }
 
+    /** Khoá dạng số: rỗng = chưa đặt; có giá trị thì phải là số trong khoảng hợp lý. */
+    private static void validateNumeric(String key, String value) {
+        double min;
+        double max;
+        String label;
+        switch (key) {
+            case SiteSettingKeys.STORE_LATITUDE -> { min = 8.0; max = 23.5; label = "Vĩ độ cửa hàng"; }
+            case SiteSettingKeys.STORE_LONGITUDE -> { min = 102.0; max = 110.0; label = "Kinh độ cửa hàng"; }
+            case SiteSettingKeys.DELIVERY_MAX_RADIUS_KM -> { min = 0.5; max = 100.0; label = "Bán kính giao hàng"; }
+            default -> { return; }
+        }
+        if (value.isEmpty()) {
+            return;
+        }
+        double number;
+        try {
+            number = Double.parseDouble(value);
+        } catch (NumberFormatException ex) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, label + " phải là số");
+        }
+        if (number < min || number > max) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    label + " phải nằm trong khoảng " + min + " – " + max);
+        }
+    }
+
     @Override
     @Transactional
     public Map<String, String> updateSettings(Map<String, String> incoming) {
@@ -56,7 +82,17 @@ public class SiteSettingServiceImpl implements SiteSettingService {
                         "Giá trị của \"" + key + "\" quá dài (tối đa "
                                 + SiteSettingKeys.MAX_VALUE_LENGTH + " ký tự)");
             }
+            validateNumeric(key, value);
             values.put(key, value);
+        }
+
+        // Toạ độ quán đi theo cặp: lưu xong mà chỉ có một nửa thì không tính được khoảng cách.
+        Map<String, String> after = new LinkedHashMap<>(getPublicSettings());
+        after.putAll(values);
+        if (after.get(SiteSettingKeys.STORE_LATITUDE).isEmpty()
+                != after.get(SiteSettingKeys.STORE_LONGITUDE).isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Vị trí cửa hàng cần đủ cả vĩ độ và kinh độ (hoặc để trống cả hai)");
         }
 
         String previousHeroImage = getPublicSettings().get(SiteSettingKeys.HERO_IMAGE_URL);

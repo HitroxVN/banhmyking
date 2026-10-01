@@ -16,7 +16,7 @@ export interface RequireRoleProps {
 
 /** Chặn theo vai trò — gộp AdminRoute / StaffRoute / ShipperRoute cũ thành một. */
 export const RequireRole = ({ roles, area, loadingText = 'Đang xác minh quyền truy cập...' }: RequireRoleProps) => {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -45,7 +45,14 @@ export const RequireRole = ({ roles, area, loadingText = 'Đang xác minh quyề
             <Button variant="primary" onClick={() => navigate(roleHomePath(user?.role))}>
               Về khu vực làm việc
             </Button>
-            <Button variant="secondary" onClick={() => navigate('/login')}>
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                // Chưa logout thì LoginPage thấy đã đăng nhập và đẩy ngược về → nút không có tác dụng
+                await logout();
+                navigate('/login');
+              }}
+            >
               Đổi tài khoản khác
             </Button>
           </div>

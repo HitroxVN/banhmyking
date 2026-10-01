@@ -23,6 +23,23 @@ class FileStorageServiceTest {
     }
 
     @Test
+    void storeImage_htmlFileDisguisedAsImage_isRejected() {
+        // content-type do client tự khai → không được tin, đuôi .html sẽ bị phục vụ như trang web (XSS)
+        MockMultipartFile html = new MockMultipartFile("file", "x.html", "image/png", "<script>".getBytes());
+
+        assertThatThrownBy(() -> storage.storeImage(html, FileStorageService.AVATAR_DIR))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void storeImage_svg_isRejected() {
+        MockMultipartFile svg = new MockMultipartFile("file", "x.svg", "image/svg+xml", "<svg/>".getBytes());
+
+        assertThatThrownBy(() -> storage.storeImage(svg, FileStorageService.AVATAR_DIR))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
     void storeImage_emptyFile_isRejected() {
         MockMultipartFile empty = new MockMultipartFile("file", "a.png", "image/png", new byte[0]);
 

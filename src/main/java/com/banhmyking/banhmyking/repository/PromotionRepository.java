@@ -42,7 +42,9 @@ public interface PromotionRepository extends JpaRepository<Promotion, Long> {
      * Hoàn lại 1 lượt khi đơn bị huỷ/giao thất bại. Guard `usedCount > 0` để không âm
      * (đơn cũ chưa từng trừ lượt, hoặc job chạy hai lần). Trả số row cập nhật.
      */
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    // Không clearAutomatically: hàm này chạy giữa luồng huỷ/giao thất bại, clear persistence context sẽ
+    // detach Order đang xử lý → đọc order.getItems() (lazy) sau đó ném LazyInitializationException.
+    @Modifying(flushAutomatically = true)
     @Query("UPDATE Promotion p SET p.usedCount = p.usedCount - 1 WHERE p.id = :id AND p.usedCount > 0")
     int decrementUsedCountAtomic(@Param("id") Long id);
 }

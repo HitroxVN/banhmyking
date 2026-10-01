@@ -40,6 +40,12 @@ public final class CsvWriter {
         if (value == null) {
             return "";
         }
+        // Chặn CSV/formula injection: tên món, tên shipper... bắt đầu bằng = + - @ sẽ bị Excel chạy như
+        // công thức. Số âm (vd "-5000") vẫn giữ nguyên để cột tiền còn là số.
+        if (!value.isEmpty() && "=+-@\t\r".indexOf(value.charAt(0)) >= 0
+                && !value.matches("-\\d+(\\.\\d+)?")) {
+            value = "'" + value;
+        }
         if (value.indexOf(',') < 0 && value.indexOf('"') < 0
                 && value.indexOf('\n') < 0 && value.indexOf('\r') < 0) {
             return value;
