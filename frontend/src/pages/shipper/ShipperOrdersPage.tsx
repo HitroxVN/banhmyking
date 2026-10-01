@@ -448,7 +448,12 @@ const OrderCard = ({
             </a>
             <a
               className="shipper__map"
-              href={`https://maps.google.com/?q=${encodeURIComponent(order.shippingAddress)}`}
+              // Có toạ độ ghim thì chỉ đường tới đúng điểm khách ghim, không thì tìm theo chữ địa chỉ
+              href={
+                order.deliveryLatitude != null && order.deliveryLongitude != null
+                  ? `https://www.google.com/maps/dir/?api=1&destination=${order.deliveryLatitude},${order.deliveryLongitude}`
+                  : `https://maps.google.com/?q=${encodeURIComponent(order.shippingAddress)}`
+              }
               target="_blank"
               rel="noopener noreferrer"
             >

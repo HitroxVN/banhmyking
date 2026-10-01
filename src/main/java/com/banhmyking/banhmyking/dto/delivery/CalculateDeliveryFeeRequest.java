@@ -18,10 +18,16 @@ import java.math.BigDecimal;
 @Schema(description = "Yêu cầu tính thử phí giao hàng")
 public class CalculateDeliveryFeeRequest {
 
-    // chặn input rác ngay ở binding — trước đây giá trị âm lọt tới calculator.
-    @DecimalMin(value = "0", message = "distanceKm không được âm")
-    @Schema(description = "Khoảng cách giao hàng tính bằng km (tùy chọn, >= 0)", example = "3.5")
-    private BigDecimal distanceKm;
+    /** Toạ độ điểm giao (ghim trên bản đồ). Có toạ độ + quán đã ghim vị trí → server tự tính khoảng cách. */
+    @jakarta.validation.constraints.DecimalMin(value = "8.0", message = "Vĩ độ nằm ngoài Việt Nam")
+    @jakarta.validation.constraints.DecimalMax(value = "23.5", message = "Vĩ độ nằm ngoài Việt Nam")
+    @Schema(description = "Vĩ độ điểm giao (tuỳ chọn)", example = "21.028511")
+    private java.math.BigDecimal latitude;
+
+    @jakarta.validation.constraints.DecimalMin(value = "102.0", message = "Kinh độ nằm ngoài Việt Nam")
+    @jakarta.validation.constraints.DecimalMax(value = "110.0", message = "Kinh độ nằm ngoài Việt Nam")
+    @Schema(description = "Kinh độ điểm giao (tuỳ chọn)", example = "105.804817")
+    private java.math.BigDecimal longitude;
 
     @Schema(description = "Địa chỉ nhận hàng chi tiết để phân loại khu vực", example = "123 Lê Lợi, Phường Bến Nghé, Quận 1, TP.HCM")
     private String shippingAddress;

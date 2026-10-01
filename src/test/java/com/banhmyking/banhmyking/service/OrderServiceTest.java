@@ -92,6 +92,9 @@ class OrderServiceTest {
     private DeliveryFeeCalculator deliveryFeeCalculator;
 
     @Mock
+    private StoreDistanceService storeDistanceService;
+
+    @Mock
     private PaymentService paymentService;
 
     @Mock
@@ -282,6 +285,64 @@ class OrderServiceTest {
     }
 
     @Test
+    @DisplayName("Địa chỉ mới có toạ độ: phí ship tính theo khoảng cách SERVER tính, đơn lưu khoảng cách + toạ độ")
+    void createFromCart_withPinnedAddress_usesServerDistance() {
+        BigDecimal lat = new BigDecimal("21.028511");
+        BigDecimal lng = new BigDecimal("105.804817");
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .receiverName("Trần Thị B")
+                .receiverPhone("0988776655")
+                .shippingAddress("12 Láng Hạ, Phường Láng, Hà Nội")
+                .latitude(lat)
+                .longitude(lng)
+                .build();
+        PriceBreakdown breakdown = PriceBreakdown.builder()
+                .subtotal(BigDecimal.valueOf(80000))
+                .shippingFee(BigDecimal.valueOf(20000))
+                .discountAmount(BigDecimal.ZERO)
+                .total(BigDecimal.valueOf(100000))
+                .build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
+        when(storeDistanceService.roadDistanceKm(lat, lng)).thenReturn(Optional.of(new BigDecimal("3.25")));
+        when(priceCalculator.calculate(eq(testCart), any(), any())).thenReturn(breakdown);
+        when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20261001-GEO01");
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        OrderResponse response = orderService.createFromCart(1L, request);
+
+        verify(deliveryFeeCalculator).calculateFee(eq(new BigDecimal("3.25")), any(), any());
+        assertThat(response.getDistanceKm()).isEqualByComparingTo("3.25");
+        assertThat(response.getDeliveryLatitude()).isEqualByComparingTo(lat);
+        assertThat(response.getDeliveryLongitude()).isEqualByComparingTo(lng);
+    }
+
+    @Test
+    @DisplayName("Địa chỉ ngoài bán kính phục vụ: chặn đặt đơn, không lưu gì")
+    void createFromCart_outsideDeliveryRadius_isRejected() {
+        BigDecimal lat = new BigDecimal("10.776889");
+        BigDecimal lng = new BigDecimal("106.700806");
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .receiverName("Trần Thị B")
+                .receiverPhone("0988776655")
+                .shippingAddress("Quận 1, TP.HCM")
+                .latitude(lat)
+                .longitude(lng)
+                .build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
+        when(storeDistanceService.roadDistanceKm(lat, lng)).thenThrow(
+                new BusinessException(ErrorCode.BUSINESS_ERROR, "ngoài bán kính giao hàng"));
+
+        assertThatThrownBy(() -> orderService.createFromCart(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("bán kính");
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
     @DisplayName("Chặn áp dụng promotion khi người dùng đã từng sử dụng mã này")
     void createFromCart_whenPromotionAlreadyUsed_shouldThrowBusinessException() {
         CreateOrderRequest request = CreateOrderRequest.builder()
@@ -428,5 +489,29 @@ when(promotionService.validateForOrder(eq("SALE10"), eq(1L), any())).thenThrow(n
         assertThat(response.getOrderCode()).isEqualTo("BMK-20260909-EXIST");
         verify(orderRepository, never()).save(any(Order.class));
         verify(cartService, never()).clearCart(any());
+    }
+
+    @Test
+    @DisplayName("idempotencyKey trùng với đơn của user KHÁC -> báo lỗi, không trả đơn của người khác")
+    void createFromCart_idempotencyKeyOfAnotherUser_isRejected() {
+        User someoneElse = new User();
+        someoneElse.setId(999L);
+        Order othersOrder = new Order();
+        othersOrder.setId(501L);
+        othersOrder.setOrderCode("BMK-20260909-OTHER");
+        othersOrder.setUser(someoneElse);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(orderRepository.findByIdempotencyKey("key-x")).thenReturn(Optional.of(othersOrder));
+
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .addressId(200L)
+                .paymentMethod(PaymentMethod.COD)
+                .idempotencyKey("key-x")
+                .build();
+
+        assertThatThrownBy(() -> orderService.createFromCart(1L, request))
+                .isInstanceOf(BusinessException.class);
+        verify(orderRepository, never()).save(any(Order.class));
     }
 }

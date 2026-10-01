@@ -46,7 +46,9 @@ export interface CreateOrderRequest {
   shippingAddress?: string;
   promotionCode?: string;
   paymentMethod?: PaymentMethod;
-  distanceKm?: number;
+  /** Toạ độ ghim của địa chỉ mới — server tự tính khoảng cách (không còn gửi distanceKm) */
+  latitude?: number | null;
+  longitude?: number | null;
   note?: string;
   /** Khoá chống trùng cho mỗi lần chốt đơn; gửi lại cùng khoá nhận đúng đơn cũ. */
   idempotencyKey?: string;
@@ -76,6 +78,11 @@ export interface OrderResponse {
   receiverName: string;
   receiverPhone: string;
   shippingAddress: string;
+  /** Khoảng cách server tính lúc đặt đơn (km); null = phí ship theo khu vực */
+  distanceKm?: number | null;
+  /** Toạ độ ghim điểm giao — shipper mở chỉ đường đúng vị trí */
+  deliveryLatitude?: number | null;
+  deliveryLongitude?: number | null;
   subtotal: number;
   shippingFee: number;
   discountAmount: number;

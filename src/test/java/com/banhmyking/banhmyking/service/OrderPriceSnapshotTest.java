@@ -85,6 +85,9 @@ class OrderPriceSnapshotTest {
     private DeliveryFeeCalculator deliveryFeeCalculator;
 
     @Mock
+    private StoreDistanceService storeDistanceService;
+
+    @Mock
     private PaymentService paymentService;
 
     @Mock
@@ -159,7 +162,6 @@ class OrderPriceSnapshotTest {
         // GIVEN: Đơn hàng ban đầu được tính: Subtotal = (30.000 + 5.000) * 2 = 70.000đ, Ship = 15.000đ -> Total = 85.000đ
         CreateOrderRequest request = CreateOrderRequest.builder()
                 .addressId(200L)
-                .distanceKm(BigDecimal.valueOf(1.5))
                 .paymentMethod(PaymentMethod.COD)
                 .note("Không hành")
                 .build();

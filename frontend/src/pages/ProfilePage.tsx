@@ -12,11 +12,12 @@ import {
   Modal,
   Skeleton,
   Tabs,
-  Textarea,
   useConfirm,
   useToast,
 } from '../components/ui';
 import type { AddressRequest, AddressResponse } from '../types/address';
+import { AddressLocationFields } from '../components/address/AddressLocationFields';
+import type { AddressLocation } from '../components/address/addressLocation';
 import '../styles/components/order.css';
 import '../styles/components/profile.css';
 
@@ -25,8 +26,12 @@ type TabKey = 'info' | 'password' | 'address';
 /** SĐT Việt Nam: 10 số, đầu 03/05/07/08/09 */
 const PHONE_REGEX = /^(0[35789])[0-9]{8}$/;
 
-interface AddressForm extends AddressRequest {
+interface AddressForm {
   id: number | null;
+  receiverName: string;
+  receiverPhone: string;
+  location: AddressLocation;
+  defaultAddress: boolean;
 }
 
 export const ProfilePage = () => {
@@ -190,7 +195,14 @@ export const ProfilePage = () => {
       id: address?.id ?? null,
       receiverName: address?.receiverName ?? '',
       receiverPhone: address?.receiverPhone ?? '',
-      fullAddress: address?.fullAddress ?? '',
+      location: {
+        street: address?.street ?? '',
+        ward: address?.ward ?? '',
+        province: address?.province ?? '',
+        fullAddress: address?.fullAddress ?? '',
+        latitude: address?.latitude ?? null,
+        longitude: address?.longitude ?? null,
+      },
       defaultAddress: address?.defaultAddress ?? false,
     });
   };
@@ -203,7 +215,9 @@ export const ProfilePage = () => {
     const trimmedPhone = addressForm.receiverPhone.trim().replace(/\s/g, '');
     if (!trimmedPhone) errors.receiverPhone = 'Vui lòng nhập số điện thoại';
     else if (!PHONE_REGEX.test(trimmedPhone)) errors.receiverPhone = 'Số điện thoại không đúng định dạng Việt Nam';
-    if (addressForm.fullAddress.trim().length < 5) errors.fullAddress = 'Địa chỉ quá ngắn, vui lòng ghi rõ số nhà và đường';
+    if (addressForm.location.fullAddress.trim().length < 5) {
+      errors.fullAddress = 'Địa chỉ quá ngắn, vui lòng ghi rõ số nhà và đường';
+    }
 
     setFormErrors(errors);
     if (Object.values(errors).some(Boolean)) return;
@@ -211,7 +225,12 @@ export const ProfilePage = () => {
     const payload: AddressRequest = {
       receiverName: addressForm.receiverName.trim(),
       receiverPhone: trimmedPhone,
-      fullAddress: addressForm.fullAddress.trim(),
+      fullAddress: addressForm.location.fullAddress.trim(),
+      street: addressForm.location.street.trim() || null,
+      ward: addressForm.location.ward.trim() || null,
+      province: addressForm.location.province.trim() || null,
+      latitude: addressForm.location.latitude,
+      longitude: addressForm.location.longitude,
       defaultAddress: addressForm.defaultAddress,
     };
 
@@ -504,6 +523,7 @@ export const ProfilePage = () => {
       <Modal
         open={addressForm !== null}
         onClose={() => setAddressForm(null)}
+        size="lg"
         title={addressForm?.id ? 'Sửa địa chỉ' : 'Thêm địa chỉ mới'}
         footer={
           <>
@@ -535,14 +555,10 @@ export const ProfilePage = () => {
               error={formErrors.receiverPhone}
               placeholder="0912 345 678"
             />
-            <Textarea
-              label="Địa chỉ đầy đủ"
-              required
-              rows={3}
-              value={addressForm.fullAddress}
-              onChange={(event) => setAddressForm({ ...addressForm, fullAddress: event.target.value })}
-              error={formErrors.fullAddress}
-              placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành"
+            <AddressLocationFields
+              value={addressForm.location}
+              onChange={(location) => setAddressForm({ ...addressForm, location })}
+              fullAddressError={formErrors.fullAddress}
             />
             <label className="ui-check">
               <input

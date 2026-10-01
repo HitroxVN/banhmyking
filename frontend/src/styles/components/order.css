@@ -102,6 +102,10 @@
   color: var(--stone-500);
 }
 
+.summary__row--error {
+  color: var(--danger);
+}
+
 .summary__divider {
   height: 1px;
   margin: var(--space-3) 0;

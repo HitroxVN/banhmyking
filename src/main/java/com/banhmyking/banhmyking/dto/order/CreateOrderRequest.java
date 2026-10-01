@@ -35,10 +35,18 @@ public class CreateOrderRequest {
     @Builder.Default
     private PaymentMethod paymentMethod = PaymentMethod.COD;
 
-    // khoảng cách âm không có nghĩa — chặn từ binding (OrderController đã @Valid).
-    @jakarta.validation.constraints.DecimalMin(value = "0", message = "distanceKm không được âm")
-    @Schema(description = "Khoảng cách giao hàng tính bằng km (tùy chọn, >= 0)", example = "3.5")
-    private java.math.BigDecimal distanceKm;
+    // Không còn nhận distanceKm từ client (khách gửi 0 để được ship rẻ) — server tự tính từ toạ độ.
+    // Dùng khi giao tới địa chỉ mới (không có addressId); địa chỉ đã lưu lấy toạ độ trong sổ địa chỉ.
+    /** Toạ độ điểm giao (ghim trên bản đồ). Có toạ độ + quán đã ghim vị trí → server tự tính khoảng cách. */
+    @jakarta.validation.constraints.DecimalMin(value = "8.0", message = "Vĩ độ nằm ngoài Việt Nam")
+    @jakarta.validation.constraints.DecimalMax(value = "23.5", message = "Vĩ độ nằm ngoài Việt Nam")
+    @Schema(description = "Vĩ độ điểm giao (tuỳ chọn)", example = "21.028511")
+    private java.math.BigDecimal latitude;
+
+    @jakarta.validation.constraints.DecimalMin(value = "102.0", message = "Kinh độ nằm ngoài Việt Nam")
+    @jakarta.validation.constraints.DecimalMax(value = "110.0", message = "Kinh độ nằm ngoài Việt Nam")
+    @Schema(description = "Kinh độ điểm giao (tuỳ chọn)", example = "105.804817")
+    private java.math.BigDecimal longitude;
 
     @Schema(description = "Ghi chú cho quán hoặc shipper", example = "Giao trước 12h trưa, không ớt")
     private String note;

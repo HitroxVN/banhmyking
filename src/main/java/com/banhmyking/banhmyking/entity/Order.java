@@ -69,6 +69,17 @@ public class Order extends BaseEntity {
     @Column(name = "shipping_address", nullable = false, length = 500)
     private String shippingAddress;
 
+    /** Khoảng cách quán → điểm giao do SERVER tính (V10) — để kiểm toán phí ship. Null = tính theo khu vực. */
+    @Column(name = "distance_km", precision = 6, scale = 2)
+    private BigDecimal distanceKm;
+
+    /** Toạ độ ghim của điểm giao (V10) — shipper mở chỉ đường đúng vị trí thay vì đoán theo chữ. */
+    @Column(name = "delivery_latitude", precision = 9, scale = 6)
+    private BigDecimal deliveryLatitude;
+
+    @Column(name = "delivery_longitude", precision = 9, scale = 6)
+    private BigDecimal deliveryLongitude;
+
     // ---- Snapshot tiền — tính lại toàn bộ ở server (mục 6.2) ----
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal subtotal = BigDecimal.ZERO;

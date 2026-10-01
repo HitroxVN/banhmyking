@@ -40,6 +40,11 @@ public class OrderResponse {
 
     @Schema(description = "Địa chỉ nhận hàng snapshot", example = "123 Lê Lợi, Phường Bến Nghé, Quận 1, TP.HCM")
     private String shippingAddress;
+    /** Khoảng cách server tính lúc đặt đơn (km); null = phí tính theo khu vực */
+    private BigDecimal distanceKm;
+    /** Toạ độ ghim điểm giao — shipper mở chỉ đường; null với đơn không ghim */
+    private BigDecimal deliveryLatitude;
+    private BigDecimal deliveryLongitude;
 
     @Schema(description = "Tiền tạm tính các món trong đơn", example = "76000.00")
     private BigDecimal subtotal;
