@@ -95,7 +95,7 @@ class OrderOwnershipTest {
     @BeforeEach
     void setUp() {
         internalPaymentService = new PaymentServiceImpl(
-                paymentRepository, orderRepository, userRepository, orderStatusHistoryRepository);
+                paymentRepository, orderRepository, userRepository, orderStatusHistoryRepository, inventoryService);
 
         customerA = new User();
         customerA.setId(10L);

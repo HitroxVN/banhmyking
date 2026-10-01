@@ -18,6 +18,7 @@ import com.banhmyking.banhmyking.repository.OrderRepository;
 import com.banhmyking.banhmyking.repository.OrderStatusHistoryRepository;
 import com.banhmyking.banhmyking.repository.PaymentRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
+import com.banhmyking.banhmyking.service.InventoryService;
 import com.banhmyking.banhmyking.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private final InventoryService inventoryService;
 
     private static final Pattern PATTERN_HYPHEN = Pattern.compile("BMK-\\d{8}-[A-Za-z0-9]+", Pattern.CASE_INSENSITIVE);
     private static final Pattern PATTERN_FLEXIBLE = Pattern
@@ -146,7 +148,10 @@ public class PaymentServiceImpl implements PaymentService {
             return null;
         }
 
-        if (payment.getStatus() == PaymentStatus.PENDING) {
+        // Chỉ COD mới "thu tiền khi giao". Đơn chuyển khoản/ví chưa có tiền về thì không được
+        // tự ghi PAID chỉ vì đơn đã giao — tiền chỉ được ghi nhận qua webhook hoặc đối soát tay.
+        boolean isCod = payment.getMethod() == null || payment.getMethod() == PaymentMethod.COD;
+        if (isCod && payment.getStatus() == PaymentStatus.PENDING) {
             payment.setStatus(PaymentStatus.PAID);
             payment.setPaidAt(LocalDateTime.now());
             Payment saved = paymentRepository.save(payment);
@@ -198,6 +203,11 @@ public class PaymentServiceImpl implements PaymentService {
             log.info("Đơn hàng {} đã hoàn tất thanh toán trước đó", orderCode);
             return toPaymentResponse(payment);
         }
+        // Đã hoàn tiền thì không được đưa ngược về PENDING/PAID (sổ tiền sẽ sai).
+        if (payment.getStatus() == PaymentStatus.REFUNDED) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Đơn hàng " + orderCode + " đã được hoàn tiền, không thể thanh toán lại");
+        }
 
         PaymentMethod method = request != null && request.getMethod() != null
                 ? request.getMethod()
@@ -228,10 +238,7 @@ public class PaymentServiceImpl implements PaymentService {
 
             // Cập nhật trạng thái đơn hàng sang CONFIRMED nếu đang PENDING
             if (order.getStatus() == OrderStatus.PENDING) {
-                order.setStatus(OrderStatus.CONFIRMED);
-                orderRepository.save(order);
-                recordPaymentHistory(order, OrderStatus.PENDING, OrderStatus.CONFIRMED,
-                        actor.getFullName() + " đối soát chuyển khoản, giao dịch " + txnId);
+                confirmPaidOrder(order, actor.getFullName() + " đối soát chuyển khoản, giao dịch " + txnId);
             }
         } else {
             // COD: Giữ trạng thái PENDING chờ shipper giao
@@ -354,15 +361,29 @@ public class PaymentServiceImpl implements PaymentService {
         order.setPayment(savedPayment);
 
         if (order.getStatus() == OrderStatus.PENDING) {
-            order.setStatus(OrderStatus.CONFIRMED);
-            orderRepository.save(order);
-            recordPaymentHistory(order, OrderStatus.PENDING, OrderStatus.CONFIRMED,
-                    "Webhook SePay xác nhận đủ tiền, giao dịch " + txnRef);
+            confirmPaidOrder(order, "Webhook SePay xác nhận đủ tiền, giao dịch " + txnRef);
         }
 
         log.info("SePay payment confirmed successfully for order {} with txnRef {}",
                 order.getOrderCode(), txnRef);
         return toPaymentResponse(savedPayment);
+    }
+
+    /**
+     * Đã thu đủ tiền cho đơn PENDING → giữ hàng (trừ tồn) rồi chuyển CONFIRMED, giống luồng
+     * STAFF xác nhận ở OrderServiceImpl.updateOrderStatus. Thiếu hàng thì KHÔNG ném lỗi (tiền đã về,
+     * không được rollback) mà giữ đơn PENDING kèm ghi chú để nhân viên xử lý (huỷ + hoàn tiền).
+     */
+    private void confirmPaidOrder(Order order, String note) {
+        if (inventoryService.tryDecreaseForOrder(order)) {
+            order.setStatus(OrderStatus.CONFIRMED);
+            orderRepository.save(order);
+            recordPaymentHistory(order, OrderStatus.PENDING, OrderStatus.CONFIRMED, note);
+        } else {
+            log.warn("Đơn {} đã thu tiền nhưng không đủ tồn kho để xác nhận", order.getOrderCode());
+            recordPaymentHistory(order, OrderStatus.PENDING, OrderStatus.PENDING,
+                    note + ". Không đủ tồn kho để xác nhận — cần nhân viên xử lý (huỷ và hoàn tiền)");
+        }
     }
 
     @Override
@@ -386,6 +407,10 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         BigDecimal refundAmount = amount != null ? amount : payment.getAmount();
+        if (payment.getAmount() != null && refundAmount.compareTo(payment.getAmount()) > 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Số tiền hoàn (" + refundAmount + ") vượt quá số tiền đã thu (" + payment.getAmount() + ")");
+        }
         payment.setStatus(PaymentStatus.REFUNDED);
         payment.setRefundAmount(refundAmount);
         payment.setRefundReason(reason);

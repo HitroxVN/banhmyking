@@ -9,6 +9,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.banhmyking.banhmyking.dto.catalog.StockChangeRequest;
 import com.banhmyking.banhmyking.dto.catalog.StockMovementResponse;
 import com.banhmyking.banhmyking.dto.common.PageResponse;
@@ -51,19 +56,42 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void decreaseForOrder(Order order) {
+        Product shortage = decreaseAllOrNothing(order);
+        if (shortage != null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Sản phẩm \"" + shortage.getName() + "\" không đủ tồn kho để xác nhận đơn");
+        }
+    }
+
+    @Override
+    public boolean tryDecreaseForOrder(Order order) {
+        return decreaseAllOrNothing(order) == null;
+    }
+
+    /**
+     * Trừ tồn cho mọi dòng của đơn. Thiếu hàng ở một dòng thì cộng trả các dòng đã trừ trước đó
+     * và trả về sản phẩm thiếu; đủ hết thì ghi movement và trả null.
+     */
+    private Product decreaseAllOrNothing(Order order) {
+        List<OrderItem> decreased = new ArrayList<>();
         for (OrderItem item : order.getItems()) {
             Product product = item.getProduct();
             if (product == null || product.getStockQuantity() == null) {
                 continue;
             }
-            int quantity = item.getQuantity();
-            // Số row = 0 nghĩa là có giao dịch khác vừa lấy mất hàng sau bước kiểm tra.
-            if (productRepository.decrementStockAtomic(product.getId(), quantity) == 0) {
-                throw new BusinessException(ErrorCode.BUSINESS_ERROR,
-                        "Sản phẩm \"" + product.getName() + "\" không đủ tồn kho để xác nhận đơn");
+            // Số row = 0 nghĩa là không đủ hàng (hoặc giao dịch khác vừa lấy mất hàng).
+            if (productRepository.decrementStockAtomic(product.getId(), item.getQuantity()) == 0) {
+                for (OrderItem done : decreased) {
+                    productRepository.incrementStockAtomic(done.getProduct().getId(), done.getQuantity());
+                }
+                return product;
             }
-            saveMovement(product, -quantity, InventoryReason.ORDER, order, null, null);
+            decreased.add(item);
         }
+        for (OrderItem item : decreased) {
+            saveMovement(item.getProduct(), -item.getQuantity(), InventoryReason.ORDER, order, null, null);
+        }
+        return null;
     }
 
     @Override
@@ -73,21 +101,29 @@ public class InventoryServiceImpl implements InventoryService {
         if (orderId == null) {
             return;
         }
+        // Gộp theo sản phẩm: cùng một món có thể nằm ở nhiều dòng (khác topping). Nếu hoàn từng dòng,
+        // dòng đầu ghi RESTORE xong thì dòng sau bị check "đã hoàn" bỏ qua → mất tồn kho.
+        Map<Long, Integer> quantityByProduct = new LinkedHashMap<>();
+        Map<Long, Product> productById = new LinkedHashMap<>();
         for (OrderItem item : order.getItems()) {
             Product product = item.getProduct();
             if (product == null) {
                 continue;
             }
-            Long productId = product.getId();
+            quantityByProduct.merge(product.getId(), item.getQuantity(), Integer::sum);
+            productById.putIfAbsent(product.getId(), product);
+        }
+        for (Map.Entry<Long, Integer> entry : quantityByProduct.entrySet()) {
+            Long productId = entry.getKey();
             if (!inventoryMovementRepository.existsByOrderIdAndProductIdAndReason(
                     orderId, productId, InventoryReason.ORDER)
                     || inventoryMovementRepository.existsByOrderIdAndProductIdAndReason(
                             orderId, productId, InventoryReason.RESTORE)) {
                 continue;
             }
-            int quantity = item.getQuantity();
+            int quantity = entry.getValue();
             if (productRepository.incrementStockAtomic(productId, quantity) > 0) {
-                saveMovement(product, quantity, InventoryReason.RESTORE, order, null, null);
+                saveMovement(productById.get(productId), quantity, InventoryReason.RESTORE, order, null, null);
             }
         }
     }
