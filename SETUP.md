@@ -89,4 +89,14 @@ Lần chạy đầu Maven tải dependency (vài phút, có màn hình "Download
 
 Cả 3 xanh → OK.
 
+## Chuỗi cơ sở (từ nhánh feature/multi-store)
+
+1. **Sao lưu DB trước khi pull** (V11–V13 bỏ cột tồn kho cũ):
+   `mysqldump -h 127.0.0.1 -P 3307 -u root -p banhmyking > backup_truoc_V11.sql`
+2. `git pull`, chạy backend → log `now at version v13`.
+3. `cd frontend && npm install && npm run dev`.
+4. ADMIN → **Cơ sở**: kiểm tra "Cơ sở 1" (tạo từ dữ liệu cũ), ghim vị trí, đặt đơn tối thiểu; thêm cơ sở khác.
+5. ADMIN → **Tài khoản**: gán cơ sở cho từng STAFF/SHIPPER; tạo tài khoản Quản lý cơ sở (MANAGER).
+6. Thực đơn chung (món, giá) giờ ở ADMIN → **Thực đơn**; nhân viên chỉ báo hết món / nhập tồn ở **Tình trạng món**.
+
 ## LỖI THÌ CHỊU. HỎI CHAT.
