@@ -57,6 +57,15 @@ class CsvWriterTest {
         assertThat(body(bytes)).isEqualTo("Tài xế,\r\n");
     }
 
+    @Test
+    @DisplayName("Ô bắt đầu bằng = + - @ bị vô hiệu hoá công thức; số âm vẫn giữ nguyên")
+    void toBytes_neutralisesFormulaButKeepsNegativeNumbers() {
+        byte[] bytes = CsvWriter.toBytes(List.<String[]>of(
+                new String[] {"=1+2", "@SUM(A1)", "-5000"}));
+
+        assertThat(body(bytes)).isEqualTo("'=1+2,'@SUM(A1),-5000\r\n");
+    }
+
     /** Bỏ 3 byte BOM để so phần nội dung. */
     private String body(byte[] bytes) {
         return new String(bytes, 3, bytes.length - 3, StandardCharsets.UTF_8);

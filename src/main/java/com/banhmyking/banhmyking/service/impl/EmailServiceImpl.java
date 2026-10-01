@@ -9,6 +9,7 @@ import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 
 /**
  * Gửi mail qua SMTP (Gmail). Cấu hình ở spring.mail.* + MAIL_USERNAME / MAIL_PASSWORD.
@@ -71,7 +72,10 @@ public class EmailServiceImpl implements EmailService {
             mailSender.send(message);
             log.info("Đã gửi email {} tới {}", label, to);
         } catch (MailException | jakarta.mail.MessagingException e) {
-            log.error("Gửi email {} tới {} thất bại ({}). Link: {}", label, to, e.getMessage(), extractUrl(html));
+            // Link chứa token thô (đặt lại mật khẩu được) → không đưa vào log ERROR thường trực.
+            // DEV chưa cấu hình SMTP: bật logging.level.com.banhmyking.banhmyking.service.impl.EmailServiceImpl=DEBUG để xem link.
+            log.error("Gửi email {} tới {} thất bại ({})", label, to, e.getMessage());
+            log.debug("Link trong email {} tới {}: {}", label, to, extractUrl(html));
         }
     }
 
@@ -97,6 +101,6 @@ public class EmailServiceImpl implements EmailService {
                   <p style="font-size:13px;color:#6b7280">%s. Nếu nút không bấm được, dán đường dẫn này vào trình duyệt:<br>%s</p>
                   <p style="font-size:13px;color:#6b7280">Nếu bạn không thực hiện yêu cầu này, hãy bỏ qua email.</p>
                 </div>
-                """.formatted(fullName, intro, actionUrl, buttonLabel, validityNote, actionUrl);
+                """.formatted(HtmlUtils.htmlEscape(fullName == null ? "" : fullName), intro, actionUrl, buttonLabel, validityNote, actionUrl);
     }
 }

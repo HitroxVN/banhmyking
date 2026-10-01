@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Set;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ public class FileStorageService {
     public static final String SITE_DIR = "banners";
 
     private static final long MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of(".jpg", ".jpeg", ".png", ".webp", ".gif");
 
     /**
      * Lưu ảnh vào {@code uploads/<subDir>/} với tên ngẫu nhiên, trả về đường dẫn công khai
@@ -45,10 +47,16 @@ public class FileStorageService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Dung lượng ảnh không được vượt quá 5MB");
         }
 
+        // Đuôi file lấy từ client → chỉ nhận whitelist. Không thì "x.html" / "x.svg" (content-type image/svg+xml)
+        // được phục vụ công khai ở /uploads/** cùng origin API → stored XSS.
         String extension = ".png";
         String originalFilename = file.getOriginalFilename();
         if (originalFilename != null && originalFilename.contains(".")) {
             extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
+        }
+        if (!ALLOWED_EXTENSIONS.contains(extension) || contentType.toLowerCase().contains("svg")) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Tệp tải lên phải là định dạng hình ảnh (JPG, PNG, WEBP, GIF)");
         }
 
         try {

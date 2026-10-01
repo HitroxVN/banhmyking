@@ -158,10 +158,9 @@ public class PromotionServiceImpl implements PromotionService {
     @Override
     @Transactional(readOnly = true)
     public PromotionResponse validatePromotion(ValidatePromotionRequest request) {
-        Long userId = request.getUserId();
-        if (userId == null) {
-            userId = getCurrentUserIdSafely();
-        }
+        // Endpoint public: KHÔNG dùng request.userId (ai cũng dò được "user X đã dùng mã Y chưa").
+        // Chỉ tin user đang đăng nhập; khách vãng lai thì bỏ qua kiểm tra lượt dùng theo user.
+        Long userId = getCurrentUserIdSafely();
 
         Promotion promotion = validateForOrder(request.getCode(), userId, request.getOrderAmount());
 

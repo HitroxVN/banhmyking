@@ -25,6 +25,10 @@ public class JwtTokenProvider {
     private final long accessTokenExpiryMs;
 
     public JwtTokenProvider(JwtProperties props) {
+        // Secret rỗng → key = SHA-256("") công khai, ai cũng ký được token giả → chặn ngay lúc khởi động.
+        if (props.secret() == null || props.secret().isBlank()) {
+            throw new IllegalStateException("jwt.secret (JWT_SECRET) chưa được cấu hình");
+        }
         byte[] keyBytes;
         try {
             keyBytes = Decoders.BASE64.decode(props.secret());
