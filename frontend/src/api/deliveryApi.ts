@@ -1,27 +1,21 @@
 import { axiosClient } from './axiosClient';
 import type { ApiResponse } from '../types/auth';
-import type { DeliveryFeeResult } from '../types/delivery';
+import type { DeliveryQuote } from '../types/store';
 
-export interface DeliveryFeeParams {
-  /**
-   * Toạ độ điểm giao. Có toạ độ + quán đã ghim vị trí → server tự tính khoảng cách;
-   * bỏ trống thì tính theo khu vực (nội thành 15k / ngoại thành 30k).
-   */
+export interface DeliveryQuoteParams {
   latitude?: number | null;
   longitude?: number | null;
   shippingAddress?: string;
-  subtotal?: number;
 }
 
 export const deliveryApi = {
   /**
-   * Tính trước phí giao hàng để hiển thị ở giỏ / thanh toán.
-   * Gọi cùng tham số (toạ độ + địa chỉ) mà `POST /orders` sẽ dùng để
-   * số tiền xem trước khớp đúng số tiền chốt đơn. Ngoài bán kính giao → lỗi 400 kèm lý do.
+   * Báo giá theo từng cơ sở cho giỏ hàng hiện tại (server tự đọc giỏ) — cùng logic mà
+   * `POST /orders` dùng để chọn cơ sở và tính phí, nên số xem trước khớp số chốt đơn.
    */
-  async getFee({ latitude, longitude, shippingAddress, subtotal }: DeliveryFeeParams): Promise<DeliveryFeeResult> {
-    const res = await axiosClient.get<ApiResponse<DeliveryFeeResult>>('/delivery/fee', {
-      params: { latitude: latitude ?? undefined, longitude: longitude ?? undefined, shippingAddress, subtotal },
+  async getQuote({ latitude, longitude, shippingAddress }: DeliveryQuoteParams): Promise<DeliveryQuote> {
+    const res = await axiosClient.get<ApiResponse<DeliveryQuote>>('/delivery/quote', {
+      params: { latitude: latitude ?? undefined, longitude: longitude ?? undefined, shippingAddress },
     });
     return res.data.data;
   },

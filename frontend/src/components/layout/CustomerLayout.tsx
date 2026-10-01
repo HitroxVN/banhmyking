@@ -105,10 +105,6 @@ export const CustomerLayout = () => {
     totalQuantity > 0 &&
     !FLOAT_CART_HIDDEN_ON.some((prefix) => pathname.startsWith(prefix));
 
-  const hasContact = Boolean(
-    settings.contactPhone || settings.contactEmail || settings.contactAddress,
-  );
-
   return (
     <div className="cshop">
       <div className="cshop__strip">
@@ -143,6 +139,9 @@ export const CustomerLayout = () => {
           <div className="cshop__links">
             <NavLink to="/menu" className={navLinkClass}>
               Thực đơn
+            </NavLink>
+            <NavLink to="/stores" className={navLinkClass}>
+              Cửa hàng
             </NavLink>
             <NavLink to="/about" className={navLinkClass}>
               Giới thiệu
@@ -263,7 +262,7 @@ export const CustomerLayout = () => {
       </main>
 
       <footer className="cshop__footer">
-        <div className={`cshop__foot-inner${hasContact ? ' cshop__foot-inner--with-contact' : ''}`}>
+        <div className="cshop__foot-inner cshop__foot-inner--with-contact">
           <div className="cshop__foot-brand">
             <Link to="/" className="cshop__logo">
               <span className="cshop__logo-badge">
@@ -280,6 +279,7 @@ export const CustomerLayout = () => {
           <div className="cshop__foot-col">
             <p className="cshop__foot-title">Khám phá</p>
             <Link to="/menu">Thực đơn</Link>
+            <Link to="/stores">Hệ thống cửa hàng</Link>
             <Link to="/cart">Giỏ hàng</Link>
             <Link to="/orders">Đơn của tôi</Link>
             <Link to="/about">Giới thiệu</Link>
@@ -303,9 +303,7 @@ export const CustomerLayout = () => {
             </span>
           </div>
 
-          {/* Chỉ hiện khi admin đã điền ít nhất một thông tin liên hệ */}
-          {hasContact && (
-            <div className="cshop__foot-col">
+          <div className="cshop__foot-col">
               <p className="cshop__foot-title">Liên hệ</p>
               {settings.contactPhone && (
                 <a className="cshop__foot-note" href={`tel:${settings.contactPhone.replace(/\s/g, '')}`}>
@@ -325,8 +323,11 @@ export const CustomerLayout = () => {
                   {settings.contactAddress}
                 </span>
               )}
+              <Link className="cshop__foot-note" to="/stores">
+                <MapPin size={15} />
+                Xem hệ thống cửa hàng
+              </Link>
             </div>
-          )}
         </div>
 
         <div className="cshop__foot-bottom">

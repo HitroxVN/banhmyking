@@ -52,6 +52,7 @@ export interface CreateOrderRequest {
   note?: string;
   /** Khoá chống trùng cho mỗi lần chốt đơn; gửi lại cùng khoá nhận đúng đơn cũ. */
   idempotencyKey?: string;
+  storeId?: number | null;
 }
 
 export interface OrderItemOptionResponse {
@@ -83,6 +84,9 @@ export interface OrderResponse {
   /** Toạ độ ghim điểm giao — shipper mở chỉ đường đúng vị trí */
   deliveryLatitude?: number | null;
   deliveryLongitude?: number | null;
+  storeId?: number | null;
+  storeName?: string | null;
+  storePhone?: string | null;
   subtotal: number;
   shippingFee: number;
   discountAmount: number;

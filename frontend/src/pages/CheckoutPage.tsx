@@ -14,11 +14,12 @@ import { describePromotionValue } from '../utils/promotion';
 import type { AddressResponse } from '../types/address';
 import type { CreateOrderRequest, PaymentMethod } from '../types/order';
 import type { PromotionResponse, PublicPromotionResponse } from '../types/promotion';
-import type { DeliveryFeeResult } from '../types/delivery';
+import type { DeliveryQuote, StoreQuoteOption } from '../types/store';
 import { AddressLocationFields } from '../components/address/AddressLocationFields';
 import { EMPTY_LOCATION, type AddressLocation } from '../components/address/addressLocation';
 import '../styles/components/order.css';
 import '../styles/components/checkout.css';
+import '../styles/components/stores.css';
 
 interface FormErrors {
   receiverName?: string;
@@ -35,6 +36,9 @@ const toLocation = (address: AddressResponse): AddressLocation => ({
   latitude: address.latitude ?? null,
   longitude: address.longitude ?? null,
 });
+
+const SAVED_UNPINNED_MESSAGE =
+  'Địa chỉ này chưa được ghim trên bản đồ — vui lòng cập nhật địa chỉ trong Hồ sơ trước khi đặt hàng.';
 
 const validateField = (name: keyof FormErrors, value: string): string | undefined => {
   const trimmed = value.trim();
@@ -77,13 +81,20 @@ export const CheckoutPage = () => {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  /** Đã thử đặt hàng với địa chỉ mới mà chưa ghim vị trí — mất đi ngay khi khách ghim */
+  const [pinAttempted, setPinAttempted] = useState(false);
+  const hasPin = location.latitude != null && location.longitude != null;
+  const pinMissing = pinAttempted && !hasPin;
   /** Giữ nguyên khoá giữa các lần bấm lại cùng một lượt đặt để backend không tạo đơn trùng. */
   const idempotencyKeyRef = useRef<string>('');
 
-  const [fee, setFee] = useState<DeliveryFeeResult | null>(null);
+  const [quote, setQuote] = useState<DeliveryQuote | null>(null);
   const [isLoadingFee, setIsLoadingFee] = useState(false);
   /** Lỗi tính phí (vd ngoài bán kính giao) — hiện cho khách thay vì nuốt im lặng */
   const [feeError, setFeeError] = useState<string | null>(null);
+  /** Cơ sở khách chọn; null = theo đề xuất của server */
+  const [chosenStoreId, setChosenStoreId] = useState<number | null>(null);
+  const [showStores, setShowStores] = useState(false);
 
   const [promoInput, setPromoInput] = useState('');
   const [appliedPromotion, setAppliedPromotion] = useState<PromotionResponse | null>(null);
@@ -148,7 +159,7 @@ export const CheckoutPage = () => {
   useEffect(() => {
     const address = shippingAddress.trim();
     if (subtotal <= 0 || address.length < 5) {
-      setFee(null);
+      setQuote(null);
       setFeeError(null);
       return;
     }
@@ -158,15 +169,15 @@ export const CheckoutPage = () => {
 
     const timer = window.setTimeout(() => {
       deliveryApi
-        .getFee({ subtotal, shippingAddress: address, latitude, longitude })
+        .getQuote({ shippingAddress: address, latitude, longitude })
         .then((result) => {
           if (cancelled) return;
-          setFee(result);
+          setQuote(result);
           setFeeError(null);
         })
         .catch((err) => {
           if (cancelled) return;
-          setFee(null);
+          setQuote(null);
           setFeeError(err instanceof Error ? err.message : 'Không tính được phí giao hàng');
         })
         .finally(() => {
@@ -180,7 +191,23 @@ export const CheckoutPage = () => {
     };
   }, [shippingAddress, subtotal, latitude, longitude]);
 
-  const shippingFee = fee?.shippingFee ?? 0;
+  const selectedOption: StoreQuoteOption | null = (() => {
+    if (!quote) return null;
+    const byChoice = quote.options.find((o) => o.storeId === chosenStoreId && o.eligible);
+    if (byChoice) return byChoice;
+    return quote.options.find((o) => o.storeId === quote.recommendedStoreId) ?? null;
+  })();
+  const noStoreAvailable = quote != null && !quote.options.some((o) => o.eligible);
+  const needsManualChoice =
+    quote != null && quote.recommendedStoreId == null && !noStoreAvailable && selectedOption == null;
+
+  /**
+   * R12: địa chỉ cũ trong sổ chưa ghim toạ độ — server không đề xuất được cơ sở và từ chối nếu khách
+   * tự chọn cơ sở, nên phải cập nhật địa chỉ ở trang Hồ sơ trước.
+   */
+  const savedAddressUnpinned = addressMode === 'saved' && selectedAddressId != null && !hasPin;
+
+  const shippingFee = selectedOption?.shippingFee ?? 0;
   // Số tiền giảm do backend tính (cùng công thức với lúc tạo đơn) — FE không tự tính lại
   const discount = appliedPromotion?.discountApplied ?? 0;
   const total = Math.max(0, subtotal + shippingFee - discount);
@@ -192,6 +219,7 @@ export const CheckoutPage = () => {
     setReceiverName(address.receiverName);
     setReceiverPhone(address.receiverPhone);
     setLocation(toLocation(address));
+    setChosenStoreId(null);
     setErrors({});
   };
 
@@ -201,7 +229,9 @@ export const CheckoutPage = () => {
     setReceiverName(user?.fullName ?? '');
     setReceiverPhone(user?.phone ?? '');
     setLocation(EMPTY_LOCATION);
+    setChosenStoreId(null);
     setErrors({});
+    setPinAttempted(false);
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -218,8 +248,27 @@ export const CheckoutPage = () => {
     setErrors(nextErrors);
     if (Object.values(nextErrors).some(Boolean)) return;
 
+    // Địa chỉ mới bắt buộc ghim vị trí (server vẫn kiểm tra lại — đây chỉ là chặn sớm cho UX)
+    if (addressMode === 'new' && !hasPin) {
+      setPinAttempted(true);
+      return;
+    }
+    if (savedAddressUnpinned) {
+      setApiError(SAVED_UNPINNED_MESSAGE);
+      return;
+    }
+
     if (isEmpty) {
       setApiError('Giỏ hàng của bạn đang trống. Vui lòng thêm món trước khi đặt hàng.');
+      return;
+    }
+
+    if (!selectedOption) {
+      setApiError(
+        noStoreAvailable
+          ? 'Hiện chưa có cơ sở nào phục vụ được đơn này.'
+          : 'Vui lòng chọn cơ sở phục vụ đơn hàng.'
+      );
       return;
     }
 
@@ -233,6 +282,8 @@ export const CheckoutPage = () => {
       }
       const payload: CreateOrderRequest = {
         idempotencyKey: idempotencyKeyRef.current,
+        // Chỉ gửi cơ sở đã chọn khi có toạ độ — địa chỉ chưa ghim mà kèm storeId sẽ bị server từ chối (R12)
+        storeId: hasPin ? selectedOption.storeId : undefined,
         addressId: addressMode === 'saved' && selectedAddressId ? selectedAddressId : undefined,
         receiverName: receiverName.trim(),
         receiverPhone: receiverPhone.trim(),
@@ -268,7 +319,7 @@ export const CheckoutPage = () => {
       const promotion = await promotionApi.validate({
         code,
         orderAmount: subtotal,
-        shippingFee: fee?.shippingFee,
+        shippingFee: selectedOption?.shippingFee,
         userId: user?.id,
       });
       setAppliedPromotion(promotion);
@@ -350,6 +401,7 @@ export const CheckoutPage = () => {
                         className={`ck__mode-btn${addressMode === 'saved' ? ' ck__mode-btn--on' : ''}`}
                         onClick={() => {
                           setAddressMode('saved');
+                          setPinAttempted(false);
                           const preferred = savedAddresses.find((a) => a.id === selectedAddressId) ?? savedAddresses[0];
                           selectAddress(preferred);
                         }}
@@ -390,6 +442,12 @@ export const CheckoutPage = () => {
                           </span>
                         </label>
                       ))}
+                      {savedAddressUnpinned && (
+                        <p className="ui-field__msg ui-field__msg--error" role="alert">
+                          Địa chỉ này chưa được ghim trên bản đồ — vui lòng{' '}
+                          <Link to="/profile">cập nhật địa chỉ trong Hồ sơ</Link> trước khi đặt hàng.
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <div className="ck__row2">
@@ -431,6 +489,76 @@ export const CheckoutPage = () => {
                         fullAddressLabel="Địa chỉ nhận hàng"
                         fullAddressError={errors.shippingAddress}
                       />
+                      {pinMissing && (
+                        <p className="ui-field__msg ui-field__msg--error" role="alert">
+                          Vui lòng ghim vị trí giao hàng trên bản đồ
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {quote && (
+                    <div className="ck__block">
+                      <div className="ck-store">
+                        {selectedOption ? (
+                          <div className="ck-store__row">
+                            <span>
+                              <span className="ck-store__name">Giao từ: {selectedOption.storeName}</span>
+                              <span className="ck-store__meta">
+                                {' · '}
+                                {selectedOption.distanceKm != null
+                                  ? `${selectedOption.distanceKm.toFixed(1)} km · `
+                                  : ''}
+                                {selectedOption.freeship ? 'Miễn phí ship' : formatCurrency(selectedOption.shippingFee)}
+                              </span>
+                            </span>
+                            <Button type="button" size="sm" variant="ghost" onClick={() => setShowStores((v) => !v)}>
+                              {showStores ? 'Đóng' : 'Đổi cơ sở'}
+                            </Button>
+                          </div>
+                        ) : noStoreAvailable ? (
+                          <p className="ck-store__warn">
+                            Hiện chưa có cơ sở nào phục vụ được địa chỉ và giỏ hàng này — xem lý do bên dưới.
+                          </p>
+                        ) : (
+                          <p className="ck-store__meta">
+                            Chọn cơ sở phục vụ đơn hàng (ghim vị trí để hệ thống tự chọn cơ sở gần nhất).
+                          </p>
+                        )}
+                        {(showStores || noStoreAvailable || needsManualChoice) && (
+                          <ul className="ck-store__options" role="radiogroup" aria-label="Chọn cơ sở">
+                            {quote.options.map((option) => (
+                              <li key={option.storeId}>
+                                <label
+                                  className={`ck-store__option${option.eligible ? '' : ' ck-store__option--off'}`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="store"
+                                    disabled={!option.eligible}
+                                    checked={selectedOption?.storeId === option.storeId}
+                                    onChange={() => {
+                                      setChosenStoreId(option.storeId);
+                                      setShowStores(false);
+                                    }}
+                                  />
+                                  <span>
+                                    <strong>{option.storeName}</strong> — {option.storeAddress}
+                                    {option.distanceKm != null && ` · ${option.distanceKm.toFixed(1)} km`}
+                                    {option.eligible &&
+                                      ` · ${option.freeship ? 'Miễn phí ship' : formatCurrency(option.shippingFee)}`}
+                                    {option.reasonMessages.map((message) => (
+                                      <span key={message} className="ck-store__reason">
+                                        {message}
+                                      </span>
+                                    ))}
+                                  </span>
+                                </label>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -531,15 +659,17 @@ export const CheckoutPage = () => {
               <span>Tạm tính</span>
               <span>{formatCurrency(subtotal)}</span>
             </div>
-            <div className={`summary__row${fee?.freeship ? ' summary__row--free' : ''}`}>
+            <div className={`summary__row${selectedOption?.freeship ? ' summary__row--free' : ''}`}>
               <span>
                 <Truck size={14} /> Phí giao hàng
               </span>
               <span>
-                {isLoadingFee ? 'Đang tính…' : fee?.freeship ? 'Miễn phí' : formatCurrency(shippingFee)}
+                {isLoadingFee ? 'Đang tính…' : selectedOption?.freeship ? 'Miễn phí' : formatCurrency(shippingFee)}
               </span>
             </div>
-            {fee?.description && <p className="summary__row summary__row--note">{fee.description}</p>}
+            {selectedOption?.feeDescription && (
+              <p className="summary__row summary__row--note">{selectedOption.feeDescription}</p>
+            )}
             {feeError && !isLoadingFee && (
               <p className="summary__row summary__row--note summary__row--error" role="alert">
                 {feeError}
@@ -628,7 +758,7 @@ export const CheckoutPage = () => {
             </div>
           </div>
           <div className="card__foot">
-            <Button type="submit" block size="lg" loading={isSubmitting}>
+            <Button type="submit" block size="lg" loading={isSubmitting} disabled={noStoreAvailable}>
               {`Xác nhận đặt hàng — ${formatCurrency(total)}`}
             </Button>
 
@@ -640,7 +770,7 @@ export const CheckoutPage = () => {
                 <Timer size={14} /> Giao trong 30 phút
               </span>
               <span className="ck__trust-item">
-                <Truck size={14} /> Miễn phí từ {formatCurrency(fee?.freeshipThreshold ?? 200000)}
+                <Truck size={14} /> Miễn phí từ {formatCurrency(200000)}
               </span>
             </div>
           </div>

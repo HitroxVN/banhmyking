@@ -46,8 +46,8 @@ export const adminUserApi = {
   /**
    * Thay đổi vai trò người dùng (STAFF, SHIPPER, CUSTOMER, ADMIN)
    */
-  async changeRole(id: number, role: RoleName): Promise<AdminUser> {
-    const res = await axiosClient.patch<ApiResponse<AdminUser>>(`/admin/users/${id}/role`, { role });
+  async changeRole(id: number, role: RoleName, storeId?: number | null): Promise<AdminUser> {
+    const res = await axiosClient.patch<ApiResponse<AdminUser>>(`/admin/users/${id}/role`, { role, storeId });
     return res.data.data;
   },
 

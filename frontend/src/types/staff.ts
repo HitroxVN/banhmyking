@@ -55,12 +55,6 @@ export interface ProductItem {
   options?: ProductOption[];
   /** Nhóm lựa chọn đã sắp theo thứ tự hiển thị; rỗng/không có = món chỉ có option phẳng. */
   optionGroups?: OptionGroup[];
-  /** Số tồn hiện tại; null/undefined = món không quản tồn. */
-  stockQuantity?: number | null;
-  /** Ngưỡng cảnh báo sắp hết (mặc định 5). */
-  lowStockThreshold?: number;
-  /** Đã bật quản tồn và tồn đang <= ngưỡng cảnh báo. */
-  lowStock?: boolean;
 }
 
 export interface ProductCreatePayload {
@@ -76,10 +70,6 @@ export interface ProductCreatePayload {
   options?: Array<{ name: string; extraPrice: number }>;
   /** Nhóm lựa chọn, theo đúng thứ tự hiển thị. Bỏ trống = món không có nhóm nào. */
   optionGroups?: OptionGroupPayload[];
-  /** Tồn ban đầu. Bỏ trống = món không quản tồn. */
-  stockQuantity?: number;
-  /** Ngưỡng cảnh báo sắp hết. Bỏ trống = giữ mặc định (5). */
-  lowStockThreshold?: number;
 }
 
 export interface ProductUpdatePayload {
@@ -101,8 +91,6 @@ export interface ProductUpdatePayload {
    * payload sẽ bị xoá — backend trả 409 nếu còn trong giỏ của khách).
    */
   optionGroups?: OptionGroupPayload[];
-  /** Ngưỡng cảnh báo sắp hết. Bỏ trống = giữ nguyên ngưỡng cũ. */
-  lowStockThreshold?: number;
 }
 
 export type StockMovementReason = 'IMPORT' | 'ORDER' | 'RESTORE' | 'ADJUST';

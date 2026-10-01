@@ -1,16 +1,14 @@
 import { useRef, useState } from 'react';
-import { Image as ImageIcon, MapPinOff, RotateCcw, Save, Trash2, Upload, XCircle } from 'lucide-react';
+import { Image as ImageIcon, RotateCcw, Save, Trash2, Upload, XCircle } from 'lucide-react';
 import { siteSettingsApi } from '../../api/siteSettingsApi';
 import { Button, Input, PageHeader, Skeleton, Textarea, useConfirm, useToast } from '../../components/ui';
 import { useSiteSettings } from '../../context/useSiteSettings';
 import type { SiteSettings } from '../../types/siteSettings';
-import { AddressMapPicker } from '../../components/address/AddressMapPicker';
-import type { GeocodeResult, GeoPoint } from '../../utils/geocoding';
 import '../../styles/components/admin-site-settings.css';
 
 /** Một ô trong form — khai báo theo dữ liệu để thêm giá trị mới chỉ tốn 1 dòng. */
-/** Các khoá do khối riêng quản lý (ảnh banner, vị trí cửa hàng) — không render bằng ô nhập chung */
-type CustomKey = 'heroImageUrl' | 'contactAddress' | 'storeLatitude' | 'storeLongitude' | 'deliveryMaxRadiusKm';
+/** Các khoá do khối riêng quản lý (ảnh banner) — không render bằng ô nhập chung */
+type CustomKey = 'heroImageUrl';
 
 interface FieldSpec {
   key: Exclude<keyof SiteSettings, CustomKey>;
@@ -46,11 +44,17 @@ const SECTIONS: SectionSpec[] = [
   {
     id: 'contact',
     title: 'Thông tin liên hệ',
-    description:
-      'Hiện ở cột "Liên hệ" ngoài footer. Để trống thì cột này tự ẩn. Địa chỉ cửa hàng nằm ở mục "Vị trí cửa hàng & giao hàng".',
+    description: 'Hiện ở cột "Liên hệ" ngoài footer. Vị trí và giờ của từng cơ sở quản lý ở trang Cơ sở.',
     fields: [
       { key: 'contactPhone', label: 'Số điện thoại', maxLength: 30, placeholder: '0901 234 567' },
       { key: 'contactEmail', label: 'Email liên hệ', maxLength: 255, placeholder: 'lienhe@banhmyking.vn' },
+      {
+        key: 'contactAddress',
+        label: 'Địa chỉ hiển thị ở footer',
+        maxLength: 255,
+        placeholder: 'Văn phòng / cơ sở chính',
+        textarea: true,
+      },
     ],
   },
   {
@@ -106,10 +110,6 @@ const validate = (draft: SiteSettings): Partial<Record<keyof SiteSettings, strin
   if (draft.contactPhone.trim() && !PHONE_PATTERN.test(draft.contactPhone.trim())) {
     errors.contactPhone = 'Số điện thoại chỉ gồm số, khoảng trắng, dấu . - và dấu + ở đầu.';
   }
-  const radius = draft.deliveryMaxRadiusKm.trim();
-  if (radius && !(Number(radius) >= 0.5 && Number(radius) <= 100)) {
-    errors.deliveryMaxRadiusKm = 'Bán kính giao hàng phải là số từ 0.5 đến 100 (km), hoặc để trống = không giới hạn.';
-  }
 
   return errors;
 };
@@ -133,22 +133,6 @@ const SettingsForm = ({ initial }: SettingsFormProps) => {
   const setField = (key: keyof SiteSettings, value: string) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => ({ ...prev, [key]: undefined }));
-  };
-
-  // Vị trí cửa hàng: lưu chuỗi 6 chữ số thập phân (~0,1 m) — đủ chính xác, gọn trong DB
-  const storePoint: GeoPoint | null =
-    draft.storeLatitude && draft.storeLongitude
-      ? { latitude: Number(draft.storeLatitude), longitude: Number(draft.storeLongitude) }
-      : null;
-
-  const handleStorePick = (point: GeoPoint, address: GeocodeResult | null) => {
-    setDraft((prev) => ({
-      ...prev,
-      storeLatitude: point.latitude.toFixed(6),
-      storeLongitude: point.longitude.toFixed(6),
-      // Ghim mới thì gợi ý địa chỉ theo bản đồ — admin sửa lại ở ô bên dưới nếu chưa đúng
-      ...(address ? { contactAddress: address.fullAddress } : {}),
-    }));
   };
 
   const handleSave = async () => {
@@ -323,63 +307,6 @@ const SettingsForm = ({ initial }: SettingsFormProps) => {
           </div>
         </section>
       ))}
-
-      <section className="card">
-        <div className="card__head">
-          <div>
-            <h2 className="card__title">Vị trí cửa hàng &amp; giao hàng</h2>
-            <p className="asettings__section-desc">
-              Ghim đúng vị trí quán trên bản đồ — hệ thống dùng điểm này để tự tính khoảng cách và phí giao hàng
-              cho từng đơn. Chưa ghim thì phí ship tính theo khu vực (nội/ngoại thành). Địa chỉ hiện ở cột
-              "Liên hệ" ngoài footer.
-            </p>
-          </div>
-        </div>
-        <div className="card__body asettings__store">
-          <AddressMapPicker value={storePoint} onPick={handleStorePick} height={320} />
-          {storePoint && (
-            <div className="asettings__store-pin">
-              <span>
-                Đã ghim: {draft.storeLatitude}, {draft.storeLongitude}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={<MapPinOff size={15} />}
-                onClick={() => setDraft((prev) => ({ ...prev, storeLatitude: '', storeLongitude: '' }))}
-              >
-                Bỏ ghim
-              </Button>
-            </div>
-          )}
-          <div className="asettings__grid">
-            <div className="asettings__field asettings__field--wide">
-              <Textarea
-                label="Địa chỉ cửa hàng"
-                rows={2}
-                maxLength={255}
-                value={draft.contactAddress}
-                onChange={(event) => setField('contactAddress', event.target.value)}
-                hint="Tự điền khi ghim trên bản đồ — sửa lại nếu chưa đúng. Để trống thì footer không hiện địa chỉ."
-                placeholder="12 Láng Hạ, Phường Giảng Võ, Hà Nội"
-              />
-            </div>
-            <div className="asettings__field">
-              <Input
-                label="Bán kính giao hàng tối đa (km)"
-                type="number"
-                min={0.5}
-                max={100}
-                step={0.5}
-                value={draft.deliveryMaxRadiusKm}
-                onChange={(event) => setField('deliveryMaxRadiusKm', event.target.value)}
-                error={errors.deliveryMaxRadiusKm}
-                hint="Tính theo quãng đường ước tính. Đơn xa hơn sẽ bị từ chối. Để trống = không giới hạn."
-              />
-            </div>
-          </div>
-        </div>
-      </section>
 
       <div className="asettings__foot">
         {/*

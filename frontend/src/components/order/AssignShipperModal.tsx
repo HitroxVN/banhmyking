@@ -27,7 +27,7 @@ export const AssignShipperModal = ({ order, onClose, onSuccess }: AssignShipperM
     let cancelled = false;
 
     staffOrderApi
-      .getAvailableShippers()
+      .getAvailableShippers(order.storeId ?? undefined)
       .then((data) => {
         if (cancelled) return;
         setShippers(data);
@@ -43,7 +43,7 @@ export const AssignShipperModal = ({ order, onClose, onSuccess }: AssignShipperM
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [order.storeId]);
 
   const isFree = (s: ShipperAvailability) => s.available && s.activeOrdersCount === 0;
   const allBusy = shippers.length > 0 && shippers.every((s) => !isFree(s));

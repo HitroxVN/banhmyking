@@ -9,6 +9,7 @@ export interface AdminOrderFilter {
   /** yyyy-MM-dd */
   fromDate?: string;
   toDate?: string;
+  storeId?: number;
   page?: number;
   size?: number;
 }
@@ -20,9 +21,10 @@ export const staffOrderApi = {
   async getOrderQueue(
     status?: OrderStatus,
     page: number = 0,
-    size: number = 50
+    size: number = 50,
+    storeId?: number
   ): Promise<PageResponse<OrderResponse>> {
-    return this.getOrders({ status, page, size });
+    return this.getOrders({ status, page, size, storeId });
   },
 
   /**
@@ -34,6 +36,7 @@ export const staffOrderApi = {
         status: filter.status,
         fromDate: filter.fromDate,
         toDate: filter.toDate,
+        storeId: filter.storeId,
         page: filter.page ?? 0,
         size: filter.size ?? 10,
       },
@@ -96,9 +99,10 @@ export const staffOrderApi = {
   /**
    * Lấy danh sách tất cả các tài xế (Shipper) kèm số đơn DELIVERING thực tế
    */
-  async getAvailableShippers(): Promise<ShipperAvailability[]> {
+  async getAvailableShippers(storeId?: number): Promise<ShipperAvailability[]> {
     const res = await axiosClient.get<ApiResponse<ShipperAvailability[]>>(
-      '/admin/orders/shippers/available'
+      '/admin/orders/shippers/available',
+      { params: { storeId } }
     );
     return res.data.data;
   },
@@ -118,6 +122,15 @@ export const staffOrderApi = {
         note,
       }
     );
+    return res.data.data;
+  },
+
+  /** Chuyển đơn PENDING sang cơ sở khác (MANAGER cơ sở hiện tại / ADMIN) */
+  async transferStore(orderCode: string, storeId: number, reason: string): Promise<OrderResponse> {
+    const res = await axiosClient.put<ApiResponse<OrderResponse>>(`/admin/orders/${orderCode}/store`, {
+      storeId,
+      reason,
+    });
     return res.data.data;
   },
 

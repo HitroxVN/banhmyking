@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { MapContainer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L, { type LeafletEventHandlerFnMap } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -8,7 +8,7 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { Crosshair, MapPin, Search } from 'lucide-react';
 import { Button } from '../ui';
 import { reverseGeocode, searchAddress, type GeocodeResult, type GeoPoint } from '../../utils/geocoding';
-import { useSiteSettings } from '../../context/useSiteSettings';
+import { MapTiles } from '../map/MapTiles';
 import '../../styles/components/address-map.css';
 
 // Bundler (Vite) làm mất đường dẫn ảnh marker mặc định của Leaflet → khai báo lại tường minh.
@@ -59,7 +59,6 @@ const FlyTo = ({ point }: { point: GeoPoint | null }) => {
  * Component chỉ lo toạ độ + tra ngược địa chỉ; điền vào ô nào do component cha quyết định.
  */
 export const AddressMapPicker = ({ value, onPick, height = 280 }: AddressMapPickerProps) => {
-  const { settings } = useSiteSettings();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<GeocodeResult[]>([]);
   const [busy, setBusy] = useState<'search' | 'reverse' | 'gps' | null>(null);
@@ -67,11 +66,8 @@ export const AddressMapPicker = ({ value, onPick, height = 280 }: AddressMapPick
   /** Chỉ request mới nhất được áp kết quả — ghim liên tục không để kết quả cũ đè kết quả mới */
   const requestIdRef = useRef(0);
 
-  const storeLat = Number(settings.storeLatitude);
-  const storeLng = Number(settings.storeLongitude);
-  const hasStore = settings.storeLatitude !== '' && Number.isFinite(storeLat) && Number.isFinite(storeLng);
   const [initialCenter] = useState<[number, number]>(() =>
-    value ? [value.latitude, value.longitude] : hasStore ? [storeLat, storeLng] : FALLBACK_CENTER
+    value ? [value.latitude, value.longitude] : FALLBACK_CENTER
   );
 
   const pinAt = async (point: GeoPoint) => {
@@ -94,8 +90,7 @@ export const AddressMapPicker = ({ value, onPick, height = 280 }: AddressMapPick
     }
   };
 
-  const handleSearch = async (event: FormEvent) => {
-    event.preventDefault();
+  const handleSearch = async () => {
     const text = query.trim();
     if (text.length < 3) {
       setMessage('Nhập ít nhất 3 ký tự để tìm.');
@@ -152,15 +147,30 @@ export const AddressMapPicker = ({ value, onPick, height = 280 }: AddressMapPick
 
   return (
     <div className="addr-map">
-      <form className="addr-map__search" onSubmit={handleSearch}>
+      {/* Không dùng <form>: picker nằm trong form của trang cha (thanh toán, hồ sơ…) — form lồng nhau
+          khiến submit lan ra form ngoài (ở trang thanh toán là gửi luôn đơn hàng). */}
+      <div className="addr-map__search" role="search">
         <input
           className="addr-map__input"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Tìm số nhà, tên đường, phường/xã…"
           aria-label="Tìm địa chỉ trên bản đồ"
+          onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              void handleSearch();
+            }
+          }}
         />
-        <Button type="submit" variant="secondary" size="sm" icon={<Search size={15} />} loading={busy === 'search'}>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          icon={<Search size={15} />}
+          loading={busy === 'search'}
+          onClick={() => void handleSearch()}
+        >
           Tìm
         </Button>
         <Button
@@ -173,7 +183,7 @@ export const AddressMapPicker = ({ value, onPick, height = 280 }: AddressMapPick
         >
           Vị trí của tôi
         </Button>
-      </form>
+      </div>
 
       {results.length > 0 && (
         <ul className="addr-map__results" role="listbox" aria-label="Kết quả tìm kiếm">
@@ -195,10 +205,7 @@ export const AddressMapPicker = ({ value, onPick, height = 280 }: AddressMapPick
           scrollWheelZoom
           style={{ height: '100%', width: '100%' }}
         >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+          <MapTiles />
           <ClickToPin onClick={(point) => void pinAt(point)} />
           <FlyTo point={value} />
           {value && (

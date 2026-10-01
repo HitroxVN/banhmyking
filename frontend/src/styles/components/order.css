@@ -132,39 +132,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Tiến độ freeship */
-.freeship {
-  margin-bottom: var(--space-4);
-}
-
-.freeship__text {
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-xs);
-  color: var(--stone-600);
-}
-
-.freeship__text strong {
-  color: var(--primary-700);
-}
-
-.freeship__bar {
-  height: 8px;
-  border-radius: var(--radius-full);
-  background: var(--stone-100);
-  overflow: hidden;
-}
-
-.freeship__fill {
-  height: 100%;
-  border-radius: var(--radius-full);
-  background: linear-gradient(90deg, var(--primary-400), var(--primary-600));
-  transition: width .3s ease;
-}
-
-.freeship__fill--done {
-  background: linear-gradient(90deg, var(--success), var(--primary-500));
-}
-
 /* Trạng thái rỗng / lỗi trong trang */
 .page-state {
   display: grid;

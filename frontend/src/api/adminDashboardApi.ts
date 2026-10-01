@@ -6,17 +6,19 @@ export const adminDashboardApi = {
   /**
    * Lấy tổng quan các chỉ số kinh doanh & người dùng
    */
-  async getMetrics(): Promise<DashboardMetrics> {
-    const res = await axiosClient.get<ApiResponse<DashboardMetrics>>('/admin/dashboard/metrics');
+  async getMetrics(storeId?: number): Promise<DashboardMetrics> {
+    const res = await axiosClient.get<ApiResponse<DashboardMetrics>>('/admin/dashboard/metrics', {
+      params: { storeId },
+    });
     return res.data.data;
   },
 
   /**
    * Lấy dữ liệu biểu đồ doanh thu theo chu kỳ (7 ngày hoặc 30 ngày)
    */
-  async getRevenueChart(days: number = 7): Promise<DailyRevenue[]> {
+  async getRevenueChart(days: number = 7, storeId?: number): Promise<DailyRevenue[]> {
     const res = await axiosClient.get<ApiResponse<DailyRevenue[]>>('/admin/dashboard/revenue-chart', {
-      params: { days },
+      params: { days, storeId },
     });
     return res.data.data;
   },
@@ -24,8 +26,10 @@ export const adminDashboardApi = {
   /**
    * Lấy tỷ lệ phân bố trạng thái đơn hàng
    */
-  async getOrderStatusStats(): Promise<OrderStatusStat[]> {
-    const res = await axiosClient.get<ApiResponse<OrderStatusStat[]>>('/admin/dashboard/order-status-stats');
+  async getOrderStatusStats(storeId?: number): Promise<OrderStatusStat[]> {
+    const res = await axiosClient.get<ApiResponse<OrderStatusStat[]>>('/admin/dashboard/order-status-stats', {
+      params: { storeId },
+    });
     return res.data.data;
   },
 };

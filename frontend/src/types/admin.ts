@@ -42,6 +42,8 @@ export interface AdminUser {
   image?: string;
   role: RoleName;
   banned: boolean;
+  storeId?: number | null;
+  storeName?: string | null;
   createdAt: string;
 }
 
@@ -51,6 +53,7 @@ export interface AdminCreateUserPayload {
   fullName: string;
   phone?: string;
   role: RoleName;
+  storeId?: number | null;
 }
 
 export interface AdminUpdateUserPayload {
@@ -59,12 +62,14 @@ export interface AdminUpdateUserPayload {
   role?: RoleName;
   banned?: boolean;
   password?: string;
+  storeId?: number | null;
 }
 
 export interface UserFilterParams {
   role?: RoleName;
   banned?: boolean;
   keyword?: string;
+  storeId?: number;
   page?: number;
   size?: number;
 }
@@ -88,11 +93,12 @@ export interface TopProduct {
 }
 
 /** Loại báo cáo xuất CSV — khớp enum ReportType ở backend */
-export type ReportType = 'TOP_PRODUCTS' | 'REVENUE_BY_DAY' | 'REVENUE_BY_CATEGORY' | 'REVENUE_BY_SHIPPER';
+export type ReportType = 'TOP_PRODUCTS' | 'REVENUE_BY_DAY' | 'REVENUE_BY_CATEGORY' | 'REVENUE_BY_SHIPPER' | 'REVENUE_BY_STORE';
 
 export interface ReportFilterParams {
   /** yyyy-MM-dd; bỏ trống = backend tự lấy 30 ngày gần nhất */
   fromDate?: string;
   toDate?: string;
   limit?: number;
+  storeId?: number;
 }

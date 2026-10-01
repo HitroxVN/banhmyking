@@ -16,9 +16,8 @@ export const ProductCard = ({ product, onQuickAdd, isQuickAdding = false }: Prod
   const [imgFailed, setImgFailed] = useState(false);
 
   const hasOptions = (product.options?.length ?? 0) > 0;
-  // null = món không quản tồn: giữ nguyên hành vi cũ, chỉ chặn khi hết sạch hàng
-  const stock = product.stockQuantity ?? null;
-  const disabled = !product.available || (stock !== null && stock <= 0);
+  // Tồn kho theo từng cơ sở — menu không biết cơ sở phục vụ nên chỉ xét trạng thái bán toàn chuỗi
+  const disabled = product.available === false;
   const averageRating = product.averageRating ?? 0;
   const totalReviews = product.totalReviews ?? 0;
   const detailPath = `/products/${product.id}`;
@@ -71,11 +70,6 @@ export const ProductCard = ({ product, onQuickAdd, isQuickAdding = false }: Prod
 
         <div className="pcard__foot">
           <span className="pcard__price">{formatCurrency(product.price)}</span>
-          {stock !== null && (
-            <span className={`pcard__stock${product.lowStock || stock <= 0 ? ' pcard__stock--low' : ''}`}>
-              {stock <= 0 ? 'Hết hàng' : product.lowStock ? `Sắp hết: ${stock}` : `Còn ${stock}`}
-            </span>
-          )}
           {hasOptions && !disabled ? (
             <Link
               className="pcard__add"

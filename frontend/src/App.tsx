@@ -1,6 +1,8 @@
 import type { FC } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthProvider';
+import { StoreScopeProvider } from './context/StoreScopeProvider';
+import { useAuth } from './context/useAuth';
 import { CartProvider } from './context/CartProvider';
 import { SiteSettingsProvider } from './context/SiteSettingsProvider';
 import { ConfirmProvider, ToastProvider } from './components/ui';
@@ -8,7 +10,16 @@ import { CustomerLayout } from './components/layout/CustomerLayout';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { RequireAuth } from './components/layout/RequireAuth';
 import { RequireRole } from './components/layout/RequireRole';
-import { ADMIN_BRAND, ADMIN_NAV, SHIPPER_BRAND, SHIPPER_NAV, STAFF_BRAND, STAFF_NAV } from './components/layout/navItems';
+import {
+  ADMIN_BRAND,
+  ADMIN_STAFF_BRAND,
+  ADMIN_NAV,
+  MANAGER_BRAND,
+  SHIPPER_BRAND,
+  SHIPPER_NAV,
+  STAFF_BRAND,
+  navForRole,
+} from './components/layout/navItems';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
@@ -18,6 +29,7 @@ import { MenuPage } from './pages/MenuPage';
 import { LandingPage } from './pages/LandingPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { AboutPage, ContactPage, FaqPage, PrivacyPage, TermsPage } from './pages/static/StaticPages';
+import { StoresPage } from './pages/StoresPage';
 import { CartPage } from './pages/CartPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { PaymentPage } from './pages/PaymentPage';
@@ -29,6 +41,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { ReviewManagerPage } from './pages/ReviewManagerPage';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
+import { AdminStoresPage } from './pages/admin/AdminStoresPage';
 import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage';
 import { AdminPromotionsPage } from './pages/admin/AdminPromotionsPage';
 import { AdminReportsPage } from './pages/admin/AdminReportsPage';
@@ -36,11 +49,33 @@ import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminSiteSettingsPage } from './pages/admin/AdminSiteSettingsPage';
 import { StaffOrderQueuePage } from './pages/staff/StaffOrderQueuePage';
 import { StaffMenuPage } from './pages/staff/StaffMenuPage';
+import { StoreStockPage } from './pages/staff/StoreStockPage';
+import { ManagerReportsPage } from './pages/manager/ManagerReportsPage';
+import { ManagerStaffPage } from './pages/manager/ManagerStaffPage';
 import { ShipperOrdersPage } from './pages/shipper/ShipperOrdersPage';
+
+const StaffAreaLayout = () => {
+  const { user } = useAuth();
+  const isManager = user?.role === 'MANAGER';
+  return (
+    <DashboardLayout
+      navItems={navForRole(user?.role)}
+      brand={isManager ? MANAGER_BRAND : user?.role === 'ADMIN' ? ADMIN_STAFF_BRAND : STAFF_BRAND}
+      showStore
+    />
+  );
+};
+
+/** Khu shipper: ADMIN không có "cơ sở đang làm việc" ở đây nên ẩn khối chọn cơ sở */
+const ShipperAreaLayout = () => {
+  const { user } = useAuth();
+  return <DashboardLayout navItems={SHIPPER_NAV} brand={SHIPPER_BRAND} showStore={user?.role !== 'ADMIN'} />;
+};
 
 export const App: FC = () => (
   <SiteSettingsProvider>
     <AuthProvider>
+    <StoreScopeProvider>
     <ToastProvider>
       <ConfirmProvider>
         <CartProvider>
@@ -62,6 +97,7 @@ export const App: FC = () => (
                 <Route path="products/:productId" element={<ProductDetailPage />} />
                 <Route path="about" element={<AboutPage />} />
                 <Route path="contact" element={<ContactPage />} />
+                <Route path="stores" element={<StoresPage />} />
                 <Route path="faq" element={<FaqPage />} />
                 <Route path="terms" element={<TermsPage />} />
                 <Route path="privacy" element={<PrivacyPage />} />
@@ -84,7 +120,9 @@ export const App: FC = () => (
                   <Route index element={<Navigate to="dashboard" replace />} />
                   <Route path="dashboard" element={<AdminDashboardPage />} />
                   <Route path="orders" element={<AdminOrdersPage />} />
+                  <Route path="stores" element={<AdminStoresPage />} />
                   <Route path="categories" element={<AdminCategoriesPage />} />
+                  <Route path="menu" element={<StaffMenuPage />} />
                   <Route path="promotions" element={<AdminPromotionsPage />} />
                   <Route path="reports" element={<AdminReportsPage />} />
                   <Route path="reviews" element={<ReviewManagerPage />} />
@@ -94,18 +132,24 @@ export const App: FC = () => (
               </Route>
 
               {/* Bếp & điều phối */}
-              <Route path="/staff" element={<RequireRole roles={['STAFF', 'ADMIN']} area="Bếp & nhân viên" loadingText="Đang xác minh quyền nhân viên..." />}>
-                <Route element={<DashboardLayout navItems={STAFF_NAV} brand={STAFF_BRAND} />}>
+              <Route path="/staff" element={<RequireRole roles={['STAFF', 'MANAGER', 'ADMIN']} area="Bếp & nhân viên" loadingText="Đang xác minh quyền nhân viên..." />}>
+                <Route element={<StaffAreaLayout />}>
                   <Route index element={<Navigate to="orders" replace />} />
                   <Route path="orders" element={<StaffOrderQueuePage />} />
-                  <Route path="menu" element={<StaffMenuPage />} />
+                  <Route path="menu" element={<StoreStockPage />} />
                   <Route path="reviews" element={<ReviewManagerPage />} />
+                  {/* Chỉ MANAGER: API /manager/** khoá theo cơ sở của người dùng — ADMIN không có cơ sở
+                      (số liệu sai nhãn / lỗi). ADMIN dùng /admin/reports và /admin/users thay thế. */}
+                  <Route element={<RequireRole roles={['MANAGER']} area="Quản lý cơ sở" />}>
+                    <Route path="reports" element={<ManagerReportsPage />} />
+                    <Route path="team" element={<ManagerStaffPage />} />
+                  </Route>
                 </Route>
               </Route>
 
               {/* Tài xế giao hàng */}
               <Route path="/shipper" element={<RequireRole roles={['SHIPPER', 'ADMIN']} area="Tài xế giao hàng" loadingText="Đang xác minh quyền tài xế..." />}>
-                <Route element={<DashboardLayout navItems={SHIPPER_NAV} brand={SHIPPER_BRAND} />}>
+                <Route element={<ShipperAreaLayout />}>
                   <Route index element={<ShipperOrdersPage />} />
                   <Route path="orders" element={<ShipperOrdersPage />} />
                 </Route>
@@ -117,6 +161,7 @@ export const App: FC = () => (
         </CartProvider>
       </ConfirmProvider>
     </ToastProvider>
+    </StoreScopeProvider>
     </AuthProvider>
   </SiteSettingsProvider>
 );

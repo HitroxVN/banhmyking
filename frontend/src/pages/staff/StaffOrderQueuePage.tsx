@@ -5,6 +5,7 @@ import {
   ChefHat,
   ClipboardList,
   Clock,
+  ArrowRightLeft,
   MapPin,
   PackageCheck,
   Phone,
@@ -26,8 +27,11 @@ import {
 } from '../../components/ui';
 import { AssignShipperModal } from '../../components/order/AssignShipperModal';
 import { CancelOrderModal } from '../../components/order/CancelOrderModal';
+import { TransferStoreModal } from '../../components/order/TransferStoreModal';
 import { RefundOrderModal } from '../../components/order/RefundOrderModal';
 import { staffOrderApi } from '../../api/staffOrderApi';
+import { useAuth } from '../../context/useAuth';
+import { useStoreScope } from '../../context/useStoreScope';
 import type { OrderResponse, OrderStatus } from '../../types/order';
 import { isFinalStatus } from '../../types/order';
 import { ORDER_STATUS_LABEL } from '../../utils/orderStatus';
@@ -50,6 +54,8 @@ const TAB_STATUSES: Record<Exclude<TabFilter, 'ALL' | 'HISTORY'>, OrderStatus[]>
 };
 
 export const StaffOrderQueuePage = () => {
+  const { user } = useAuth();
+  const { storeId } = useStoreScope();
   const [orders, setOrders] = useState<OrderResponse[]>([]);
   const [activeTab, setActiveTab] = useState<TabFilter>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,6 +69,8 @@ export const StaffOrderQueuePage = () => {
   const [assigningOrder, setAssigningOrder] = useState<OrderResponse | null>(null);
   const [cancellingOrder, setCancellingOrder] = useState<OrderResponse | null>(null);
   const [refundingOrder, setRefundingOrder] = useState<OrderResponse | null>(null);
+  const [transferringOrder, setTransferringOrder] = useState<OrderResponse | null>(null);
+  const canTransfer = user?.role === 'MANAGER' || user?.role === 'ADMIN';
 
   const toast = useToast();
 
@@ -70,7 +78,7 @@ export const StaffOrderQueuePage = () => {
   const fetchOrders = useCallback(async (manual = false) => {
     if (manual) setIsRefreshing(true);
     try {
-      const data = await staffOrderApi.getOrderQueue(undefined, 0, 100);
+      const data = await staffOrderApi.getOrderQueue(undefined, 0, 50, storeId ?? undefined);
       setOrders(data.content ?? []);
       setNow(Date.now());
     } catch (err: unknown) {
@@ -79,9 +87,13 @@ export const StaffOrderQueuePage = () => {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [storeId]);
+
+  // ADMIN chưa chọn cơ sở: không tải và không polling (tránh truy vấn toàn chuỗi vô ích)
+  const needsStore = user?.role === 'ADMIN' && storeId == null;
 
   useEffect(() => {
+    if (needsStore) return;
     void fetchOrders();
 
     const intervalId = setInterval(() => void fetchOrders(), POLL_MS);
@@ -101,7 +113,7 @@ export const StaffOrderQueuePage = () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', handleSync);
     };
-  }, [fetchOrders]);
+  }, [fetchOrders, needsStore]);
 
   const reload = () => {
     setErrorMsg(null);
@@ -178,6 +190,16 @@ export const StaffOrderQueuePage = () => {
     return Number.isNaN(diff) ? 0 : Math.max(0, Math.floor(diff / 60000));
   };
 
+  if (needsStore) {
+    return (
+      <EmptyState
+        icon={<ClipboardList size={30} />}
+        title="Chưa chọn cơ sở"
+        description="Chọn cơ sở ở thanh bên để xem hàng đợi"
+      />
+    );
+  }
+
   return (
     <>
       <PageHeader
@@ -251,6 +273,7 @@ export const StaffOrderQueuePage = () => {
             const minutes = elapsedMinutes(order.createdAt);
             const urgent = minutes >= URGENT_AFTER_MINUTES && !isFinalStatus(order.status);
             const busy = busyOrderCode === order.orderCode;
+            const waiting = !isFinalStatus(order.status);
 
             return (
               <article key={order.id} className={`card squeue__card${urgent ? ' squeue__card--urgent' : ''}`}>
@@ -258,10 +281,12 @@ export const StaffOrderQueuePage = () => {
                   <div className="squeue__ident">
                     <span className="squeue__code">{order.orderCode}</span>
                     <StatusBadge status={order.status} />
-                    <span className={`squeue__timer${urgent ? ' squeue__timer--urgent' : ''}`}>
-                      <Clock size={14} />
-                      Chờ {minutes} phút
-                    </span>
+                    {waiting && (
+                      <span className={`squeue__timer${urgent ? ' squeue__timer--urgent' : ''}`}>
+                        <Clock size={14} />
+                        Chờ {minutes} phút
+                      </span>
+                    )}
                   </div>
 
                   <div className="squeue__meta">
@@ -385,6 +410,17 @@ export const StaffOrderQueuePage = () => {
                       </Button>
                     )}
 
+                    {canTransfer && order.status === 'PENDING' && (
+                      <Button
+                        variant="ghost"
+                        icon={<ArrowRightLeft size={17} />}
+                        disabled={busy}
+                        onClick={() => setTransferringOrder(order)}
+                      >
+                        Chuyển cơ sở
+                      </Button>
+                    )}
+
                     {order.paymentStatus === 'PAID' && (
                       <Button
                         variant="ghost"
@@ -432,6 +468,18 @@ export const StaffOrderQueuePage = () => {
             replaceOrder(updated);
             setCancellingOrder(null);
             toast.success(`Đã huỷ đơn ${updated.orderCode} — lý do: ${reason}`);
+          }}
+        />
+      )}
+
+      {transferringOrder && (
+        <TransferStoreModal
+          order={transferringOrder}
+          onClose={() => setTransferringOrder(null)}
+          onSuccess={(updated) => {
+            setTransferringOrder(null);
+            toast.success(`Đã chuyển đơn ${updated.orderCode} sang cơ sở khác`);
+            void fetchOrders();
           }}
         />
       )}

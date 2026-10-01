@@ -8,6 +8,14 @@
  */
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org';
+/**
+ * Dự phòng khi không gọi được Nominatim: một số mạng/DNS ở Việt Nam không phân giải được
+ * *.openstreetmap.org. Photon (Komoot) cũng dùng dữ liệu OSM, có CORS, không cần key.
+ */
+const PHOTON_URL = 'https://photon.komoot.io';
+// lang=default: lấy tên gốc trên OSM (tiếng Việt) thay vì bản dịch theo ngôn ngữ trình duyệt
+/** Khung toạ độ Việt Nam cho Photon: minLon,minLat,maxLon,maxLat */
+const VN_BBOX = '102,8,110,23.5';
 /** Khoảng cách tối thiểu giữa 2 request (ms) theo chính sách Nominatim */
 const MIN_GAP_MS = 1100;
 
@@ -102,35 +110,103 @@ const toResult = (place: NominatimPlace): GeocodeResult => {
   };
 };
 
-/** Toạ độ → địa chỉ (khi ghim trên bản đồ / dùng GPS) */
-export const reverseGeocode = async ({ latitude, longitude }: GeoPoint, signal?: AbortSignal) => {
-  const params = new URLSearchParams({
-    format: 'jsonv2',
-    lat: String(latitude),
-    lon: String(longitude),
-    addressdetails: '1',
-    zoom: '18',
-    'accept-language': 'vi',
-  });
-  const place = await throttledFetch<NominatimPlace & { error?: string }>(
-    `${NOMINATIM_URL}/reverse?${params}`,
-    signal
-  );
-  if (place.error) return null;
-  // Giữ đúng toạ độ người dùng ghim, không nhảy sang toạ độ của toà nhà gần nhất
-  return { ...toResult(place), latitude, longitude };
+interface PhotonFeature {
+  geometry: { coordinates: [number, number] };
+  properties: {
+    name?: string;
+    housenumber?: string;
+    street?: string;
+    locality?: string;
+    district?: string;
+    city?: string;
+    state?: string;
+    countrycode?: string;
+  };
+}
+
+const photonToResult = (feature: PhotonFeature): GeocodeResult => {
+  const p = feature.properties;
+  const [longitude, latitude] = feature.geometry.coordinates;
+  const road = [p.housenumber, p.street].filter(Boolean).join(' ');
+  const street = road || p.name || '';
+  const wardCandidates = [p.locality, p.district].filter((value): value is string => Boolean(value));
+  const ward = wardCandidates.find((value) => WARD_PREFIX.test(value)) ?? wardCandidates[0] ?? '';
+  const province = p.city ?? p.state ?? '';
+  const fullAddress = composeFullAddress({ street, ward, province });
+  const label = [p.name && p.name !== street ? p.name : null, fullAddress].filter(Boolean).join(' — ');
+  return { latitude, longitude, street, ward, province, fullAddress, label: label || fullAddress };
 };
 
-/** Chữ → danh sách vị trí gợi ý (ô tìm kiếm trên bản đồ), chỉ trong Việt Nam */
-export const searchAddress = async (query: string, signal?: AbortSignal): Promise<GeocodeResult[]> => {
-  const params = new URLSearchParams({
-    format: 'jsonv2',
-    q: query,
-    countrycodes: 'vn',
-    addressdetails: '1',
-    limit: '5',
-    'accept-language': 'vi',
-  });
-  const places = await throttledFetch<NominatimPlace[]>(`${NOMINATIM_URL}/search?${params}`, signal);
-  return places.map(toResult);
+const photonFetch = async (path: string, params: URLSearchParams, signal?: AbortSignal) => {
+  const response = await fetch(`${PHOTON_URL}${path}?${params}`, { signal });
+  if (!response.ok) throw new Error(`Dịch vụ bản đồ lỗi (${response.status})`);
+  const body = (await response.json()) as { features?: PhotonFeature[] };
+  return (body.features ?? []).filter((f) => !f.properties.countrycode || f.properties.countrycode === 'VN');
 };
+
+/**
+ * Nominatim không gọi được (lỗi mạng/DNS, không phải "không có kết quả") → nhớ lại để các lần sau
+ * đi thẳng sang Photon, khỏi chờ lỗi mỗi lần ghim.
+ */
+let nominatimUnreachable = false;
+
+const isAbort = (error: unknown) => error instanceof DOMException && error.name === 'AbortError';
+
+const withFallback = async <T>(primary: () => Promise<T>, fallback: () => Promise<T>): Promise<T> => {
+  if (nominatimUnreachable) return fallback();
+  try {
+    return await primary();
+  } catch (error) {
+    if (isAbort(error)) throw error;
+    nominatimUnreachable = true;
+    return fallback();
+  }
+};
+
+/** Toạ độ → địa chỉ (khi ghim trên bản đồ / dùng GPS) */
+export const reverseGeocode = async ({ latitude, longitude }: GeoPoint, signal?: AbortSignal) =>
+  withFallback<GeocodeResult | null>(
+    async () => {
+      const params = new URLSearchParams({
+        format: 'jsonv2',
+        lat: String(latitude),
+        lon: String(longitude),
+        addressdetails: '1',
+        zoom: '18',
+        'accept-language': 'vi',
+      });
+      const place = await throttledFetch<NominatimPlace & { error?: string }>(
+        `${NOMINATIM_URL}/reverse?${params}`,
+        signal
+      );
+      if (place.error) return null;
+      // Giữ đúng toạ độ người dùng ghim, không nhảy sang toạ độ của toà nhà gần nhất
+      return { ...toResult(place), latitude, longitude };
+    },
+    async () => {
+      const params = new URLSearchParams({ lat: String(latitude), lon: String(longitude), limit: '1', lang: 'default' });
+      const [feature] = await photonFetch('/reverse', params, signal);
+      return feature ? { ...photonToResult(feature), latitude, longitude } : null;
+    }
+  );
+
+/** Chữ → danh sách vị trí gợi ý (ô tìm kiếm trên bản đồ), chỉ trong Việt Nam */
+export const searchAddress = async (query: string, signal?: AbortSignal): Promise<GeocodeResult[]> =>
+  withFallback(
+    async () => {
+      const params = new URLSearchParams({
+        format: 'jsonv2',
+        q: query,
+        countrycodes: 'vn',
+        addressdetails: '1',
+        limit: '5',
+        'accept-language': 'vi',
+      });
+      const places = await throttledFetch<NominatimPlace[]>(`${NOMINATIM_URL}/search?${params}`, signal);
+      return places.map(toResult);
+    },
+    async () => {
+      const params = new URLSearchParams({ q: query, limit: '5', bbox: VN_BBOX, lang: 'default' });
+      return (await photonFetch('/api/', params, signal)).map(photonToResult);
+    }
+  );

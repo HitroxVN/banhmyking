@@ -180,6 +180,17 @@ export const OrderTrackingPage = () => {
             <div>
               <p className="track__code">{order.orderCode}</p>
               <p className="track__time">Đặt lúc {formatDateTime(order.createdAt)}</p>
+              {order.storeName && (
+                <p className="track__time">
+                  Cơ sở phục vụ: {order.storeName}
+                  {order.storePhone && (
+                    <>
+                      {' · '}
+                      <a href={`tel:${order.storePhone.replace(/\s/g, '')}`}>☎ {order.storePhone}</a>
+                    </>
+                  )}
+                </p>
+              )}
             </div>
             <StatusBadge status={order.status} />
           </div>
