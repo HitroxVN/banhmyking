@@ -89,12 +89,13 @@ public class OrderServiceImpl implements OrderService {
     private final PaymentRepository paymentRepository;
     private final PriceCalculator priceCalculator;
     private final DeliveryFeeCalculator deliveryFeeCalculator;
-    private final com.banhmyking.banhmyking.service.StoreDistanceService storeDistanceService;
+    private final com.banhmyking.banhmyking.service.StoreSelectionService storeSelectionService;
     private final PaymentService paymentService;
     private final OrderCodeGenerator orderCodeGenerator;
     private final OrderStatusValidator orderStatusValidator;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final com.banhmyking.banhmyking.service.InventoryService inventoryService;
+    private final com.banhmyking.banhmyking.security.StoreAccessGuard storeAccessGuard;
 
     /** Số phút tối đa một đơn PENDING chưa thanh toán được phép treo trước khi bị tự huỷ. */
     @org.springframework.beans.factory.annotation.Value("${order.pending-timeout-minutes:30}")
@@ -216,6 +217,12 @@ public class OrderServiceImpl implements OrderService {
             shippingAddress = address.getFullAddress();
             deliveryLatitude = address.getLatitude();
             deliveryLongitude = address.getLongitude();
+            // R13: địa chỉ đã lưu chưa ghim (dữ liệu cũ) không xác định được cơ sở phục vụ / bán kính
+            // → báo rõ để khách ghim lại trong Hồ sơ, thay vì lỗi chung "chọn cơ sở".
+            if (deliveryLatitude == null || deliveryLongitude == null) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                        "Địa chỉ này chưa được ghim trên bản đồ — vui lòng cập nhật địa chỉ trong Hồ sơ");
+            }
         } else {
             if (request.getReceiverName() == null || request.getReceiverName().trim().isEmpty()) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Tên người nhận không được để trống");
@@ -229,24 +236,16 @@ public class OrderServiceImpl implements OrderService {
             receiverName = request.getReceiverName().trim();
             receiverPhone = request.getReceiverPhone().trim();
             shippingAddress = request.getShippingAddress().trim();
-            boolean pinned = request.getLatitude() != null && request.getLongitude() != null;
-            deliveryLatitude = pinned ? request.getLatitude() : null;
-            deliveryLongitude = pinned ? request.getLongitude() : null;
+            // R10: địa chỉ MỚI bắt buộc ghim toạ độ — nếu không, StoreSelectionService bỏ qua kiểm tra bán
+            // kính và khách có thể chọn cơ sở xa tuỳ ý. Địa chỉ đã lưu (addressId) chưa có toạ độ vẫn được
+            // chấp nhận như cũ (spec §3.4, dữ liệu cũ).
+            if (request.getLatitude() == null || request.getLongitude() == null) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Vui lòng ghim vị trí giao hàng trên bản đồ");
+            }
+            deliveryLatitude = request.getLatitude();
+            deliveryLongitude = request.getLongitude();
         }
 
-        // Khoảng cách do server tính từ vị trí quán — không tin số client gửi (plan.md §2.2).
-        // Ngoài bán kính phục vụ → BusinessException, chặn đặt đơn ngay tại đây.
-        BigDecimal distanceKm = storeDistanceService.roadDistanceKm(deliveryLatitude, deliveryLongitude)
-                .orElse(null);
-
-        // 4. Resolve Promotion (nếu có)
-        Promotion promotion = null;
-        if (request.getPromotionCode() != null && !request.getPromotionCode().trim().isEmpty()) {
-            BigDecimal cartSubtotal = priceCalculator.calculateSubtotal(cart);
-            promotion = promotionService.validateForOrder(request.getPromotionCode(), userId, cartSubtotal);
-        }
-
-        // 5. Tính tiền qua DeliveryFeeCalculator & PriceCalculator (AC 1, AC 5)
         // #15: dùng chung công thức unitPrice/lineTotal với PriceCalculator — không tự tính lại
         BigDecimal cartSubtotal = BigDecimal.ZERO;
         if (cart.getItems() != null) {
@@ -256,10 +255,28 @@ public class OrderServiceImpl implements OrderService {
         }
         cartSubtotal = cartSubtotal.setScale(2, RoundingMode.HALF_UP);
 
+        // Chọn / kiểm tra cơ sở phục vụ — server chấm lại toàn bộ điều kiện (spec §3.2)
+        java.util.Map<Product, Integer> demand = new java.util.LinkedHashMap<>();
+        for (CartItem item : cart.getItems()) {
+            demand.merge(item.getProduct(), item.getQuantity(), Integer::sum);
+        }
+        com.banhmyking.banhmyking.service.StoreSelectionService.Candidate chosen = storeSelectionService.requireEligible(
+                request.getStoreId(), deliveryLatitude, deliveryLongitude, cartSubtotal, demand);
+        BigDecimal distanceKm = chosen.distanceKm();
+
+        // 4. Resolve Promotion (nếu có)
+        Promotion promotion = null;
+        if (request.getPromotionCode() != null && !request.getPromotionCode().trim().isEmpty()) {
+            BigDecimal promoSubtotal = priceCalculator.calculateSubtotal(cart);
+            promotion = promotionService.validateForOrder(request.getPromotionCode(), userId, promoSubtotal);
+        }
+
+        // 5. Tính tiền qua DeliveryFeeCalculator & PriceCalculator (AC 1, AC 5)
+
         // #18: deliveryFeeCalculator/paymentService là bean bắt buộc (@RequiredArgsConstructor)
         // — null-check và fallback tự tạo Payment là dead code, đã xóa.
         DeliveryFeeResult deliveryResult = deliveryFeeCalculator.calculateFee(
-                distanceKm, shippingAddress, cartSubtotal);
+                distanceKm, shippingAddress, cartSubtotal, chosen.store().getFreeShipRadiusKm());
         BigDecimal shippingFee = (deliveryResult != null && deliveryResult.getShippingFee() != null)
                 ? deliveryResult.getShippingFee()
                 : PriceCalculator.DEFAULT_SHIPPING_FEE;
@@ -272,6 +289,7 @@ public class OrderServiceImpl implements OrderService {
         Order order = new Order();
         order.setOrderCode(orderCode);
         order.setUser(user);
+        order.setStore(chosen.store());
         order.setIdempotencyKey(idempotencyKey);
         order.setStatus(OrderStatus.PENDING);
         order.setReceiverName(receiverName);
@@ -375,6 +393,8 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không được phân công giao đơn hàng này");
         }
 
+        storeAccessGuard.requireOrderAccess(actor, order);
+
         return toOrderResponse(order);
     }
 
@@ -391,18 +411,18 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<OrderResponse> getAllOrdersForAdmin(Long userId, OrderStatus status, String fromDateStr, String toDateStr, int page, int size) {
+    public PageResponse<OrderResponse> getAllOrdersForAdmin(Long userId, OrderStatus status, String fromDateStr, String toDateStr,
+                                                            Long storeId, int page, int size) {
         User actor = requireUser(userId);
 
-        if (actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ nhân viên hoặc quản trị viên mới có quyền xem toàn bộ đơn hàng");
-        }
+        storeAccessGuard.requireOperator(actor);
+        Long scope = storeAccessGuard.resolveStoreFilter(actor, storeId);
 
         LocalDateTime fromDate = parseDateTime(fromDateStr, false);
         LocalDateTime toDate = parseDateTime(toDateStr, true);
 
         Pageable pageable = PageableFactory.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Specification<Order> spec = OrderSpecifications.withFilters(status, fromDate, toDate);
+        Specification<Order> spec = OrderSpecifications.withFilters(status, fromDate, toDate, scope);
         Page<Order> orderPage = orderRepository.findAll(spec, pageable);
 
         return PageResponse.from(orderPage.map(this::toOrderResponse));
@@ -415,11 +435,10 @@ public class OrderServiceImpl implements OrderService {
 
         User actor = requireUser(userId);
 
-        if (actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ nhân viên hoặc quản trị viên mới có quyền gán shipper");
-        }
+        storeAccessGuard.requireOperator(actor);
 
         Order order = requireOrderByCode(orderCode);
+        storeAccessGuard.requireOrderAccess(actor, order);
 
         OrderStatus currentStatus = order.getStatus();
         if (currentStatus == OrderStatus.DELIVERED || currentStatus == OrderStatus.CANCELLED || currentStatus == OrderStatus.FAILED) {
@@ -429,6 +448,10 @@ public class OrderServiceImpl implements OrderService {
 
         // requireShipper đã kiểm tra role SHIPPER
         User shipper = requireShipper(request.getShipperId());
+        if (!storeAccessGuard.sameStore(shipper, order.getStore())) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Tài xế " + shipper.getFullName() + " không thuộc cơ sở phục vụ đơn này");
+        }
 
         // Chặn gán nếu shipper đang có đơn chưa hoàn tất (READY_FOR_PICKUP hoặc DELIVERING)
         long activeOrdersCount = orderRepository.countByShipperIdAndStatusInAndIdNot(
@@ -462,18 +485,18 @@ public class OrderServiceImpl implements OrderService {
     public PageResponse<OrderResponse> getOrdersForShipper(Long userId, OrderStatus status, int page, int size) {
         User actor = requireUser(userId);
 
-        if (actor.getRole() != RoleName.SHIPPER && actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ nhân viên giao hàng mới có quyền truy cập danh sách đơn giao");
+        if (actor.getRole() != RoleName.SHIPPER) {
+            storeAccessGuard.requireOperator(actor);
         }
 
         Pageable pageable = PageableFactory.of(page, size,
                 Sort.by(Sort.Direction.DESC, "createdAt"));
 
-        // SHIPPER chỉ thấy đơn của mình; STAFF/ADMIN (đã được gate ở controller + SecurityConfig)
-        // thấy toàn bộ — query cứng shipper_id = userId trước đây khiến staff/admin luôn nhận rỗng.
+        // SHIPPER chỉ thấy đơn được giao cho mình; STAFF/MANAGER thấy đơn của cơ sở mình,
+        // ADMIN thấy toàn chuỗi (scopedStoreId trả null cho ADMIN).
         Specification<Order> spec = actor.getRole() == RoleName.SHIPPER
                 ? OrderSpecifications.assignedTo(userId, status)
-                : OrderSpecifications.withFilters(status, null, null);
+                : OrderSpecifications.withFilters(status, null, null, storeAccessGuard.scopedStoreId(actor));
         Page<Order> orderPage = orderRepository.findAll(spec, pageable);
 
         return PageResponse.from(orderPage.map(this::toOrderResponse));
@@ -486,11 +509,12 @@ public class OrderServiceImpl implements OrderService {
 
         User actor = requireUser(userId);
 
-        if (actor.getRole() != RoleName.SHIPPER && actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ shipper được phân công mới có quyền xác nhận giao hàng");
+        if (actor.getRole() != RoleName.SHIPPER) {
+            storeAccessGuard.requireOperator(actor);
         }
 
         Order order = requireOrderByCode(orderCode);
+        storeAccessGuard.requireOrderAccess(actor, order);
 
         if (actor.getRole() == RoleName.SHIPPER) {
             if (order.getShipper() == null || !order.getShipper().getId().equals(actor.getId())) {
@@ -597,6 +621,7 @@ public class OrderServiceImpl implements OrderService {
         User actor = requireUser(userId);
 
         Order order = requireOrderByCode(orderCode);
+        storeAccessGuard.requireOrderAccess(actor, order);
 
         String reason = (request != null && request.getCancelReason() != null) ? request.getCancelReason().trim() : null;
 
@@ -633,12 +658,10 @@ public class OrderServiceImpl implements OrderService {
     @Transactional(rollbackFor = Exception.class)
     public OrderResponse refundOrder(Long userId, String orderCode, com.banhmyking.banhmyking.dto.order.RefundOrderRequest request) {
         User actor = requireUser(userId);
-        if (actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
-            throw new BusinessException(ErrorCode.FORBIDDEN,
-                    "Chỉ nhân viên hoặc quản trị viên mới có quyền hoàn tiền");
-        }
+        storeAccessGuard.requireOperator(actor);
 
         Order order = requireOrderByCode(orderCode);
+        storeAccessGuard.requireOrderAccess(actor, order);
 
         Payment payment = order.getPayment();
         if (payment == null) {
@@ -659,6 +682,102 @@ public class OrderServiceImpl implements OrderService {
 
         log.info("Order {} refunded by user {} (role: {})", orderCode, userId, actor.getRole());
         return toOrderResponse(order);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderResponse transferStore(Long userId, String orderCode,
+                                       com.banhmyking.banhmyking.dto.store.TransferStoreRequest request) {
+        User actor = requireUser(userId);
+        if (actor.getRole() != RoleName.ADMIN && actor.getRole() != RoleName.MANAGER) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ quản lý cơ sở hoặc quản trị viên mới được chuyển cơ sở");
+        }
+        Order order = requireOrderByCode(orderCode);
+        storeAccessGuard.requireOrderAccess(actor, order);
+        if (order.getStatus() != OrderStatus.PENDING) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Chỉ chuyển cơ sở được khi đơn còn PENDING. Trạng thái hiện tại: " + order.getStatus());
+        }
+        if (order.getStore() != null && order.getStore().getId().equals(request.storeId())) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Đơn đã thuộc cơ sở này");
+        }
+
+        java.util.Map<Product, Integer> demand = new java.util.LinkedHashMap<>();
+        for (OrderItem item : order.getItems()) {
+            demand.merge(item.getProduct(), item.getQuantity(), Integer::sum);
+        }
+        com.banhmyking.banhmyking.service.StoreSelectionService.Candidate target = storeSelectionService.requireEligible(
+                request.storeId(), order.getDeliveryLatitude(), order.getDeliveryLongitude(), order.getSubtotal(), demand);
+        DeliveryFeeResult fee = deliveryFeeCalculator.calculateFee(target.distanceKm(), order.getShippingAddress(),
+                order.getSubtotal(), target.store().getFreeShipRadiusKm());
+        BigDecimal newFee = fee.getShippingFee().setScale(2, RoundingMode.HALF_UP);
+
+        // Giảm giá phải tính lại theo phí ship mới: FREE_SHIP = min(value, phí ship) nên đổi phí là đổi
+        // tiền giảm. Dùng đúng công thức lúc tạo đơn (PriceCalculator.computeDiscount). KHÔNG chấm lại
+        // điều kiện mã (hạn, lượt, đơn tối thiểu): mã đã được chấp nhận + đã tiêu lượt cho chính đơn này,
+        // và subtotal không đổi khi chuyển cơ sở nên điều kiện đơn tối thiểu vẫn y nguyên.
+        BigDecimal newDiscount = order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO;
+        PromotionUsage usage = null;
+        if (order.getPromotionCode() != null) {
+            usage = order.getId() == null ? null
+                    : promotionUsageRepository.findByOrderId(order.getId()).orElse(null);
+            Promotion promotion = usage != null && usage.getPromotion() != null
+                    ? usage.getPromotion()
+                    : promotionRepository.findByCode(order.getPromotionCode()).orElse(null);
+            if (promotion != null) {
+                newDiscount = priceCalculator.computeDiscount(promotion, order.getSubtotal(), newFee);
+            } else {
+                log.warn("transferStore: không tìm thấy mã {} của đơn {} — giữ nguyên tiền giảm cũ",
+                        order.getPromotionCode(), orderCode);
+            }
+        }
+        newDiscount = newDiscount.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal newTotal = order.getSubtotal().add(newFee).subtract(newDiscount)
+                .max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+
+        Payment payment = order.getPayment();
+        if (payment == null && order.getId() != null) {
+            payment = paymentRepository.findByOrderId(order.getId()).orElse(null);
+        }
+        boolean paid = payment != null && payment.getStatus() == PaymentStatus.PAID;
+        if (paid && newTotal.compareTo(order.getTotal()) != 0) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Đơn đã thanh toán — không thể chuyển sang cơ sở làm thay đổi tổng tiền");
+        }
+        // R11: chuyển khoản đang chờ — khách có thể đang chuyển đúng số tiền cũ; webhook SePay đòi khớp
+        // chính xác order.total, nên đổi tổng tiền lúc này sẽ đẩy đơn vào đối soát tay. Từ chối như đơn đã trả.
+        boolean bankTransferPending = payment != null
+                && payment.getMethod() == PaymentMethod.BANK_TRANSFER
+                && payment.getStatus() == PaymentStatus.PENDING;
+        if (bankTransferPending && newTotal.compareTo(order.getTotal()) != 0) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Đơn chuyển khoản đang chờ thanh toán — không thể chuyển sang cơ sở làm thay đổi số tiền");
+        }
+
+        String fromName = order.getStore() == null ? "?" : order.getStore().getName();
+        order.setStore(target.store());
+        order.setDistanceKm(target.distanceKm());
+        order.setShippingFee(newFee);
+        order.setDiscountAmount(newDiscount);
+        order.setTotal(newTotal);
+        if (usage != null && (usage.getDiscountApplied() == null
+                || usage.getDiscountApplied().compareTo(newDiscount) != 0)) {
+            usage.setDiscountApplied(newDiscount);
+            promotionUsageRepository.save(usage);
+        }
+        if (payment != null && !paid) {
+            payment.setAmount(newTotal);
+            paymentRepository.save(payment);
+        }
+        String note = "Chuyển từ " + fromName + " sang " + target.store().getName() + ": " + request.reason().trim();
+        User assigned = order.getShipper();
+        if (assigned != null && !storeAccessGuard.sameStore(assigned, target.store())) {
+            order.setShipper(null);
+            note += " (đã gỡ tài xế " + assigned.getFullName() + " của cơ sở cũ)";
+        }
+        Order saved = orderRepository.save(order);
+        recordHistory(saved, OrderStatus.PENDING, OrderStatus.PENDING, actor, note);
+        return toOrderResponse(saved);
     }
 
     @Override
@@ -689,6 +808,7 @@ public class OrderServiceImpl implements OrderService {
         User actor = requireUser(userId);
 
         Order order = requireOrderByCode(orderCode);
+        storeAccessGuard.requireOrderAccess(actor, order);
 
         OrderStatus fromStatus = order.getStatus();
         OrderStatus toStatus = request.getNewStatus();
@@ -718,7 +838,12 @@ public class OrderServiceImpl implements OrderService {
                 if (actor.getRole() == RoleName.SHIPPER) {
                     throw new BusinessException(ErrorCode.FORBIDDEN, "Shipper không có quyền phân công đơn hàng cho người khác");
                 }
-                order.setShipper(requireShipper(request.getShipperId()));
+                User newShipper = requireShipper(request.getShipperId());
+                if (!storeAccessGuard.sameStore(newShipper, order.getStore())) {
+                    throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                            "Tài xế " + newShipper.getFullName() + " không thuộc cơ sở phục vụ đơn này");
+                }
+                order.setShipper(newShipper);
             } else if (order.getShipper() == null) {
                 // Không có shipperId và đơn chưa được gán → chặn, tránh đơn DELIVERING không có shipper
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR,
@@ -771,6 +896,7 @@ public class OrderServiceImpl implements OrderService {
         User actor = requireUser(userId);
 
         Order order = requireOrderByCode(orderCode);
+        storeAccessGuard.requireOrderAccess(actor, order);
 
         // Customer chỉ được xem lịch sử đơn hàng của chính mình
         if (actor.getRole() == RoleName.CUSTOMER && (order.getUser() == null || !order.getUser().getId().equals(actor.getId()))) {
@@ -841,6 +967,9 @@ public class OrderServiceImpl implements OrderService {
                 .receiverName(order.getReceiverName())
                 .receiverPhone(order.getReceiverPhone())
                 .shippingAddress(order.getShippingAddress())
+                .storeId(order.getStore() != null ? order.getStore().getId() : null)
+                .storeName(order.getStore() != null ? order.getStore().getName() : null)
+                .storePhone(order.getStore() != null ? order.getStore().getPhone() : null)
                 .distanceKm(order.getDistanceKm())
                 .deliveryLatitude(order.getDeliveryLatitude())
                 .deliveryLongitude(order.getDeliveryLongitude())
@@ -867,15 +996,16 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
-    public java.util.List<com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse> getAvailableShippers(Long userId) {
+    public java.util.List<com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse> getAvailableShippers(Long userId, Long storeId) {
         User actor = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại với ID: " + userId));
 
-        if (actor.getRole() != RoleName.STAFF && actor.getRole() != RoleName.ADMIN) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "Chỉ nhân viên hoặc quản trị viên mới có quyền xem danh sách điều phối shipper");
-        }
+        storeAccessGuard.requireOperator(actor);
+        Long scope = storeAccessGuard.resolveStoreFilter(actor, storeId);
 
-        java.util.List<User> shippers = userRepository.findByRoleAndDeletedFalse(RoleName.SHIPPER);
+        java.util.List<User> shippers = scope == null
+                ? userRepository.findByRoleAndDeletedFalse(RoleName.SHIPPER)
+                : userRepository.findByRoleAndStoreIdAndDeletedFalse(RoleName.SHIPPER, scope);
         java.util.List<com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse> result = new java.util.ArrayList<>();
 
         for (User s : shippers) {

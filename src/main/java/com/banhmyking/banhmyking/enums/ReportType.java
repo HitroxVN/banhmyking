@@ -11,7 +11,8 @@ public enum ReportType {
     TOP_PRODUCTS("top-mon"),
     REVENUE_BY_DAY("doanh-thu-theo-ngay"),
     REVENUE_BY_CATEGORY("doanh-thu-theo-danh-muc"),
-    REVENUE_BY_SHIPPER("doanh-thu-theo-tai-xe");
+    REVENUE_BY_SHIPPER("doanh-thu-theo-tai-xe"),
+    REVENUE_BY_STORE("doanh-thu-theo-co-so");
 
     /** Phần tên file, đã bỏ dấu để trình duyệt/Excel không gặp ký tự lạ. */
     private final String slug;

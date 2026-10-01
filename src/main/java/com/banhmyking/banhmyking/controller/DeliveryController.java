@@ -1,65 +1,89 @@
 package com.banhmyking.banhmyking.controller;
 
 import com.banhmyking.banhmyking.dto.common.ApiResponse;
-import com.banhmyking.banhmyking.dto.delivery.CalculateDeliveryFeeRequest;
 import com.banhmyking.banhmyking.dto.delivery.DeliveryFeeResult;
+import com.banhmyking.banhmyking.dto.store.DeliveryQuoteResponse;
+import com.banhmyking.banhmyking.dto.store.StoreQuoteOption;
+import com.banhmyking.banhmyking.entity.Cart;
+import com.banhmyking.banhmyking.entity.CartItem;
+import com.banhmyking.banhmyking.entity.Product;
+import com.banhmyking.banhmyking.repository.CartRepository;
+import com.banhmyking.banhmyking.security.SecurityUtils;
 import com.banhmyking.banhmyking.service.DeliveryFeeCalculator;
-import com.banhmyking.banhmyking.service.StoreDistanceService;
+import com.banhmyking.banhmyking.service.PriceCalculator;
+import com.banhmyking.banhmyking.service.StoreSelectionService;
+import com.banhmyking.banhmyking.service.StoreSelectionService.Candidate;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
+import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.math.BigDecimal;
-
 @RestController
 @RequestMapping("/api/v1/delivery")
 @RequiredArgsConstructor
-@Tag(name = "Delivery & Shipping", description = "APIs tính toán phí giao hàng và chính sách Freeship")
+@Tag(name = "Delivery & Shipping", description = "Báo giá giao hàng theo cơ sở")
 public class DeliveryController {
 
+    private static final DateTimeFormatter HH_MM = DateTimeFormatter.ofPattern("HH:mm");
+
+    private final StoreSelectionService storeSelectionService;
     private final DeliveryFeeCalculator deliveryFeeCalculator;
-    private final StoreDistanceService storeDistanceService;
+    private final CartRepository cartRepository;
 
-    @GetMapping("/fee")
-    @Operation(summary = "Tính thử phí giao hàng (Query Params)",
-            description = "Có toạ độ điểm giao và quán đã ghim vị trí → server tự tính khoảng cách; "
-                    + "không thì tính theo khu vực (nội/ngoại thành). Xét freeship nếu đơn đạt ngưỡng.")
-    public ResponseEntity<ApiResponse<DeliveryFeeResult>> getDeliveryFee(
-            @Parameter(description = "Vĩ độ điểm giao", example = "21.028511")
+    @GetMapping("/quote")
+    @Transactional(readOnly = true)
+    @Operation(summary = "Báo giá giao hàng: cơ sở đề xuất + phí và lý do của từng cơ sở (đọc giỏ hàng phía server)")
+    public ResponseEntity<ApiResponse<DeliveryQuoteResponse>> quote(
             @RequestParam(required = false) BigDecimal latitude,
-            @Parameter(description = "Kinh độ điểm giao", example = "105.804817")
             @RequestParam(required = false) BigDecimal longitude,
-            @Parameter(description = "Địa chỉ nhận hàng chi tiết", example = "123 Lê Lợi, Quận 1, TP.HCM")
             @RequestParam(required = false) String shippingAddress,
-            @Parameter(description = "Tổng giá trị tạm tính các món (subtotal)", example = "150000")
-            @RequestParam(required = false) BigDecimal subtotal) {
-
-        BigDecimal distanceKm = storeDistanceService.roadDistanceKm(latitude, longitude).orElse(null);
-        DeliveryFeeResult result = deliveryFeeCalculator.calculateFee(distanceKm, shippingAddress, subtotal);
-        return ResponseEntity.ok(ApiResponse.ok("Tính phí giao hàng thành công", result));
+            @AuthenticationPrincipal UserDetails principal) {
+        Long userId = SecurityUtils.requireUserId(principal);
+        Map<Product, Integer> items = new LinkedHashMap<>();
+        BigDecimal subtotal = BigDecimal.ZERO;
+        Cart cart = cartRepository.findByUserIdWithDetails(userId).orElse(null);
+        if (cart != null && cart.getItems() != null) {
+            for (CartItem item : cart.getItems()) {
+                items.merge(item.getProduct(), item.getQuantity(), Integer::sum);
+                subtotal = subtotal.add(PriceCalculator.lineTotalOf(item));
+            }
+        }
+        List<Candidate> candidates = storeSelectionService.evaluate(latitude, longitude, subtotal, items);
+        Long recommended = storeSelectionService.recommend(candidates).map(c -> c.store().getId()).orElse(null);
+        BigDecimal cartSubtotal = subtotal;
+        List<StoreQuoteOption> options = candidates.stream()
+                .map(c -> toOption(c, shippingAddress, cartSubtotal)).toList();
+        return ResponseEntity.ok(ApiResponse.ok("Báo giá giao hàng thành công",
+                new DeliveryQuoteResponse(recommended, options)));
     }
 
-    @PostMapping("/fee")
-    @Operation(summary = "Tính thử phí giao hàng (Request Body)",
-            description = "Tính phí ship qua request body JSON.")
-    public ResponseEntity<ApiResponse<DeliveryFeeResult>> calculateDeliveryFee(
-            @Valid @RequestBody(required = false) CalculateDeliveryFeeRequest request) {
-
-        BigDecimal distanceKm = request == null ? null
-                : storeDistanceService.roadDistanceKm(request.getLatitude(), request.getLongitude()).orElse(null);
-        String address = request != null ? request.getShippingAddress() : null;
-        BigDecimal subtotal = request != null ? request.getSubtotal() : null;
-
-        DeliveryFeeResult result = deliveryFeeCalculator.calculateFee(distanceKm, address, subtotal);
-        return ResponseEntity.ok(ApiResponse.ok("Tính phí giao hàng thành công", result));
+    private StoreQuoteOption toOption(Candidate c, String address, BigDecimal subtotal) {
+        DeliveryFeeResult fee = deliveryFeeCalculator.calculateFee(
+                c.distanceKm(), address, subtotal, c.store().getFreeShipRadiusKm());
+        return StoreQuoteOption.builder()
+                .storeId(c.store().getId()).storeCode(c.store().getCode()).storeName(c.store().getName())
+                .storeAddress(c.store().getAddress()).storePhone(c.store().getPhone())
+                .openTime(c.store().getOpenTime().format(HH_MM)).closeTime(c.store().getCloseTime().format(HH_MM))
+                .minOrderAmount(c.store().getMinOrderAmount())
+                .distanceKm(c.distanceKm())
+                .shippingFee(fee.getShippingFee()).originalFee(fee.getOriginalFee())
+                .freeship(fee.isFreeship()).feeDescription(fee.getDescription())
+                .eligible(c.eligible())
+                .reasons(c.reasons().stream().map(Enum::name).toList())
+                .reasonMessages(c.reasons().stream().map(r -> storeSelectionService.describe(r, c)).toList())
+                .unavailableItems(c.unavailableItems())
+                .build();
     }
 }

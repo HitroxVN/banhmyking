@@ -52,7 +52,7 @@ public class ReviewController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF','MANAGER','ADMIN')")
     @Operation(
             summary = "Danh sách đánh giá (STAFF, ADMIN)",
             description = "Dùng cho trang quản lý đánh giá. Lọc theo món và/hoặc số sao; bỏ trống tham số = lấy tất cả."

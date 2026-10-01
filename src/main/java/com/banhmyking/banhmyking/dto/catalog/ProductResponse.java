@@ -20,12 +20,6 @@ public class ProductResponse {
     private BigDecimal price;
     private boolean available;
     private boolean featured;
-    /** NULL = không quản tồn. */
-    private Integer stockQuantity;
-    /** Ngưỡng cảnh báo sắp hết (mặc định 5). */
-    private Integer lowStockThreshold;
-    /** Đã chạm ngưỡng cảnh báo sắp hết (chỉ có nghĩa khi quản tồn). */
-    private boolean lowStock;
     /** Điểm trung bình cộng của các đánh giá (0.0 khi chưa có đánh giá nào) */
     private Double averageRating;
     private Long totalReviews;

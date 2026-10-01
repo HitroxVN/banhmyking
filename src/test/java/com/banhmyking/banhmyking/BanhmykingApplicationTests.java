@@ -83,7 +83,6 @@ class BanhmykingApplicationTests {
         List<Long> ids = jdbcTemplate.queryForList("""
                 SELECT p.id FROM products p
                 WHERE p.is_deleted = FALSE AND p.is_available = TRUE
-                  AND (p.stock_quantity IS NULL OR p.stock_quantity >= 5)
                   AND NOT EXISTS (
                       SELECT 1 FROM option_groups g
                       WHERE g.product_id = p.id AND g.is_required = TRUE

@@ -6,7 +6,6 @@ import java.util.List;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -34,13 +33,6 @@ public class ProductRequest {
 
     private boolean available = true;
     private boolean featured = false;
-
-    /** Tồn ban đầu, chỉ dùng khi tạo mới; sau đó sửa qua endpoint nhập/điều chỉnh kho. NULL = không quản tồn. */
-    private Integer stockQuantity;
-
-    /** Ngưỡng cảnh báo sắp hết. Bỏ trống = giữ mặc định 5. */
-    @Min(0)
-    private Integer lowStockThreshold;
 
     /**
      * Lựa chọn KHÔNG thuộc nhóm nào. Giữ lại cho payload cũ; form nhân viên chỉ dùng

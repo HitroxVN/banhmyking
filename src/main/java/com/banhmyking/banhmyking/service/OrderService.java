@@ -38,12 +38,14 @@ public interface OrderService {
     PageResponse<OrderResponse> getUserOrders(Long userId, List<OrderStatus> statuses, int page, int size);
 
     /**
-     * Lấy toàn bộ đơn hàng hệ thống kèm bộ lọc status, fromDate, toDate và phân trang (Staff/Admin).
+     * Lấy đơn hàng kèm bộ lọc status, fromDate, toDate và phân trang. ADMIN thấy toàn chuỗi (lọc được
+     * theo storeId); STAFF/MANAGER chỉ thấy đơn của cơ sở mình (storeId khác cơ sở → 404).
      */
-    PageResponse<OrderResponse> getAllOrdersForAdmin(Long userId, OrderStatus status, String fromDate, String toDate, int page, int size);
+    PageResponse<OrderResponse> getAllOrdersForAdmin(Long userId, OrderStatus status, String fromDate, String toDate,
+                                                     Long storeId, int page, int size);
 
     /**
-     * Gán Shipper phụ trách giao đơn hàng (Staff/Admin).
+     * Gán Shipper phụ trách giao đơn hàng (STAFF/MANAGER cùng cơ sở với đơn, hoặc ADMIN; tài xế phải cùng cơ sở).
      */
     OrderResponse assignShipper(Long userId, String orderCode, AssignShipperRequest request);
 
@@ -85,12 +87,15 @@ public interface OrderService {
     List<OrderStatusHistoryResponse> getOrderStatusHistory(Long userId, String orderCode);
 
     /**
-     * Lấy danh sách tài xế (Shipper) kèm số lượng đơn đang giao để phục vụ điều phối (Staff/Admin).
+     * Lấy danh sách tài xế (Shipper) kèm số lượng đơn đang giao để phục vụ điều phối (STAFF/MANAGER: tài xế cơ sở mình; ADMIN: lọc theo storeId).
      */
-    List<com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse> getAvailableShippers(Long userId);
+    List<com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse> getAvailableShippers(Long userId, Long storeId);
+
+    /** Chuyển đơn PENDING sang cơ sở khác (MANAGER của cơ sở hiện tại hoặc ADMIN). */
+    OrderResponse transferStore(Long userId, String orderCode, com.banhmyking.banhmyking.dto.store.TransferStoreRequest request);
 
     /**
-     * Hoàn tiền cho đơn đã thu (STAFF/ADMIN): ghi vết số tiền/lý do/ai/lúc nào, chuyển
+     * Hoàn tiền cho đơn đã thu (STAFF/MANAGER cùng cơ sở, hoặc ADMIN): ghi vết số tiền/lý do/ai/lúc nào, chuyển
      * payment sang REFUNDED và ghi lại một dòng lịch sử trạng thái.
      */
     OrderResponse refundOrder(Long userId, String orderCode, com.banhmyking.banhmyking.dto.order.RefundOrderRequest request);

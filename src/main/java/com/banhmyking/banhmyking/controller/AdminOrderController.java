@@ -38,8 +38,8 @@ public class AdminOrderController {
     private final OrderService orderService;
 
     @GetMapping
-    @Operation(summary = "Lấy danh sách đơn hàng toàn hệ thống (phân trang + lọc)",
-            description = "Dành cho Staff/Admin. Hỗ trợ lọc theo trạng thái (?status), khoảng thời gian (?fromDate, ?toDate định dạng yyyy-MM-dd hoặc ISO-8601).")
+    @Operation(summary = "Lấy danh sách đơn hàng (phân trang + lọc, theo phạm vi cơ sở)",
+            description = "ADMIN thấy toàn chuỗi (lọc được theo ?storeId); STAFF/MANAGER chỉ thấy đơn của cơ sở mình. Hỗ trợ lọc theo trạng thái (?status), khoảng thời gian (?fromDate, ?toDate định dạng yyyy-MM-dd hoặc ISO-8601).")
     public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> getAllOrders(
             @AuthenticationPrincipal UserDetails principal,
             @Parameter(description = "Lọc theo trạng thái đơn hàng (ví dụ: PENDING, CONFIRMED, DELIVERING)")
@@ -51,14 +51,16 @@ public class AdminOrderController {
             @Parameter(description = "Số trang (bắt đầu từ 0)", example = "0")
             @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Số lượng bản ghi mỗi trang", example = "10")
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            @Parameter(description = "Lọc theo cơ sở (ADMIN; STAFF/MANAGER luôn bị khoá về cơ sở của mình)")
+            @RequestParam(required = false) Long storeId) {
         Long userId = SecurityUtils.requireUserId(principal);
-        PageResponse<OrderResponse> response = orderService.getAllOrdersForAdmin(userId, status, fromDate, toDate, page, size);
-        return ResponseEntity.ok(ApiResponse.ok("Lấy danh sách đơn hàng toàn hệ thống thành công", response));
+        PageResponse<OrderResponse> response = orderService.getAllOrdersForAdmin(userId, status, fromDate, toDate, storeId, page, size);
+        return ResponseEntity.ok(ApiResponse.ok("Lấy danh sách đơn hàng thành công", response));
     }
 
     @GetMapping("/{orderCode}")
-    @Operation(summary = "Xem chi tiết đơn hàng bất kỳ (Staff/Admin)", description = "Lấy chi tiết đơn hàng theo mã đơn hàng dành cho nhân viên/quản trị viên.")
+    @Operation(summary = "Xem chi tiết đơn hàng (Staff/Manager cùng cơ sở, Admin)", description = "Lấy chi tiết đơn hàng theo mã. STAFF/MANAGER chỉ xem được đơn thuộc cơ sở của mình (đơn cơ sở khác trả 404).")
     public ResponseEntity<ApiResponse<OrderResponse>> getOrderByCode(
             @AuthenticationPrincipal UserDetails principal,
             @Parameter(description = "Mã đơn hàng", example = "BMK-20260908-A1B2C")
@@ -69,8 +71,8 @@ public class AdminOrderController {
     }
 
     @PutMapping("/{orderCode}/status")
-    @Operation(summary = "Cập nhật trạng thái đơn hàng (Staff/Admin)",
-            description = "Chuyển trạng thái đơn hàng theo State Machine (Staff/Admin). Chặn nhảy cóc trạng thái.")
+    @Operation(summary = "Cập nhật trạng thái đơn hàng (Staff/Manager cùng cơ sở, Admin)",
+            description = "Chuyển trạng thái đơn hàng theo State Machine. STAFF/MANAGER chỉ thao tác trên đơn của cơ sở mình. Chặn nhảy cóc trạng thái.")
     public ResponseEntity<ApiResponse<OrderResponse>> updateOrderStatus(
             @AuthenticationPrincipal UserDetails principal,
             @Parameter(description = "Mã đơn hàng", example = "BMK-20260908-A1B2C")
@@ -82,8 +84,8 @@ public class AdminOrderController {
     }
 
     @PutMapping("/{orderCode}/assign-shipper")
-    @Operation(summary = "Gán Shipper cho đơn hàng (Staff/Admin)",
-            description = "Chỉ định shipper chịu trách nhiệm giao đơn hàng. Kiểm tra shipper hợp lệ và trạng thái đơn hàng.")
+    @Operation(summary = "Gán Shipper cho đơn hàng (Staff/Manager cùng cơ sở, Admin)",
+            description = "Chỉ định shipper chịu trách nhiệm giao đơn hàng. Shipper phải thuộc cùng cơ sở với đơn; kiểm tra shipper hợp lệ và trạng thái đơn hàng.")
     public ResponseEntity<ApiResponse<OrderResponse>> assignShipper(
             @AuthenticationPrincipal UserDetails principal,
             @Parameter(description = "Mã đơn hàng", example = "BMK-20260908-A1B2C")
@@ -95,8 +97,8 @@ public class AdminOrderController {
     }
 
     @PutMapping("/{orderCode}/cancel")
-    @Operation(summary = "Hủy đơn hàng (Staff/Admin)",
-            description = "Cho phép nhân viên/quản trị viên hủy đơn hàng tới bước READY_FOR_PICKUP, bắt buộc kèm lý do hủy.")
+    @Operation(summary = "Hủy đơn hàng (Staff/Manager cùng cơ sở, Admin)",
+            description = "Cho phép nhân viên/quản lý của cơ sở sở hữu đơn hoặc quản trị viên hủy đơn hàng tới bước READY_FOR_PICKUP, bắt buộc kèm lý do hủy.")
     public ResponseEntity<ApiResponse<OrderResponse>> cancelOrder(
             @AuthenticationPrincipal UserDetails principal,
             @Parameter(description = "Mã đơn hàng", example = "BMK-20260908-A1B2C")
@@ -108,7 +110,7 @@ public class AdminOrderController {
     }
 
     @PostMapping("/{orderCode}/refund")
-    @Operation(summary = "Hoàn tiền cho đơn đã thu (Staff/Admin)",
+    @Operation(summary = "Hoàn tiền cho đơn đã thu (Staff/Manager cùng cơ sở, Admin)",
             description = "Chuyển thanh toán sang REFUNDED kèm vết số tiền/lý do/người hoàn. Chỉ áp dụng cho đơn đã PAID.")
     public ResponseEntity<ApiResponse<OrderResponse>> refundOrder(
             @AuthenticationPrincipal UserDetails principal,
@@ -121,7 +123,7 @@ public class AdminOrderController {
     }
 
     @GetMapping("/{orderCode}/history")
-    @Operation(summary = "Lịch sử trạng thái đơn hàng (Staff/Admin)",
+    @Operation(summary = "Lịch sử trạng thái đơn hàng (Staff/Manager cùng cơ sở, Admin)",
             description = "Lấy danh sách các lần chuyển trạng thái của đơn hàng.")
     public ResponseEntity<ApiResponse<List<OrderStatusHistoryResponse>>> getOrderStatusHistory(
             @AuthenticationPrincipal UserDetails principal,
@@ -133,12 +135,23 @@ public class AdminOrderController {
     }
 
     @GetMapping("/shippers/available")
-    @Operation(summary = "Danh sách Shipper khả dụng kèm số đơn đang giao (Staff/Admin)",
-            description = "Lấy danh sách tài xế đang hoạt động, thống kê số đơn DELIVERING của từng người để ưu tiên chọn người đang rảnh.")
+    @Operation(summary = "Danh sách Shipper khả dụng kèm số đơn đang giao (Staff/Manager cùng cơ sở, Admin)",
+            description = "Lấy danh sách tài xế đang hoạt động (STAFF/MANAGER: chỉ tài xế cơ sở mình; ADMIN: lọc theo ?storeId), thống kê số đơn DELIVERING của từng người để ưu tiên chọn người đang rảnh.")
     public ResponseEntity<ApiResponse<List<com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse>>> getAvailableShippers(
-            @AuthenticationPrincipal UserDetails principal) {
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestParam(required = false) Long storeId) {
         Long userId = SecurityUtils.requireUserId(principal);
-        List<com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse> shippers = orderService.getAvailableShippers(userId);
+        List<com.banhmyking.banhmyking.dto.order.ShipperAvailabilityResponse> shippers = orderService.getAvailableShippers(userId, storeId);
         return ResponseEntity.ok(ApiResponse.ok("Lấy danh sách shipper khả dụng thành công", shippers));
+    }
+
+    @PutMapping("/{orderCode}/store")
+    @Operation(summary = "Chuyển đơn PENDING sang cơ sở khác (MANAGER cơ sở hiện tại / ADMIN)")
+    public ResponseEntity<ApiResponse<OrderResponse>> transferStore(
+            @PathVariable String orderCode,
+            @Valid @RequestBody com.banhmyking.banhmyking.dto.store.TransferStoreRequest request,
+            @AuthenticationPrincipal UserDetails principal) {
+        return ResponseEntity.ok(ApiResponse.ok("Chuyển cơ sở thành công",
+                orderService.transferStore(SecurityUtils.requireUserId(principal), orderCode, request)));
     }
 }

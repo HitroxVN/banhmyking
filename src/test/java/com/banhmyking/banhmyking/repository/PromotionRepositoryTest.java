@@ -64,6 +64,9 @@ class PromotionRepositoryTest {
         Order order = new Order();
         order.setOrderCode("BMK-20260910-00001");
         order.setUser(user);
+        // Đơn luôn có cơ sở (V13): dùng cơ sở CS01 do migration V11 tạo sẵn
+        order.setStore(entityManager.createQuery("select s from Store s order by s.id",
+                com.banhmyking.banhmyking.entity.Store.class).setMaxResults(1).getSingleResult());
         order.setStatus(OrderStatus.PENDING);
         order.setReceiverName("User Test");
         order.setReceiverPhone("0900000001");

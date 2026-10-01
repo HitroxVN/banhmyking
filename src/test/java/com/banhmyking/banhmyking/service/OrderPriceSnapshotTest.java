@@ -13,7 +13,9 @@ import com.banhmyking.banhmyking.entity.OrderItem;
 import com.banhmyking.banhmyking.entity.OrderItemOption;
 import com.banhmyking.banhmyking.entity.Product;
 import com.banhmyking.banhmyking.entity.ProductOption;
+import com.banhmyking.banhmyking.entity.Store;
 import com.banhmyking.banhmyking.entity.User;
+import com.banhmyking.banhmyking.security.StoreAccessGuard;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.enums.PaymentMethod;
 import com.banhmyking.banhmyking.enums.RoleName;
@@ -35,6 +37,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -45,7 +48,9 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -85,7 +90,7 @@ class OrderPriceSnapshotTest {
     private DeliveryFeeCalculator deliveryFeeCalculator;
 
     @Mock
-    private StoreDistanceService storeDistanceService;
+    private StoreSelectionService storeSelectionService;
 
     @Mock
     private PaymentService paymentService;
@@ -102,6 +107,9 @@ class OrderPriceSnapshotTest {
     @Mock
     private InventoryService inventoryService;
 
+    @Spy
+    private StoreAccessGuard storeAccessGuard = new StoreAccessGuard();
+
     @InjectMocks
     private OrderServiceImpl orderService;
 
@@ -110,9 +118,16 @@ class OrderPriceSnapshotTest {
     private ProductOption option;
     private Cart cart;
     private Address address;
+    private Store testStore;
 
     @BeforeEach
     void setUp() {
+        testStore = new Store();
+        testStore.setId(1L);
+        testStore.setName("Cơ sở 1");
+        lenient().when(storeSelectionService.requireEligible(any(), any(), any(), any(), anyMap()))
+                .thenReturn(new StoreSelectionService.Candidate(testStore, null, List.of(), List.of()));
+
         customer = new User();
         customer.setId(1L);
         customer.setFullName("Khách Hàng Test");
@@ -154,6 +169,8 @@ class OrderPriceSnapshotTest {
         address.setReceiverName("Khách Hàng Test");
         address.setReceiverPhone("0901234567");
         address.setFullAddress("123 Lê Lợi, Quận 1, TP.HCM");
+        address.setLatitude(new BigDecimal("10.773900"));
+        address.setLongitude(new BigDecimal("106.700400"));
     }
 
     @Test
@@ -182,7 +199,7 @@ class OrderPriceSnapshotTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(customer));
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(cart));
         when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(address));
-        when(deliveryFeeCalculator.calculateFee(any(), any(), any())).thenReturn(deliveryResult);
+        when(deliveryFeeCalculator.calculateFee(any(), any(), any(), any())).thenReturn(deliveryResult);
         when(priceCalculator.calculate(eq(cart), any(), eq(BigDecimal.valueOf(15000)))).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260912-SNAP1");
 

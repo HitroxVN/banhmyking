@@ -23,7 +23,6 @@ import com.banhmyking.banhmyking.repository.ProductOptionRepository;
 import com.banhmyking.banhmyking.repository.ProductRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
 import com.banhmyking.banhmyking.service.CartService;
-import com.banhmyking.banhmyking.service.InventoryService;
 import com.banhmyking.banhmyking.service.PriceCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,7 +49,6 @@ public class CartServiceImpl implements CartService {
     private final ProductRepository productRepository;
     private final ProductOptionRepository productOptionRepository;
     private final OptionGroupRepository optionGroupRepository;    private final UserRepository userRepository;
-    private final InventoryService inventoryService;
 
     @Override
     @Transactional(readOnly = true)
@@ -147,11 +145,6 @@ public class CartServiceImpl implements CartService {
             cart.getItems().add(newItem);
         }
 
-        // Chặn sớm tại giỏ. Đây chỉ là cảnh báo: lúc xác nhận đơn mới là lúc giữ hàng thật.
-        inventoryService.assertEnough(product, matchingItem != null
-                ? matchingItem.getQuantity()
-                : request.getQuantity());
-
         cart = cartRepository.save(cart);
         // AC 4: Tạm tính hoàn toàn ở server
         return toCartResponse(cart);
@@ -170,7 +163,6 @@ public class CartServiceImpl implements CartService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món có ID " + itemId + " trong giỏ hàng"));
 
         item.setQuantity(request.getQuantity());
-        inventoryService.assertEnough(item.getProduct(), request.getQuantity());
         cart = cartRepository.save(cart);
 
         return toCartResponse(cart);

@@ -43,7 +43,7 @@ class UserControllerTest {
 
     private static final UserDetailResponse DETAIL = new UserDetailResponse(
             5L, "customer@gmail.com", "Khách Hàng Test", "0901234567",
-            "https://cdn.banhmyking.vn/a/5.png", RoleName.CUSTOMER, false, LocalDateTime.now());
+            "https://cdn.banhmyking.vn/a/5.png", RoleName.CUSTOMER, false, LocalDateTime.now(), null, null);
 
     /** Principal giả — username là userId (JWT subject). */
     private static final org.springframework.security.core.userdetails.UserDetails PRINCIPAL =
@@ -129,7 +129,7 @@ class UserControllerTest {
     void removeAvatar_returnsUpdatedDetail() throws Exception {
         UserDetailResponse withoutImage = new UserDetailResponse(
                 5L, "customer@gmail.com", "Khách Hàng Test", "0901234567",
-                null, RoleName.CUSTOMER, false, LocalDateTime.now());
+                null, RoleName.CUSTOMER, false, LocalDateTime.now(), null, null);
         when(userService.removeAvatar(5L)).thenReturn(withoutImage);
 
         mockMvc.perform(delete("/api/v1/users/me/avatar")

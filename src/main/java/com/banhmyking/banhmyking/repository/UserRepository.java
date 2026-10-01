@@ -41,7 +41,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     long countByDeletedFalse();
 
+    long countByStoreIdAndDeletedFalse(Long storeId);
+
     java.util.List<User> findByRoleAndDeletedFalse(RoleName role);
+
+    java.util.List<User> findByRoleAndStoreIdAndDeletedFalse(RoleName role, Long storeId);
 
     /** Tìm user còn hoạt động theo filter tuỳ ý (null = bỏ qua filter). */
     @Query("""
@@ -49,6 +53,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             WHERE u.deleted = false
               AND (:role IS NULL OR u.role = :role)
               AND (:banned IS NULL OR u.banned = :banned)
+              AND (:storeId IS NULL OR u.store.id = :storeId)
               AND (:keyword IS NULL
                    OR LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
                    OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')))
@@ -56,5 +61,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Page<User> searchUsers(@Param("role") RoleName role,
                            @Param("banned") Boolean banned,
                            @Param("keyword") String keyword,
+                           @Param("storeId") Long storeId,
                            Pageable pageable);
+
+    java.util.List<User> findByStoreIdAndDeletedFalseOrderByRoleAscFullNameAsc(Long storeId);
 }

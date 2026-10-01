@@ -5,7 +5,9 @@ import com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest;
 import com.banhmyking.banhmyking.dto.payment.SepayWebhookRequest;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.Payment;
+import com.banhmyking.banhmyking.entity.Store;
 import com.banhmyking.banhmyking.entity.User;
+import com.banhmyking.banhmyking.security.StoreAccessGuard;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.enums.PaymentMethod;
 import com.banhmyking.banhmyking.enums.PaymentStatus;
@@ -25,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -54,6 +57,9 @@ class PaymentServiceTest {
 
     @Mock
     private InventoryService inventoryService;
+
+    @Spy
+    private StoreAccessGuard storeAccessGuard = new StoreAccessGuard();
 
     @InjectMocks
     private PaymentServiceImpl paymentService;
@@ -98,12 +104,16 @@ class PaymentServiceTest {
         staff = new User();
         staff.setId(40L);
         staff.setRole(RoleName.STAFF);
+        Store store = new Store();
+        store.setId(1L);
+        staff.setStore(store);
         staff.setFullName("Nhân Viên C");
 
         testOrder = new Order();
         testOrder.setId(100L);
         testOrder.setOrderCode("BMK-20260912-TEST1");
         testOrder.setUser(customer);
+        testOrder.setStore(store);
         testOrder.setShipper(shipper);
         testOrder.setStatus(OrderStatus.PENDING);
         testOrder.setTotal(BigDecimal.valueOf(115000));

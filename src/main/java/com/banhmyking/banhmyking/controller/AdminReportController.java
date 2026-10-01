@@ -1,6 +1,7 @@
 package com.banhmyking.banhmyking.controller;
 
 import com.banhmyking.banhmyking.dto.common.ApiResponse;
+import com.banhmyking.banhmyking.dto.report.StoreRevenueResponse;
 import com.banhmyking.banhmyking.dto.report.TopProductResponse;
 import com.banhmyking.banhmyking.enums.ReportType;
 import com.banhmyking.banhmyking.service.AdminReportService;
@@ -39,9 +40,20 @@ public class AdminReportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @Parameter(description = "Ngày kết thúc, tính cả ngày này (yyyy-MM-dd)")
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
-            @RequestParam(defaultValue = "10") int limit) {
-        List<TopProductResponse> response = adminReportService.getTopProducts(fromDate, toDate, limit);
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(required = false) Long storeId) {
+        List<TopProductResponse> response = adminReportService.getTopProducts(fromDate, toDate, limit, storeId);
         return ResponseEntity.ok(ApiResponse.ok("Lấy bảng món bán chạy thành công", response));
+    }
+
+    @GetMapping("/revenue-by-store")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Doanh thu theo cơ sở")
+    public ResponseEntity<ApiResponse<List<StoreRevenueResponse>>> revenueByStore(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
+        return ResponseEntity.ok(ApiResponse.ok("Lấy doanh thu theo cơ sở thành công",
+                adminReportService.getRevenueByStore(fromDate, toDate)));
     }
 
     @GetMapping("/export")
@@ -52,8 +64,9 @@ public class AdminReportController {
             @RequestParam ReportType type,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
-            @RequestParam(defaultValue = "10") int limit) {
-        byte[] csv = adminReportService.exportCsv(type, fromDate, toDate, limit);
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(required = false) Long storeId) {
+        byte[] csv = adminReportService.exportCsv(type, fromDate, toDate, limit, storeId);
 
         String today = LocalDate.now().toString();
         String fileName = type.fileName(fromDate != null ? fromDate.toString() : today,

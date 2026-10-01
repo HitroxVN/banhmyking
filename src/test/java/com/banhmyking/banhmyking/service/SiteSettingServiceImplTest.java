@@ -14,7 +14,6 @@ import static org.mockito.ArgumentMatchers.argThat;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -127,46 +126,6 @@ class SiteSettingServiceImplTest {
         verify(siteSettingRepository).save(captor.capture());
         assertThat(captor.getValue().getSettingKey()).isEqualTo(SiteSettingKeys.CONTACT_PHONE);
         assertThat(captor.getValue().getSettingValue()).isEqualTo("0901234567");
-    }
-
-    @Test
-    void updateSettingsRejectsNonNumericStoreLatitude() {
-        assertThatThrownBy(() -> siteSettingService.updateSettings(Map.of(SiteSettingKeys.STORE_LATITUDE, "abc")))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("phải là số");
-
-        verify(siteSettingRepository, never()).save(any());
-    }
-
-    @Test
-    void updateSettingsRejectsStoreLatitudeOutsideVietnam() {
-        assertThatThrownBy(() -> siteSettingService.updateSettings(Map.of(SiteSettingKeys.STORE_LATITUDE, "48.85")))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("khoảng");
-
-        verify(siteSettingRepository, never()).save(any());
-    }
-
-    @Test
-    void updateSettingsRejectsHalfOfStoreCoordinates() {
-        when(siteSettingRepository.findAll()).thenReturn(new ArrayList<>());
-
-        assertThatThrownBy(() -> siteSettingService.updateSettings(Map.of(SiteSettingKeys.STORE_LATITUDE, "21.0285")))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("cả vĩ độ và kinh độ");
-
-        verify(siteSettingRepository, never()).save(any());
-    }
-
-    @Test
-    void updateSettingsSavesStoreLocationPair() {
-        when(siteSettingRepository.findAll()).thenReturn(new ArrayList<>());
-
-        siteSettingService.updateSettings(Map.of(
-                SiteSettingKeys.STORE_LATITUDE, "21.028511",
-                SiteSettingKeys.STORE_LONGITUDE, "105.804817"));
-
-        verify(siteSettingRepository, times(2)).save(any());
     }
 
     // ─── Ảnh banner ───────────────────────────────────────────────────────────────

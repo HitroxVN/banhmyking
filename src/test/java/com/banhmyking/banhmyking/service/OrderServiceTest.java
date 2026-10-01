@@ -12,8 +12,10 @@ import com.banhmyking.banhmyking.entity.Payment;
 import com.banhmyking.banhmyking.entity.Product;
 import com.banhmyking.banhmyking.entity.ProductOption;
 import com.banhmyking.banhmyking.entity.Promotion;
+import com.banhmyking.banhmyking.entity.Store;
 import com.banhmyking.banhmyking.entity.PromotionUsage;
 import com.banhmyking.banhmyking.entity.User;
+import com.banhmyking.banhmyking.security.StoreAccessGuard;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.enums.PaymentMethod;
 import com.banhmyking.banhmyking.exception.BusinessException;
@@ -35,16 +37,21 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -92,7 +99,7 @@ class OrderServiceTest {
     private DeliveryFeeCalculator deliveryFeeCalculator;
 
     @Mock
-    private StoreDistanceService storeDistanceService;
+    private StoreSelectionService storeSelectionService;
 
     @Mock
     private PaymentService paymentService;
@@ -103,6 +110,9 @@ class OrderServiceTest {
     @Mock
     private InventoryService inventoryService;
 
+    @Spy
+    private StoreAccessGuard storeAccessGuard = new StoreAccessGuard();
+
     @InjectMocks
     private OrderServiceImpl orderService;
 
@@ -111,9 +121,16 @@ class OrderServiceTest {
     private Product testProduct;
     private ProductOption testOption;
     private Address testAddress;
+    private Store testStore;
 
     @BeforeEach
     void setUp() {
+        testStore = new Store();
+        testStore.setId(1L);
+        testStore.setName("Cơ sở 1");
+        lenient().when(storeSelectionService.requireEligible(any(), any(), any(), any(), anyMap()))
+                .thenReturn(new StoreSelectionService.Candidate(testStore, null, List.of(), List.of()));
+
         testUser = new User();
         testUser.setId(1L);
         testUser.setEmail("customer@banhmyking.vn");
@@ -154,6 +171,8 @@ class OrderServiceTest {
         testAddress.setReceiverName("Nguyễn Văn A");
         testAddress.setReceiverPhone("0901234567");
         testAddress.setFullAddress("123 Lê Lợi, Q1, TP.HCM");
+        testAddress.setLatitude(new BigDecimal("10.773900"));
+        testAddress.setLongitude(new BigDecimal("106.700400"));
     }
 
     @Test
@@ -261,6 +280,8 @@ class OrderServiceTest {
                 .receiverName("Trần Thị B")
                 .receiverPhone("0988776655")
                 .shippingAddress("456 Nguyễn Huệ, Q1, TP.HCM")
+                .latitude(new BigDecimal("10.773900"))
+                .longitude(new BigDecimal("106.703100"))
                 .build();
 
         PriceBreakdown breakdown = PriceBreakdown.builder()
@@ -305,17 +326,127 @@ class OrderServiceTest {
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
-        when(storeDistanceService.roadDistanceKm(lat, lng)).thenReturn(Optional.of(new BigDecimal("3.25")));
+        when(storeSelectionService.requireEligible(isNull(), eq(lat), eq(lng), any(), anyMap()))
+                .thenReturn(new StoreSelectionService.Candidate(testStore, new BigDecimal("3.25"), List.of(), List.of()));
         when(priceCalculator.calculate(eq(testCart), any(), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20261001-GEO01");
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
         OrderResponse response = orderService.createFromCart(1L, request);
 
-        verify(deliveryFeeCalculator).calculateFee(eq(new BigDecimal("3.25")), any(), any());
+        verify(deliveryFeeCalculator).calculateFee(eq(new BigDecimal("3.25")), any(), any(), any());
         assertThat(response.getDistanceKm()).isEqualByComparingTo("3.25");
+        assertThat(response.getStoreId()).isEqualTo(1L);
         assertThat(response.getDeliveryLatitude()).isEqualByComparingTo(lat);
         assertThat(response.getDeliveryLongitude()).isEqualByComparingTo(lng);
+    }
+
+    @Test
+    @DisplayName("R10: địa chỉ mới thiếu toạ độ → 400 yêu cầu ghim vị trí, không chọn cơ sở, không lưu")
+    void createFromCart_newAddressWithoutPin_isRejected() {
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .receiverName("Trần Thị B")
+                .receiverPhone("0988776655")
+                .shippingAddress("456 Nguyễn Huệ, Q1, TP.HCM")
+                .latitude(new BigDecimal("10.773900")) // thiếu longitude
+                .build();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
+
+        assertThatThrownBy(() -> orderService.createFromCart(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("ghim vị trí")
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.BUSINESS_ERROR);
+        verify(storeSelectionService, never()).requireEligible(any(), any(), any(), any(), anyMap());
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    @DisplayName("R13: địa chỉ ĐÃ LƯU chưa có toạ độ (dữ liệu cũ), server tự chọn cơ sở → 400 yêu cầu ghim lại")
+    void createFromCart_savedAddressWithoutCoords_isRejected() {
+        CreateOrderRequest request = CreateOrderRequest.builder().addressId(200L).build();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
+        testAddress.setLatitude(null);
+        testAddress.setLongitude(null);
+        when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
+
+        assertThatThrownBy(() -> orderService.createFromCart(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Địa chỉ này chưa được ghim trên bản đồ — vui lòng cập nhật địa chỉ trong Hồ sơ");
+        verify(storeSelectionService, never()).requireEligible(any(), any(), any(), any(), anyMap());
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    @DisplayName("R12: địa chỉ ĐÃ LƯU chưa có toạ độ + khách chọn cơ sở tường minh → 400 yêu cầu ghim lại, không lưu")
+    void createFromCart_savedAddressWithoutCoords_withExplicitStore_isRejected() {
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .addressId(200L).paymentMethod(PaymentMethod.COD).storeId(9L).build();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
+        testAddress.setLatitude(null);
+        testAddress.setLongitude(null);
+        when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
+
+        assertThatThrownBy(() -> orderService.createFromCart(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Địa chỉ này chưa được ghim trên bản đồ — vui lòng cập nhật địa chỉ trong Hồ sơ")
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.BUSINESS_ERROR);
+        verify(storeSelectionService, never()).requireEligible(any(), any(), any(), any(), anyMap());
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    @DisplayName("storeId do khách chọn không đủ điều kiện → 400 kèm lý do, không lưu đơn")
+    void createFromCart_withIneligibleChosenStore_isRejectedWithReason() {
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .addressId(200L).paymentMethod(PaymentMethod.COD).storeId(9L).build();
+        testAddress.setLatitude(new BigDecimal("10.776889"));
+        testAddress.setLongitude(new BigDecimal("106.700806"));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
+        when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
+        when(storeSelectionService.requireEligible(eq(9L), any(), any(), any(), anyMap())).thenThrow(
+                new BusinessException(ErrorCode.BUSINESS_ERROR, "Cơ sở 9 đang tạm ngưng nhận đơn"));
+
+        assertThatThrownBy(() -> orderService.createFromCart(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("tạm ngưng nhận đơn")
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.BUSINESS_ERROR);
+        verify(orderRepository, never()).save(any(Order.class));
+        verify(paymentService, never()).createPendingPayment(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Khách chọn cơ sở: storeId được chuyển cho StoreSelectionService và gắn vào đơn")
+    void createFromCart_withChosenStore_assignsStore() {
+        Store chosenStore = new Store();
+        chosenStore.setId(7L);
+        chosenStore.setName("Cơ sở 7");
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .addressId(200L).paymentMethod(PaymentMethod.COD).storeId(7L).build();
+        testAddress.setLatitude(new BigDecimal("10.776889"));
+        testAddress.setLongitude(new BigDecimal("106.700806"));
+        PriceBreakdown breakdown = PriceBreakdown.builder()
+                .subtotal(BigDecimal.valueOf(80000)).shippingFee(BigDecimal.valueOf(15000))
+                .discountAmount(BigDecimal.ZERO).total(BigDecimal.valueOf(95000)).build();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
+        when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
+        when(storeSelectionService.requireEligible(eq(7L), any(), any(), any(), anyMap()))
+                .thenReturn(new StoreSelectionService.Candidate(chosenStore, null, List.of(), List.of()));
+        when(priceCalculator.calculate(eq(testCart), any(), any())).thenReturn(breakdown);
+        when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20261001-STORE7");
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        OrderResponse response = orderService.createFromCart(1L, request);
+
+        assertThat(response.getStoreId()).isEqualTo(7L);
+        assertThat(response.getStoreName()).isEqualTo("Cơ sở 7");
     }
 
     @Test
@@ -333,7 +464,7 @@ class OrderServiceTest {
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
-        when(storeDistanceService.roadDistanceKm(lat, lng)).thenThrow(
+        when(storeSelectionService.requireEligible(any(), eq(lat), eq(lng), any(), anyMap())).thenThrow(
                 new BusinessException(ErrorCode.BUSINESS_ERROR, "ngoài bán kính giao hàng"));
 
         assertThatThrownBy(() -> orderService.createFromCart(1L, request))

@@ -7,6 +7,8 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
@@ -37,6 +39,11 @@ public class User extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private RoleName role = RoleName.CUSTOMER;
+
+    /** Cơ sở làm việc — bắt buộc với STAFF/SHIPPER/MANAGER, NULL với CUSTOMER/ADMIN (kiểm ở service). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "store_id")
+    private Store store;
 
     /** Khoá tài khoản — ADMIN khoá/mở, chặn cả login lẫn token cũ. */
     @Column(name = "is_banned", nullable = false)

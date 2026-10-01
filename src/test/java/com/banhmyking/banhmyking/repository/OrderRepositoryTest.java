@@ -145,6 +145,9 @@ class OrderRepositoryTest {
         Order order = new Order();
         order.setOrderCode(orderCode);
         order.setUser(user);
+        // Đơn luôn có cơ sở (V13): dùng cơ sở CS01 do migration V11 tạo sẵn
+        order.setStore(entityManager.createQuery("select s from Store s order by s.id",
+                com.banhmyking.banhmyking.entity.Store.class).setMaxResults(1).getSingleResult());
         order.setStatus(status);
         order.setReceiverName("Khách Test");
         order.setReceiverPhone("0900000009");

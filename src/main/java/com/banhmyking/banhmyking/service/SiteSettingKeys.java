@@ -27,11 +27,6 @@ public final class SiteSettingKeys {
     public static final String HERO_DESCRIPTION = "heroDescription";
     public static final String HERO_IMAGE_URL = "heroImageUrl";
     public static final String FOOTER_DESCRIPTION = "footerDescription";
-    /** Toạ độ quán — gốc để server tính khoảng cách giao. Rỗng = chưa ghim, phí ship tính theo khu vực. */
-    public static final String STORE_LATITUDE = "storeLatitude";
-    public static final String STORE_LONGITUDE = "storeLongitude";
-    /** Bán kính phục vụ (km, theo quãng đường ước tính). Rỗng = không giới hạn. */
-    public static final String DELIVERY_MAX_RADIUS_KM = "deliveryMaxRadiusKm";
 
     /** Value dài hơn mức này bị từ chối — chặn một lần dán nhầm cả file vào ô cấu hình. */
     public static final int MAX_VALUE_LENGTH = 2000;
@@ -61,10 +56,7 @@ public final class SiteSettingKeys {
             Map.entry(HERO_IMAGE_URL, ""),
             Map.entry(FOOTER_DESCRIPTION,
                     "Bánh mì nướng theo từng đơn, kẹp nhân đầy đặn, đóng gói giữ giòn "
-                            + "và giao nóng tới tay bạn."),
-            Map.entry(STORE_LATITUDE, ""),
-            Map.entry(STORE_LONGITUDE, ""),
-            Map.entry(DELIVERY_MAX_RADIUS_KM, "10"));
+                            + "và giao nóng tới tay bạn."));
 
     private SiteSettingKeys() {
     }

@@ -28,6 +28,11 @@ public class InventoryMovement extends BaseEntity {
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
+    /** Cơ sở có biến động tồn. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "store_id", nullable = false)
+    private Store store;
+
     /** + nhập, - xuất. */
     @Column(name = "change_qty", nullable = false)
     private Integer changeQty;

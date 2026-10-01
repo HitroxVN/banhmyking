@@ -9,17 +9,17 @@ import java.util.List;
 public interface AdminDashboardService {
 
     /**
-     * Lấy các chỉ số KPI tổng quan toàn hệ thống (Doanh thu, Đơn hàng, Người dùng).
+     * Lấy các chỉ số KPI tổng quan toàn chuỗi hoặc theo cơ sở được chọn (Doanh thu, Đơn hàng, Người dùng).
      */
-    DashboardMetricsResponse getDashboardMetrics();
+    DashboardMetricsResponse getDashboardMetrics(Long storeId);
 
     /**
      * Lấy chuỗi thống kê doanh thu và đơn hàng theo từng ngày (mặc định 7 ngày gần nhất).
      */
-    List<DailyRevenueResponse> getDailyRevenueChart(int days);
+    List<DailyRevenueResponse> getDailyRevenueChart(int days, Long storeId);
 
     /**
      * Lấy thống kê phân bổ đơn hàng theo trạng thái kèm tỷ lệ phần trăm và tổng giá trị.
      */
-    List<OrderStatusStatResponse> getOrderStatusStats();
+    List<OrderStatusStatResponse> getOrderStatusStats(Long storeId);
 }

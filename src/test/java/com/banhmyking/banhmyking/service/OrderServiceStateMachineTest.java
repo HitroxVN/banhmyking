@@ -7,7 +7,9 @@ import com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.OrderStatusHistory;
 import com.banhmyking.banhmyking.entity.Payment;
+import com.banhmyking.banhmyking.entity.Store;
 import com.banhmyking.banhmyking.entity.User;
+import com.banhmyking.banhmyking.security.StoreAccessGuard;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.enums.PaymentMethod;
 import com.banhmyking.banhmyking.enums.PaymentStatus;
@@ -102,6 +104,9 @@ class OrderServiceStateMachineTest {
     @Mock
     private InventoryService inventoryService;
 
+    @Spy
+    private StoreAccessGuard storeAccessGuard = new StoreAccessGuard();
+
     @InjectMocks
     private OrderServiceImpl orderService;
 
@@ -112,6 +117,9 @@ class OrderServiceStateMachineTest {
 
     @BeforeEach
     void setUp() {
+        Store store = new Store();
+        store.setId(1L);
+
         customer = new User();
         customer.setId(2L);
         customer.setFullName("Nguyễn Văn Khách");
@@ -121,17 +129,20 @@ class OrderServiceStateMachineTest {
         staff.setId(4L);
         staff.setFullName("Nhân Viên Quán");
         staff.setRole(RoleName.STAFF);
+        staff.setStore(store);
 
         shipper = new User();
         shipper.setId(3L);
         shipper.setFullName("Trần Văn Giao");
         shipper.setRole(RoleName.SHIPPER);
+        shipper.setStore(store);
 
         testOrder = new Order();
         testOrder.setId(100L);
         testOrder.setOrderCode("BMK-20260909-ABCDE");
         testOrder.setStatus(OrderStatus.PENDING);
         testOrder.setUser(customer);
+        testOrder.setStore(store);
         testOrder.setSubtotal(BigDecimal.valueOf(50000));
         testOrder.setShippingFee(BigDecimal.valueOf(15000));
         testOrder.setTotal(BigDecimal.valueOf(65000));
@@ -473,6 +484,7 @@ class OrderServiceStateMachineTest {
         User s = new User();
         s.setId(7L);
         s.setRole(RoleName.SHIPPER);
+        s.setStore(testOrder.getStore());
         return s;
     }
 }

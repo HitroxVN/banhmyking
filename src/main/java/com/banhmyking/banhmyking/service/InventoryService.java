@@ -3,28 +3,32 @@ package com.banhmyking.banhmyking.service;
 import com.banhmyking.banhmyking.dto.catalog.StockChangeRequest;
 import com.banhmyking.banhmyking.dto.catalog.StockMovementResponse;
 import com.banhmyking.banhmyking.dto.common.PageResponse;
+import com.banhmyking.banhmyking.dto.store.StoreStockResponse;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.Product;
+import java.util.List;
+import java.util.Map;
 
+/** Tồn kho và hết món theo từng cơ sở (spec §2.2, §3.6). */
 public interface InventoryService {
 
-    /** Chặn sớm ở giỏ hàng/đặt đơn; sản phẩm không quản tồn thì bỏ qua. */
-    void assertEnough(Product product, int quantity);
-
-    /** Trừ tồn khi đơn được xác nhận. Không đủ hàng → BusinessException, rollback cả đơn. */
+    /** Trừ tồn tại {@code order.getStore()} khi đơn được xác nhận. Không đủ → BusinessException. */
     void decreaseForOrder(Order order);
 
-    /**
-     * Như {@link #decreaseForOrder} nhưng KHÔNG ném lỗi khi thiếu hàng: trả false và để nguyên tồn kho.
-     * Dùng cho luồng đã thu tiền (webhook SePay, đối soát tay) — không được rollback việc ghi nhận tiền.
-     */
+    /** Như decreaseForOrder nhưng trả false thay vì ném lỗi (luồng đã thu tiền). */
     boolean tryDecreaseForOrder(Order order);
 
-    /** Hoàn tồn khi đơn bị huỷ/giao thất bại. Gọi lại nhiều lần vẫn chỉ hoàn một lần. */
+    /** Hoàn tồn về đúng cơ sở của đơn; gọi lại nhiều lần vẫn chỉ hoàn một lần. */
     void restoreForOrder(Order order);
 
-    /** Trả về số tồn sau khi thay đổi. */
-    int adjustStock(Long productId, StockChangeRequest request, Long actorId);
+    /** Tên các món không bán được tại cơ sở (tắt khỏi thực đơn chuỗi, hết món, hoặc thiếu tồn). */
+    List<String> unavailableItems(Long storeId, Map<Product, Integer> quantities);
 
-    PageResponse<StockMovementResponse> getMovements(Long productId, int page, int size);
+    List<StoreStockResponse> listStoreStock(Long storeId);
+
+    StoreStockResponse setAvailability(Long storeId, Long productId, boolean available);
+
+    StoreStockResponse adjustStock(Long storeId, Long productId, StockChangeRequest request, Long actorId);
+
+    PageResponse<StockMovementResponse> getMovements(Long storeId, Long productId, int page, int size);
 }

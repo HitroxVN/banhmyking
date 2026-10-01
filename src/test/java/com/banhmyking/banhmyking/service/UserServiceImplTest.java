@@ -1,15 +1,19 @@
 package com.banhmyking.banhmyking.service;
 
+import com.banhmyking.banhmyking.dto.user.AdminCreateUserRequest;
+import com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest;
 import com.banhmyking.banhmyking.dto.user.UpdateProfileRequest;
 import com.banhmyking.banhmyking.dto.user.UpdateRoleRequest;
 import com.banhmyking.banhmyking.dto.user.UpdateStatusRequest;
 import com.banhmyking.banhmyking.dto.user.UserDetailResponse;
 import com.banhmyking.banhmyking.entity.RefreshToken;
+import com.banhmyking.banhmyking.entity.Store;
 import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.enums.RoleName;
 import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.repository.RefreshTokenRepository;
+import com.banhmyking.banhmyking.repository.StoreRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
 import com.banhmyking.banhmyking.service.impl.UserServiceImpl;
 import org.junit.jupiter.api.Test;
@@ -36,6 +40,8 @@ class UserServiceImplTest {
 
     @Mock UserRepository userRepository;
     @Mock RefreshTokenRepository refreshTokenRepository;
+    @Mock StoreRepository storeRepository;
+    @Mock org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
     @InjectMocks UserServiceImpl userService;
 
     private static final Long ACTOR_ID = 1L;   // admin thao tác
@@ -58,10 +64,11 @@ class UserServiceImplTest {
     void changeRole_success_andRevokesTokens() {
         User target = buildUser(TARGET_ID, RoleName.CUSTOMER, false);
         when(userRepository.findByIdAndDeletedFalse(TARGET_ID)).thenReturn(Optional.of(target));
+        when(storeRepository.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(new Store()));
         RefreshToken rt = new RefreshToken();
         when(refreshTokenRepository.findByUserIdAndRevokedAtIsNull(TARGET_ID)).thenReturn(List.of(rt));
 
-        UserDetailResponse res = userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.STAFF));
+        UserDetailResponse res = userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.STAFF, 1L));
 
         assertThat(res.role()).isEqualTo(RoleName.STAFF);
         assertThat(rt.getRevokedAt()).isNotNull();
@@ -70,7 +77,7 @@ class UserServiceImplTest {
 
     @Test
     void changeRole_selfRejected() {
-        assertThatThrownBy(() -> userService.changeRole(ACTOR_ID, ACTOR_ID, new UpdateRoleRequest(RoleName.STAFF)))
+        assertThatThrownBy(() -> userService.changeRole(ACTOR_ID, ACTOR_ID, new UpdateRoleRequest(RoleName.STAFF, null)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("Không thể thay đổi vai trò của chính mình");
     }
@@ -81,7 +88,7 @@ class UserServiceImplTest {
         when(userRepository.findByIdAndDeletedFalse(TARGET_ID)).thenReturn(Optional.of(target));
         when(userRepository.countByRoleAndDeletedFalse(RoleName.ADMIN)).thenReturn(1L);
 
-        assertThatThrownBy(() -> userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.STAFF)))
+        assertThatThrownBy(() -> userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.STAFF, null)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("Không thể thay đổi vai trò của ADMIN cuối cùng");
     }
@@ -93,7 +100,7 @@ class UserServiceImplTest {
         when(userRepository.countByRoleAndDeletedFalse(RoleName.ADMIN)).thenReturn(2L); // còn admin khác chưa xoá
         when(refreshTokenRepository.findByUserIdAndRevokedAtIsNull(TARGET_ID)).thenReturn(List.of());
 
-        UserDetailResponse res = userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.CUSTOMER));
+        UserDetailResponse res = userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.CUSTOMER, null));
 
         assertThat(res.role()).isEqualTo(RoleName.CUSTOMER);
     }
@@ -104,7 +111,7 @@ class UserServiceImplTest {
         when(userRepository.findByIdAndDeletedFalse(TARGET_ID)).thenReturn(Optional.of(target));
         when(userRepository.countByRoleAndDeletedFalse(RoleName.ADMIN)).thenReturn(1L);
 
-        assertThatThrownBy(() -> userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.CUSTOMER)))
+        assertThatThrownBy(() -> userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.CUSTOMER, null)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("ADMIN cuối cùng");
     }
@@ -113,7 +120,7 @@ class UserServiceImplTest {
     void changeRole_notFound() {
         when(userRepository.findByIdAndDeletedFalse(TARGET_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.STAFF)))
+        assertThatThrownBy(() -> userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.STAFF, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.NOT_FOUND);
@@ -256,14 +263,162 @@ class UserServiceImplTest {
     void getUsers_mapsPageResponse() {
         User u1 = buildUser(1L, RoleName.ADMIN, false);
         User u2 = buildUser(2L, RoleName.CUSTOMER, false);
-        when(userRepository.searchUsers(any(), any(), any(), any(Pageable.class)))
+        when(userRepository.searchUsers(any(), any(), any(), any(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(u1, u2)));
 
-        var res = userService.getUsers(null, null, null, 0, 10);
+        var res = userService.getUsers(null, null, null, null, 0, 10);
 
         assertThat(res.content()).hasSize(2);
         assertThat(res.totalElements()).isEqualTo(2);
         assertThat(res.page()).isZero();
-        verify(userRepository).searchUsers(eq(null), eq(null), eq(null), any(Pageable.class));
+        verify(userRepository).searchUsers(eq(null), eq(null), eq(null), eq(null), any(Pageable.class));
+    }
+
+    // ─── Cơ sở làm việc ──────────────────────────────────────────────────────
+
+    @Test
+    void createStaffRequiresStore() {
+        AdminCreateUserRequest request = new AdminCreateUserRequest(
+                "staff9@banhmyking.vn", "12345678", "Nhân viên 9", null, RoleName.STAFF, null);
+        when(userRepository.existsByEmail("staff9@banhmyking.vn")).thenReturn(false);
+
+        assertThatThrownBy(() -> userService.createUser(ACTOR_ID, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("chọn cơ sở");
+    }
+
+    @Test
+    void createManagerAssignsStore() {
+        Store store = new Store();
+        store.setId(3L);
+        store.setName("Cơ sở 3");
+        when(storeRepository.findByIdAndDeletedFalse(3L)).thenReturn(Optional.of(store));
+        when(userRepository.existsByEmail("ql3@banhmyking.vn")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UserDetailResponse res = userService.createUser(ACTOR_ID, new AdminCreateUserRequest(
+                "ql3@banhmyking.vn", "12345678", "Quản lý 3", null, RoleName.MANAGER, 3L));
+
+        assertThat(res.storeId()).isEqualTo(3L);
+        assertThat(res.storeName()).isEqualTo("Cơ sở 3");
+    }
+
+    @Test
+    void customerNeverKeepsStore() {
+        when(userRepository.existsByEmail("kh@x.vn")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UserDetailResponse res = userService.createUser(ACTOR_ID, new AdminCreateUserRequest(
+                "kh@x.vn", "12345678", "Khách", null, RoleName.CUSTOMER, 3L));
+
+        assertThat(res.storeId()).isNull();
+    }
+
+    @Test
+    void changingStoreRevokesSessions() {
+        Store oldStore = new Store();
+        oldStore.setId(1L);
+        Store newStore = new Store();
+        newStore.setId(2L);
+        User staff = buildUser(TARGET_ID, RoleName.STAFF, false);
+        staff.setStore(oldStore);
+        when(userRepository.findByIdAndDeletedFalse(TARGET_ID)).thenReturn(Optional.of(staff));
+        when(storeRepository.findByIdAndDeletedFalse(2L)).thenReturn(Optional.of(newStore));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        userService.updateUser(ACTOR_ID, TARGET_ID,
+                new AdminUpdateUserRequest(null, null, null, null, null, 2L));
+
+        assertThat(staff.getStore().getId()).isEqualTo(2L);
+        verify(refreshTokenRepository).findByUserIdAndRevokedAtIsNull(TARGET_ID);
+    }
+
+    @Test
+    void changeRole_toStaffWithoutStoreRejected() {
+        User target = buildUser(TARGET_ID, RoleName.CUSTOMER, false);
+        when(userRepository.findByIdAndDeletedFalse(TARGET_ID)).thenReturn(Optional.of(target));
+
+        assertThatThrownBy(() -> userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.STAFF, null)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("chọn cơ sở");
+    }
+
+    @Test
+    void changeRole_toManagerWithoutStoreRejected() {
+        User target = buildUser(TARGET_ID, RoleName.CUSTOMER, false);
+        when(userRepository.findByIdAndDeletedFalse(TARGET_ID)).thenReturn(Optional.of(target));
+
+        assertThatThrownBy(() -> userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.MANAGER, null)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("chọn cơ sở");
+    }
+
+    @Test
+    void changeRole_toShipperAssignsStoreAndRevokes() {
+        Store store = new Store();
+        store.setId(3L);
+        User target = buildUser(TARGET_ID, RoleName.CUSTOMER, false);
+        when(userRepository.findByIdAndDeletedFalse(TARGET_ID)).thenReturn(Optional.of(target));
+        when(storeRepository.findByIdAndDeletedFalse(3L)).thenReturn(Optional.of(store));
+        RefreshToken rt = new RefreshToken();
+        when(refreshTokenRepository.findByUserIdAndRevokedAtIsNull(TARGET_ID)).thenReturn(List.of(rt));
+
+        UserDetailResponse res = userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.SHIPPER, 3L));
+
+        assertThat(res.storeId()).isEqualTo(3L);
+        assertThat(rt.getRevokedAt()).isNotNull();
+    }
+
+    @Test
+    void changeRole_staffToCustomerClearsStore() {
+        Store store = new Store();
+        store.setId(1L);
+        User target = buildUser(TARGET_ID, RoleName.STAFF, false);
+        target.setStore(store);
+        when(userRepository.findByIdAndDeletedFalse(TARGET_ID)).thenReturn(Optional.of(target));
+
+        UserDetailResponse res = userService.changeRole(ACTOR_ID, TARGET_ID, new UpdateRoleRequest(RoleName.CUSTOMER, null));
+
+        assertThat(res.storeId()).isNull();
+        assertThat(target.getStore()).isNull();
+    }
+
+    // ─── getStoreStaff ───────────────────────────────────────────────────────
+
+    @Test
+    void getStoreStaff_managerSeesOwnStore() {
+        Store store = new Store();
+        store.setId(1L);
+        User manager = buildUser(ACTOR_ID, RoleName.MANAGER, false);
+        manager.setStore(store);
+        User s1 = buildUser(5L, RoleName.STAFF, false);
+        s1.setStore(store);
+        User s2 = buildUser(6L, RoleName.SHIPPER, false);
+        s2.setStore(store);
+        when(userRepository.findById(ACTOR_ID)).thenReturn(Optional.of(manager));
+        when(userRepository.findByStoreIdAndDeletedFalseOrderByRoleAscFullNameAsc(1L)).thenReturn(List.of(s1, s2));
+
+        List<UserDetailResponse> res = userService.getStoreStaff(ACTOR_ID);
+
+        assertThat(res).hasSize(2);
+        assertThat(res).allSatisfy(r -> assertThat(r.storeId()).isEqualTo(1L));
+    }
+
+    @Test
+    void getStoreStaff_adminRejected() {
+        when(userRepository.findById(ACTOR_ID)).thenReturn(Optional.of(buildUser(ACTOR_ID, RoleName.ADMIN, false)));
+
+        assertThatThrownBy(() -> userService.getStoreStaff(ACTOR_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.BUSINESS_ERROR);
+    }
+
+    @Test
+    void getStoreStaff_managerWithoutStoreRejected() {
+        when(userRepository.findById(ACTOR_ID)).thenReturn(Optional.of(buildUser(ACTOR_ID, RoleName.MANAGER, false)));
+
+        assertThatThrownBy(() -> userService.getStoreStaff(ACTOR_ID))
+                .isInstanceOf(BusinessException.class);
     }
 }

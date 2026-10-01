@@ -85,18 +85,20 @@ public class SecurityConfig {
                                 "/v3/api-docs/**"
                         ).permitAll()
                         .requestMatchers("/uploads/**").permitAll()
-                        .requestMatchers("/api/v1/delivery/**").permitAll()
                         .requestMatchers("/api/v1/payments/webhook/**").permitAll()
                         // Catalog: GET xem thực đơn public, sửa/xóa thực đơn dành cho STAFF & ADMIN
                         .requestMatchers(HttpMethod.GET, "/api/v1/catalog/**").permitAll()
-                        .requestMatchers("/api/v1/catalog/**").hasAnyRole("STAFF", "ADMIN")
+                        .requestMatchers("/api/v1/catalog/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/store-inventory/**").hasAnyRole("STAFF", "MANAGER", "ADMIN")
                         // Admin user API: chỉ ADMIN (plan §4.2 — danh sách user chứa dữ liệu cá nhân;
                         // Staff chọn shipper qua /admin/orders/shippers/available)
                         // Admin & Staff orders: STAFF và ADMIN có quyền xem và cập nhật trạng thái/gán shipper
-                        .requestMatchers("/api/v1/admin/orders/**").hasAnyRole("STAFF", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/stores").permitAll()
+                        .requestMatchers("/api/v1/manager/**").hasAnyRole("MANAGER", "ADMIN")
+                        .requestMatchers("/api/v1/admin/orders/**").hasAnyRole("STAFF", "MANAGER", "ADMIN")
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         // Shipper chỉ được đụng tới đơn được gán cho mình (service check ownership)
-                        .requestMatchers("/api/v1/shipper/**").hasAnyRole("SHIPPER", "STAFF", "ADMIN")
+                        .requestMatchers("/api/v1/shipper/**").hasAnyRole("SHIPPER", "STAFF", "MANAGER", "ADMIN")
                         .requestMatchers("/api/v1/**").authenticated()
                         .anyRequest().denyAll())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

@@ -47,7 +47,7 @@ class AdminUserControllerTest {
 
     private static final UserDetailResponse DETAIL = new UserDetailResponse(
             2L, "customer@gmail.com", "Khách Hàng Test", "0901234567",
-            null, RoleName.CUSTOMER, false, LocalDateTime.now());
+            null, RoleName.CUSTOMER, false, LocalDateTime.now(), null, null);
 
     /** Principal giả — username là userId (JWT subject), authority ADMIN. */
     private static final org.springframework.security.core.userdetails.UserDetails PRINCIPAL =
@@ -78,7 +78,7 @@ class AdminUserControllerTest {
 
     @Test
     void listUsers_returnsPageResponse() throws Exception {
-        when(userService.getUsers(any(), any(), any(), eq(0), eq(10)))
+        when(userService.getUsers(any(), any(), any(), any(), eq(0), eq(10)))
                 .thenReturn(PageResponse.from(new org.springframework.data.domain.PageImpl<>(List.of(DETAIL))));
 
         mockMvc.perform(get("/api/v1/admin/users")
@@ -92,7 +92,7 @@ class AdminUserControllerTest {
 
     @Test
     void listUsers_sizeCappedAt50() throws Exception {
-        when(userService.getUsers(any(), any(), any(), eq(0), eq(50)))
+        when(userService.getUsers(any(), any(), any(), any(), eq(0), eq(50)))
                 .thenReturn(PageResponse.from(new org.springframework.data.domain.PageImpl<>(List.of())));
 
         mockMvc.perform(get("/api/v1/admin/users")
@@ -100,7 +100,7 @@ class AdminUserControllerTest {
                         .principal(PRINCIPAL::getUsername))
                 .andExpect(status().isOk());
 
-        verify(userService).getUsers(any(), any(), any(), eq(0), eq(50));
+        verify(userService).getUsers(any(), any(), any(), any(), eq(0), eq(50));
     }
 
     // ─── GET detail ───────────────────────────────────────────────────────────
@@ -172,7 +172,7 @@ class AdminUserControllerTest {
     @Test
     void changeStatus_validBody_callsService() throws Exception {
         UserDetailResponse banned = new UserDetailResponse(2L, "customer@gmail.com",
-                "Khách Hàng Test", "0901234567", null, RoleName.CUSTOMER, true, LocalDateTime.now());
+                "Khách Hàng Test", "0901234567", null, RoleName.CUSTOMER, true, LocalDateTime.now(), null, null);
         when(userService.changeStatus(eq(1L), eq(2L), any(UpdateStatusRequest.class)))
                 .thenReturn(banned);
 
@@ -213,12 +213,12 @@ class AdminUserControllerTest {
     void createUser_validRequest_success() throws Exception {
         com.banhmyking.banhmyking.dto.user.AdminCreateUserRequest req =
                 new com.banhmyking.banhmyking.dto.user.AdminCreateUserRequest(
-                        "staff@banhmyking.vn", "123456", "Nguyễn Văn Staff", "0912345678", RoleName.STAFF);
+                        "staff@banhmyking.vn", "123456", "Nguyễn Văn Staff", "0912345678", RoleName.STAFF, 1L);
 
         when(userService.createUser(eq(1L), any(com.banhmyking.banhmyking.dto.user.AdminCreateUserRequest.class)))
                 .thenReturn(new UserDetailResponse(
                         10L, "staff@banhmyking.vn", "Nguyễn Văn Staff", "0912345678",
-                        null, RoleName.STAFF, false, LocalDateTime.now()));
+                        null, RoleName.STAFF, false, LocalDateTime.now(), null, null));
 
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/admin/users")
                         .principal(PRINCIPAL::getUsername)
@@ -248,12 +248,12 @@ class AdminUserControllerTest {
     void updateUser_validRequest_success() throws Exception {
         com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest req =
                 new com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest(
-                        "Nguyễn Cập Nhật", "0987654321", RoleName.SHIPPER, false, null);
+                        "Nguyễn Cập Nhật", "0987654321", RoleName.SHIPPER, false, null, 1L);
 
         when(userService.updateUser(eq(1L), eq(2L), any(com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest.class)))
                 .thenReturn(new UserDetailResponse(
                         2L, "customer@gmail.com", "Nguyễn Cập Nhật", "0987654321",
-                        null, RoleName.SHIPPER, false, LocalDateTime.now()));
+                        null, RoleName.SHIPPER, false, LocalDateTime.now(), null, null));
 
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/admin/users/2")
                         .principal(PRINCIPAL::getUsername)
@@ -269,7 +269,7 @@ class AdminUserControllerTest {
     void updateUser_lastAdminDemotion_returns400() throws Exception {
         com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest req =
                 new com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest(
-                        "Admin Sửa", "0987654321", RoleName.STAFF, false, null);
+                        "Admin Sửa", "0987654321", RoleName.STAFF, false, null, null);
 
         when(userService.updateUser(eq(1L), eq(2L), any(com.banhmyking.banhmyking.dto.user.AdminUpdateUserRequest.class)))
                 .thenThrow(new BusinessException(ErrorCode.BUSINESS_ERROR, "Không thể hạ quyền ADMIN cuối cùng"));

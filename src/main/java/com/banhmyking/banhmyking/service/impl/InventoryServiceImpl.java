@@ -1,9 +1,7 @@
 package com.banhmyking.banhmyking.service.impl;
 
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,20 +11,28 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.banhmyking.banhmyking.dto.catalog.StockChangeRequest;
 import com.banhmyking.banhmyking.dto.catalog.StockMovementResponse;
 import com.banhmyking.banhmyking.dto.common.PageResponse;
+import com.banhmyking.banhmyking.dto.store.StoreStockResponse;
 import com.banhmyking.banhmyking.entity.InventoryMovement;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.OrderItem;
 import com.banhmyking.banhmyking.entity.Product;
+import com.banhmyking.banhmyking.entity.Store;
+import com.banhmyking.banhmyking.entity.StoreProduct;
+import com.banhmyking.banhmyking.entity.StoreProductId;
 import com.banhmyking.banhmyking.enums.InventoryReason;
 import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
 import com.banhmyking.banhmyking.repository.InventoryMovementRepository;
 import com.banhmyking.banhmyking.repository.ProductRepository;
+import com.banhmyking.banhmyking.repository.StoreProductRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
 import com.banhmyking.banhmyking.service.InventoryService;
 import com.banhmyking.banhmyking.util.PageableFactory;
@@ -38,20 +44,10 @@ import lombok.RequiredArgsConstructor;
 public class InventoryServiceImpl implements InventoryService {
 
     private final ProductRepository productRepository;
+    private final StoreProductRepository storeProductRepository;
     private final InventoryMovementRepository inventoryMovementRepository;
     private final UserRepository userRepository;
     private final EntityManager entityManager;
-
-    @Override
-    public void assertEnough(Product product, int quantity) {
-        Integer stock = product.getStockQuantity();
-        if (stock == null || stock >= quantity) {
-            return;
-        }
-        throw new BusinessException(ErrorCode.BUSINESS_ERROR, stock <= 0
-                ? "Sản phẩm \"" + product.getName() + "\" đã hết hàng"
-                : "Sản phẩm \"" + product.getName() + "\" chỉ còn " + stock);
-    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -69,29 +65,44 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     /**
-     * Trừ tồn cho mọi dòng của đơn. Thiếu hàng ở một dòng thì cộng trả các dòng đã trừ trước đó
-     * và trả về sản phẩm thiếu; đủ hết thì ghi movement và trả null.
+     * Trừ tồn cho mọi dòng của đơn tại cơ sở của đơn. Thiếu hàng ở một dòng thì cộng trả các dòng
+     * đã trừ trước đó và trả về sản phẩm thiếu; đủ hết thì ghi movement và trả null.
      */
     private Product decreaseAllOrNothing(Order order) {
+        Long storeId = order.getStore().getId();
+        Set<Long> tracked = trackedProductIds(storeId, order.getItems());
         List<OrderItem> decreased = new ArrayList<>();
         for (OrderItem item : order.getItems()) {
             Product product = item.getProduct();
-            if (product == null || product.getStockQuantity() == null) {
+            if (product == null || !tracked.contains(product.getId())) {
                 continue;
             }
             // Số row = 0 nghĩa là không đủ hàng (hoặc giao dịch khác vừa lấy mất hàng).
-            if (productRepository.decrementStockAtomic(product.getId(), item.getQuantity()) == 0) {
+            if (storeProductRepository.decrementStockAtomic(storeId, product.getId(), item.getQuantity()) == 0) {
                 for (OrderItem done : decreased) {
-                    productRepository.incrementStockAtomic(done.getProduct().getId(), done.getQuantity());
+                    storeProductRepository.incrementStockAtomic(storeId, done.getProduct().getId(), done.getQuantity());
                 }
                 return product;
             }
             decreased.add(item);
         }
         for (OrderItem item : decreased) {
-            saveMovement(item.getProduct(), -item.getQuantity(), InventoryReason.ORDER, order, null, null);
+            saveMovement(order.getStore(), item.getProduct(), -item.getQuantity(), InventoryReason.ORDER, order, null, null);
         }
         return null;
+    }
+
+    /** Món được quản tồn tại cơ sở = có dòng store_products với stock_quantity khác NULL. */
+    private Set<Long> trackedProductIds(Long storeId, List<OrderItem> items) {
+        List<Long> productIds = items.stream()
+                .map(OrderItem::getProduct).filter(Objects::nonNull).map(Product::getId).distinct().toList();
+        if (productIds.isEmpty()) {
+            return Set.of();
+        }
+        return storeProductRepository.findByIdStoreIdAndIdProductIdIn(storeId, productIds).stream()
+                .filter(sp -> sp.getStockQuantity() != null)
+                .map(sp -> sp.getId().getProductId())
+                .collect(Collectors.toSet());
     }
 
     @Override
@@ -101,85 +112,158 @@ public class InventoryServiceImpl implements InventoryService {
         if (orderId == null) {
             return;
         }
-        // Gộp theo sản phẩm: cùng một món có thể nằm ở nhiều dòng (khác topping). Nếu hoàn từng dòng,
-        // dòng đầu ghi RESTORE xong thì dòng sau bị check "đã hoàn" bỏ qua → mất tồn kho.
-        Map<Long, Integer> quantityByProduct = new LinkedHashMap<>();
-        Map<Long, Product> productById = new LinkedHashMap<>();
-        for (OrderItem item : order.getItems()) {
-            Product product = item.getProduct();
-            if (product == null) {
+        // Hoàn về ĐÚNG cơ sở đã bị trừ — lấy store_id ghi trên sổ ORDER của đơn, không dùng order.store
+        // (spec §3.6): nếu đơn từng đổi cơ sở sau khi trừ tồn, order.store đã là cơ sở mới.
+        // Gộp theo (cơ sở, sản phẩm): cùng món có thể nằm ở nhiều dòng (khác topping), mỗi dòng một sổ
+        // ORDER. Nếu hoàn từng dòng, dòng đầu ghi RESTORE xong thì dòng sau bị check "đã hoàn" bỏ qua.
+        Map<StoreProductId, Integer> quantityByKey = new LinkedHashMap<>();
+        Map<StoreProductId, InventoryMovement> sampleByKey = new LinkedHashMap<>();
+        for (InventoryMovement decrease : inventoryMovementRepository.findByOrderIdAndReason(orderId, InventoryReason.ORDER)) {
+            if (decrease.getStore() == null || decrease.getProduct() == null || decrease.getChangeQty() == null) {
                 continue;
             }
-            quantityByProduct.merge(product.getId(), item.getQuantity(), Integer::sum);
-            productById.putIfAbsent(product.getId(), product);
+            StoreProductId key = new StoreProductId(decrease.getStore().getId(), decrease.getProduct().getId());
+            quantityByKey.merge(key, Math.abs(decrease.getChangeQty()), Integer::sum);
+            sampleByKey.putIfAbsent(key, decrease);
         }
-        for (Map.Entry<Long, Integer> entry : quantityByProduct.entrySet()) {
-            Long productId = entry.getKey();
-            if (!inventoryMovementRepository.existsByOrderIdAndProductIdAndReason(
-                    orderId, productId, InventoryReason.ORDER)
-                    || inventoryMovementRepository.existsByOrderIdAndProductIdAndReason(
-                            orderId, productId, InventoryReason.RESTORE)) {
+        for (Map.Entry<StoreProductId, Integer> entry : quantityByKey.entrySet()) {
+            StoreProductId key = entry.getKey();
+            int quantity = entry.getValue();
+            if (quantity <= 0 || inventoryMovementRepository.existsByOrderIdAndStoreIdAndProductIdAndReason(
+                    orderId, key.getStoreId(), key.getProductId(), InventoryReason.RESTORE)) {
                 continue;
             }
-            int quantity = entry.getValue();
-            if (productRepository.incrementStockAtomic(productId, quantity) > 0) {
-                saveMovement(productById.get(productId), quantity, InventoryReason.RESTORE, order, null, null);
+            InventoryMovement sample = sampleByKey.get(key);
+            if (storeProductRepository.incrementStockAtomic(key.getStoreId(), key.getProductId(), quantity) > 0) {
+                saveMovement(sample.getStore(), sample.getProduct(), quantity,
+                        InventoryReason.RESTORE, order, null, null);
             }
         }
     }
 
     @Override
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
+    @Transactional(readOnly = true)
+    public List<String> unavailableItems(Long storeId, Map<Product, Integer> quantities) {
+        if (quantities.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, StoreProduct> rows = storeProductRepository
+                .findByIdStoreIdAndIdProductIdIn(storeId, quantities.keySet().stream().map(Product::getId).toList())
+                .stream().collect(Collectors.toMap(sp -> sp.getId().getProductId(), sp -> sp));
+        List<String> names = new ArrayList<>();
+        for (Map.Entry<Product, Integer> entry : quantities.entrySet()) {
+            Product product = entry.getKey();
+            StoreProduct row = rows.get(product.getId());
+            boolean soldOut = !product.isAvailable() || product.isDeleted() || (row != null && !row.isAvailable());
+            boolean shortStock = row != null && row.getStockQuantity() != null && row.getStockQuantity() < entry.getValue();
+            if (soldOut || shortStock) {
+                names.add(product.getName());
+            }
+        }
+        names.sort(String::compareTo);
+        return names;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<StoreStockResponse> listStoreStock(Long storeId) {
+        Map<Long, StoreProduct> rows = storeProductRepository.findByIdStoreId(storeId).stream()
+                .collect(Collectors.toMap(sp -> sp.getId().getProductId(), sp -> sp));
+        return productRepository.findAll(Sort.by("name")).stream()
+                .filter(product -> !product.isDeleted())
+                .map(product -> toStockResponse(product, rows.get(product.getId())))
+                .toList();
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
-    public int adjustStock(Long productId, StockChangeRequest request, Long actorId) {
-        Product product = productRepository.findByIdAndDeletedFalse(productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + productId));
+    public StoreStockResponse setAvailability(Long storeId, Long productId, boolean available) {
+        Product product = requireProduct(productId);
+        StoreProduct row = storeProductRepository.findByIdStoreIdAndIdProductId(storeId, productId)
+                .orElseGet(() -> newRow(storeId, product));
+        row.setAvailable(available);
+        return toStockResponse(product, storeProductRepository.save(row));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public StoreStockResponse adjustStock(Long storeId, Long productId, StockChangeRequest request, Long actorId) {
+        Product product = requireProduct(productId);
         int changeQty = request.getChangeQty();
         if (changeQty == 0) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Số lượng thay đổi phải khác 0");
         }
-
-        Integer current = product.getStockQuantity();
+        StoreProduct row = storeProductRepository.findByIdStoreIdAndIdProductId(storeId, productId).orElse(null);
+        Integer current = row == null ? null : row.getStockQuantity();
         if (current == null) {
             // Chưa quản tồn: lần nhập đầu tiên đặt luôn con số ban đầu.
             if (changeQty < 0) {
                 throw new BusinessException(ErrorCode.BUSINESS_ERROR,
-                        "Sản phẩm chưa quản tồn nên không thể giảm; nhập số dương để bắt đầu quản.");
+                        "Món chưa quản tồn tại cơ sở nên không thể giảm; nhập số dương để bắt đầu quản.");
             }
-            product.setStockQuantity(changeQty);
-            productRepository.save(product);
+            if (row == null) {
+                row = newRow(storeId, product);
+            }
+            row.setStockQuantity(changeQty);
+            row = storeProductRepository.save(row);
         } else if (changeQty > 0) {
-            productRepository.incrementStockAtomic(productId, changeQty);
+            storeProductRepository.incrementStockAtomic(storeId, productId, changeQty);
             // Bulk UPDATE không đụng tới entity đang managed; không đọc lại thì response
             // trong cùng request (open-in-view) trả về số tồn cũ.
-            entityManager.refresh(product);
+            entityManager.refresh(row);
         } else {
-            if (productRepository.decrementStockAtomic(productId, -changeQty) == 0) {
+            if (storeProductRepository.decrementStockAtomic(storeId, productId, -changeQty) == 0) {
                 throw new BusinessException(ErrorCode.BUSINESS_ERROR,
                         "Tồn kho không đủ để giảm " + (-changeQty) + " (đang có " + current + ")");
             }
-            entityManager.refresh(product);
+            entityManager.refresh(row);
         }
-
-        saveMovement(product, changeQty,
-                changeQty > 0 ? InventoryReason.IMPORT : InventoryReason.ADJUST,
-                null, request.getNote(), actorId);
-        return current == null ? changeQty : current + changeQty;
+        saveMovement(row.getStore(), product, changeQty,
+                changeQty > 0 ? InventoryReason.IMPORT : InventoryReason.ADJUST, null, request.getNote(), actorId);
+        return toStockResponse(product, row);
     }
 
     @Override
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
-    public PageResponse<StockMovementResponse> getMovements(Long productId, int page, int size) {
+    @Transactional(readOnly = true)
+    public PageResponse<StockMovementResponse> getMovements(Long storeId, Long productId, int page, int size) {
         Pageable pageable = PageableFactory.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<StockMovementResponse> movements = inventoryMovementRepository
-                .findPageByProductId(productId, pageable)
-                .map(this::toMovementResponse);
-        return PageResponse.from(movements);
+        return PageResponse.from(inventoryMovementRepository
+                .findPageByStoreIdAndProductId(storeId, productId, pageable)
+                .map(this::toMovementResponse));
     }
 
-    private void saveMovement(Product product, int changeQty, InventoryReason reason,
+    private Product requireProduct(Long productId) {
+        return productRepository.findByIdAndDeletedFalse(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + productId));
+    }
+
+    private StoreProduct newRow(Long storeId, Product product) {
+        StoreProduct row = new StoreProduct();
+        row.setId(new StoreProductId(storeId, product.getId()));
+        row.setStore(entityManager.getReference(Store.class, storeId));
+        row.setProduct(product);
+        return row;
+    }
+
+    private StoreStockResponse toStockResponse(Product product, StoreProduct row) {
+        return StoreStockResponse.builder()
+                .productId(product.getId())
+                .productName(product.getName())
+                .categoryName(product.getCategory() == null ? null : product.getCategory().getName())
+                .imageUrl(product.getImageUrl())
+                .price(product.getPrice())
+                .onChainMenu(product.isAvailable())
+                .available(row == null || row.isAvailable())
+                .stockQuantity(row == null ? null : row.getStockQuantity())
+                .lowStockThreshold(row == null ? 5 : row.getLowStockThreshold())
+                .lowStock(row != null && row.isLowStock())
+                .build();
+    }
+
+    private void saveMovement(Store store, Product product, int changeQty, InventoryReason reason,
                               Order order, String note, Long actorId) {
         InventoryMovement movement = new InventoryMovement();
+        movement.setStore(store);
         movement.setProduct(product);
         movement.setChangeQty(changeQty);
         movement.setReason(reason);

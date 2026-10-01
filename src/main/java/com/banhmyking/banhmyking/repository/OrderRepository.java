@@ -18,6 +18,8 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     boolean existsByOrderCode(String orderCode);
 
+    long countByStoreIdAndStatusIn(Long storeId, List<OrderStatus> statuses);
+
     Optional<Order> findByOrderCode(String orderCode);
 
     Optional<Order> findByOrderCodeAndUserId(String orderCode, Long userId);
@@ -41,17 +43,20 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
            "WHERE o.orderCode = :orderCode")
     Optional<Order> findByOrderCodeWithDetails(@Param("orderCode") String orderCode);
 
-    @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.status NOT IN (com.banhmyking.banhmyking.enums.OrderStatus.CANCELLED, com.banhmyking.banhmyking.enums.OrderStatus.FAILED)")
-    java.math.BigDecimal sumTotalRevenue();
+    String REVENUE_STATUS = "o.status NOT IN (com.banhmyking.banhmyking.enums.OrderStatus.CANCELLED, "
+            + "com.banhmyking.banhmyking.enums.OrderStatus.FAILED)";
 
-    @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.createdAt >= :startDate AND o.status NOT IN (com.banhmyking.banhmyking.enums.OrderStatus.CANCELLED, com.banhmyking.banhmyking.enums.OrderStatus.FAILED)")
-    java.math.BigDecimal sumRevenueSince(@Param("startDate") java.time.LocalDateTime startDate);
+    /** storeId / since = null nghĩa là không lọc theo điều kiện đó. */
+    @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE " + REVENUE_STATUS
+            + " AND (:storeId IS NULL OR o.store.id = :storeId) AND (:since IS NULL OR o.createdAt >= :since)")
+    java.math.BigDecimal sumRevenue(@Param("storeId") Long storeId, @Param("since") java.time.LocalDateTime since);
 
-    long countByCreatedAtGreaterThanEqual(java.time.LocalDateTime startDate);
+    @Query("SELECT COUNT(o) FROM Order o WHERE (:storeId IS NULL OR o.store.id = :storeId) "
+            + "AND (:since IS NULL OR o.createdAt >= :since)")
+    long countOrders(@Param("storeId") Long storeId, @Param("since") java.time.LocalDateTime since);
 
-    long countByStatus(OrderStatus status);
-
-    long countByStatusIn(List<OrderStatus> statuses);
+    @Query("SELECT COUNT(o) FROM Order o WHERE (:storeId IS NULL OR o.store.id = :storeId) AND o.status IN :statuses")
+    long countByStatuses(@Param("storeId") Long storeId, @Param("statuses") List<OrderStatus> statuses);
 
     long countByShipperIdAndStatus(Long shipperId, OrderStatus status);
 
@@ -59,11 +64,23 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     long countByShipperIdAndStatusInAndIdNot(Long shipperId, List<OrderStatus> statuses, Long orderId);
 
-    List<Order> findByCreatedAtGreaterThanEqualOrderByCreatedAtAsc(java.time.LocalDateTime startDate);
+    @Query("SELECT o FROM Order o WHERE (:storeId IS NULL OR o.store.id = :storeId) AND o.createdAt >= :from "
+            + "ORDER BY o.createdAt ASC")
+    List<Order> findForChart(@Param("storeId") Long storeId, @Param("from") java.time.LocalDateTime from);
 
     /** Đơn trong [from, to) — dùng cho báo cáo doanh thu theo ngày (gộp ở tầng service, xem dashboard). */
-    List<Order> findByCreatedAtGreaterThanEqualAndCreatedAtLessThan(
-            java.time.LocalDateTime from, java.time.LocalDateTime to);
+    @Query("SELECT o FROM Order o WHERE (:storeId IS NULL OR o.store.id = :storeId) "
+            + "AND o.createdAt >= :from AND o.createdAt < :to")
+    List<Order> findInRange(@Param("storeId") Long storeId, @Param("from") java.time.LocalDateTime from,
+                            @Param("to") java.time.LocalDateTime to);
+
+    /** Doanh thu theo cơ sở trong [from, to). */
+    @Query("SELECT new com.banhmyking.banhmyking.dto.report.StoreRevenueResponse("
+            + "s.id, s.name, COUNT(o.id), SUM(o.total)) "
+            + "FROM Order o JOIN o.store s WHERE " + REVENUE_STATUS
+            + " AND o.createdAt >= :from AND o.createdAt < :to GROUP BY s.id, s.name ORDER BY SUM(o.total) DESC")
+    List<com.banhmyking.banhmyking.dto.report.StoreRevenueResponse> findRevenueByStore(
+            @Param("from") java.time.LocalDateTime from, @Param("to") java.time.LocalDateTime to);
 
     /** Doanh thu theo tài xế trong [from, to). Đơn chưa gán tài xế không thuộc báo cáo này. */
     @Query("SELECT new com.banhmyking.banhmyking.dto.report.ShipperRevenueResponse("
@@ -72,8 +89,10 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
             + "WHERE o.status NOT IN (com.banhmyking.banhmyking.enums.OrderStatus.CANCELLED, "
             + "com.banhmyking.banhmyking.enums.OrderStatus.FAILED) "
             + "AND o.createdAt >= :from AND o.createdAt < :to "
+            + "AND (:storeId IS NULL OR o.store.id = :storeId) "
             + "GROUP BY s.id, s.fullName "
             + "ORDER BY SUM(o.total) DESC")
     java.util.List<com.banhmyking.banhmyking.dto.report.ShipperRevenueResponse> findRevenueByShipper(
-            @Param("from") java.time.LocalDateTime from, @Param("to") java.time.LocalDateTime to);
+            @Param("from") java.time.LocalDateTime from, @Param("to") java.time.LocalDateTime to,
+            @Param("storeId") Long storeId);
 }

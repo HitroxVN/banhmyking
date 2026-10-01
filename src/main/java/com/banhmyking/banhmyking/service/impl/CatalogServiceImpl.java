@@ -69,7 +69,7 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     @Override
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public CategoryResponse createCategory(CategoryRequest request) {
         Category category = new Category();
@@ -78,7 +78,7 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     @Override
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public CategoryResponse updateCategory(Long categoryId, CategoryRequest request) {
         Category category = findCategory(categoryId);
@@ -87,7 +87,7 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     @Override
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public void deleteCategory(Long categoryId) {
         Category category = findCategory(categoryId);
@@ -162,7 +162,7 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     @Override
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public ProductResponse createProduct(ProductRequest request) {
         Product product = new Product();
@@ -171,7 +171,7 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     @Override
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public ProductResponse updateProduct(Long productId, ProductRequest request) {
         Product product = productRepository.findByIdAndDeletedFalse(productId)
@@ -181,7 +181,7 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     @Override
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public void deleteProduct(Long productId) {
         Product product = productRepository.findByIdAndDeletedFalse(productId)
@@ -192,7 +192,7 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     @Override
-    @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public String uploadProductImage(MultipartFile file) {
         return fileStorageService.storeImage(file, FileStorageService.PRODUCT_DIR);
     }
@@ -218,14 +218,6 @@ public class CatalogServiceImpl implements CatalogService {
         product.setPrice(request.getPrice());
         product.setAvailable(request.isAvailable());
         product.setFeatured(request.isFeatured());
-        // Tồn chỉ nhận lúc tạo. Sửa tồn sau đó phải qua endpoint kho để còn ghi sổ.
-        if (product.getId() == null) {
-            product.setStockQuantity(request.getStockQuantity());
-        }
-        Integer lowStockThreshold = request.getLowStockThreshold();
-        if (lowStockThreshold != null) {
-            product.setLowStockThreshold(lowStockThreshold);
-        }
     }
 
     private ProductResponse saveProductWithOptions(Product product, ProductRequest request) {
@@ -453,10 +445,6 @@ public class CatalogServiceImpl implements CatalogService {
                 .price(product.getPrice())
                 .available(product.isAvailable())
                 .featured(product.isFeatured())
-                .stockQuantity(product.getStockQuantity())
-                .lowStockThreshold(product.getLowStockThreshold())
-                .lowStock(product.getStockQuantity() != null
-                        && product.getStockQuantity() <= product.getLowStockThreshold())
                 .averageRating(averageRating != null ? averageRating : 0.0)
                 .totalReviews(totalReviews != null ? totalReviews : 0L)
                 .options(options.stream().map(this::toOptionResponse).toList())

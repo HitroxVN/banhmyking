@@ -51,13 +51,6 @@ public class Product extends BaseEntity {
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted = false;
 
-    /** NULL = không quản tồn (bán vô hạn). */
-    @Column(name = "stock_quantity")
-    private Integer stockQuantity;
-
-    @Column(name = "low_stock_threshold", nullable = false)
-    private int lowStockThreshold = 5;
-
     @OneToMany(mappedBy = "product", fetch = FetchType.LAZY)
     private List<ProductOption> options = new ArrayList<>();
 

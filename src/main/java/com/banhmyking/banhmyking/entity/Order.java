@@ -50,6 +50,11 @@ public class Order extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    /** Cơ sở phục vụ đơn */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "store_id", nullable = false)
+    private Store store;
+
     /** Shipper được gán khi chuyển DELIVERING. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shipper_id")
