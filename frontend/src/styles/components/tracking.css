@@ -106,6 +106,13 @@
   letter-spacing: .02em;
 }
 
+.track__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
 .track__time {
   margin: 0;
   font-size: var(--text-xs);
