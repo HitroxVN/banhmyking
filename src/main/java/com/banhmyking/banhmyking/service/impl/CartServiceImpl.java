@@ -22,14 +22,17 @@ import com.banhmyking.banhmyking.repository.OptionGroupRepository;
 import com.banhmyking.banhmyking.repository.ProductOptionRepository;
 import com.banhmyking.banhmyking.repository.ProductRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
+import com.banhmyking.banhmyking.dto.catalog.ComboItemResponse;
 import com.banhmyking.banhmyking.service.CartService;
-import com.banhmyking.banhmyking.service.PriceCalculator;
+import com.banhmyking.banhmyking.service.ComboExpander;
+import com.banhmyking.banhmyking.service.ProductPricing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -48,6 +51,7 @@ public class CartServiceImpl implements CartService {
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
     private final ProductOptionRepository productOptionRepository;
+    private final ProductPricing productPricing;
     private final OptionGroupRepository optionGroupRepository;    private final UserRepository userRepository;
 
     @Override
@@ -74,7 +78,8 @@ public class CartServiceImpl implements CartService {
         Product product = productRepository.findByIdAndDeletedFalse(request.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy món ăn với ID: " + request.getProductId()));
 
-        if (!product.isAvailable()) {
+        // Combo còn cần mọi thành phần đang bán toàn chuỗi (spec combo-sale §4.3)
+        if (!ComboExpander.isChainAvailable(product)) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR,
                     "Món ăn '" + product.getName() + "' hiện không khả dụng (hết hàng hoặc tạm ngưng bán)");
         }
@@ -244,16 +249,16 @@ public class CartServiceImpl implements CartService {
             return CartResponse.empty();
         }
 
+        // Một mốc giờ cho cả giỏ: giỏ luôn tính theo giá hiện tại, chỉ chốt giá khi tạo đơn (spec §3)
+        LocalDateTime now = productPricing.now();
         List<CartItemResponse> itemResponses = new ArrayList<>();
         BigDecimal totalSubtotal = BigDecimal.ZERO;
+        BigDecimal totalSavings = BigDecimal.ZERO;
         int totalQuantity = 0;
 
         if (cart.getItems() != null) {
             for (CartItem item : cart.getItems()) {
                 Product product = item.getProduct();
-                BigDecimal basePrice = (product != null && product.getPrice() != null)
-                        ? product.getPrice()
-                        : BigDecimal.ZERO;
                 List<CartItemOptionResponse> optionResponses = new ArrayList<>();
 
                 if (item.getSelectedOptions() != null) {
@@ -272,20 +277,24 @@ public class CartServiceImpl implements CartService {
                     }
                 }
 
-                // dùng chung công thức giá với PriceCalculator (không tự tính lại)
-                BigDecimal unitPrice = PriceCalculator.unitPriceOf(item);
-                BigDecimal itemSubtotal = PriceCalculator.lineTotalOf(item);
+                // dùng chung công thức giá với ProductPricing (không tự tính lại)
+                BigDecimal unitPrice = productPricing.unitPrice(item, now);
+                BigDecimal itemSubtotal = productPricing.lineTotal(item, now);
                 int qty = item.getQuantity() != null ? item.getQuantity() : 1;
 
                 totalQuantity += qty;
                 totalSubtotal = totalSubtotal.add(itemSubtotal);
+                totalSavings = totalSavings.add(productPricing.lineSavings(item, now));
 
                 itemResponses.add(CartItemResponse.builder()
                         .id(item.getId())
                         .productId(product != null ? product.getId() : null)
                         .productName(product != null ? product.getName() : null)
                         .productImageUrl(product != null ? product.getImageUrl() : null)
-                        .basePrice(basePrice)
+                        .productType(product != null ? product.getProductType() : null)
+                        .basePrice(productPricing.effectivePrice(product, now))
+                        .originalUnitPrice(productPricing.originalPrice(product))
+                        .comboItems(new ArrayList<>(ComboItemResponse.listOf(product)))
                         .quantity(qty)
                         .unitPrice(unitPrice)
                         .subtotal(itemSubtotal)
@@ -299,6 +308,7 @@ public class CartServiceImpl implements CartService {
                 .items(itemResponses)
                 .totalQuantity(totalQuantity)
                 .subtotal(totalSubtotal)
+                .savingsAmount(totalSavings)
                 .build();
     }
 }

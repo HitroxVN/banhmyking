@@ -1,7 +1,7 @@
 import { axiosClient } from './axiosClient';
 import type { ApiResponse } from '../types/auth';
 import type { PageResponse } from '../types/admin';
-import type { CategoryItem, ProductItem } from '../types/staff';
+import type { CategoryItem, ProductItem, ProductType } from '../types/staff';
 
 /** Cách sắp xếp thực đơn — phải khớp whitelist `ProductSort` của backend. */
 export type ProductSortValue = 'FEATURED' | 'PRICE_ASC' | 'PRICE_DESC' | 'NAME' | 'NEWEST';
@@ -19,6 +19,10 @@ export interface ProductSearchParams {
   minPrice?: number;
   /** Giá cao nhất — bỏ trống = không lọc. */
   maxPrice?: number;
+  /** Chỉ món lẻ đang khuyến mãi */
+  onSale?: boolean;
+  /** SINGLE | COMBO */
+  type?: ProductType;
   sort?: ProductSortValue;
   /** 0-based, khớp backend (UI hiển thị 1-based) */
   page?: number;

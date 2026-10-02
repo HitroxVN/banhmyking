@@ -1,3 +1,5 @@
+import type { ProductType } from './staff';
+
 /** Khớp DTO cơ sở ở backend (dto/store/*) */
 export interface PublicStore {
   id: number;
@@ -76,6 +78,9 @@ export interface StoreStockItem {
   stockQuantity?: number | null;
   lowStockThreshold: number;
   lowStock: boolean;
+  productType?: ProductType;
+  /** Thành phần đang làm combo không bán được tại cơ sở */
+  blockedBy?: string[];
 }
 
 export interface StoreRevenue {

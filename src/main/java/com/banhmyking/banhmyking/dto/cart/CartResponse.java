@@ -32,12 +32,16 @@ public class CartResponse {
     @Schema(description = "Tổng tiền tạm tính (toàn bộ ở server)", example = "114000.00")
     private BigDecimal subtotal;
 
+    @Schema(description = "Tổng tiền khách tiết kiệm nhờ giá KM và combo (so với giá gốc)", example = "10000.00")
+    private BigDecimal savingsAmount;
+
     public static CartResponse empty() {
         return CartResponse.builder()
                 .cartId(null)
                 .items(new ArrayList<>())
                 .totalQuantity(0)
                 .subtotal(BigDecimal.ZERO)
+                .savingsAmount(BigDecimal.ZERO)
                 .build();
     }
 }

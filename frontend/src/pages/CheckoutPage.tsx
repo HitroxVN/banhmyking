@@ -11,6 +11,9 @@ import { deliveryApi } from '../api/deliveryApi';
 import { Badge, Button, EmptyState, Input, Spinner, Textarea, useToast } from '../components/ui';
 import { formatCurrency } from '../utils/formatters';
 import { describePromotionValue } from '../utils/promotion';
+import { PriceTag } from '../components/product/PriceTag';
+import { ComboContents } from '../components/product/ComboContents';
+import { cartUnitCompareAt } from '../utils/pricing';
 import type { AddressResponse } from '../types/address';
 import type { CreateOrderRequest, PaymentMethod } from '../types/order';
 import type { PromotionResponse, PublicPromotionResponse } from '../types/promotion';
@@ -62,7 +65,7 @@ const validateField = (name: keyof FormErrors, value: string): string | undefine
 export const CheckoutPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { cart, isLoading: isCartLoading, refreshCart, subtotal, totalQuantity } = useCart();
+  const { cart, isLoading: isCartLoading, refreshCart, subtotal, savingsAmount, totalQuantity } = useCart();
   const toast = useToast();
 
   const [savedAddresses, setSavedAddresses] = useState<AddressResponse[]>([]);
@@ -644,8 +647,13 @@ export const CheckoutPage = () => {
                   </span>
                   <div>
                     <p className="ck__item-name">{item.productName}</p>
+                    {item.productType === 'COMBO' && (
+                      <ComboContents
+                        items={(item.comboItems ?? []).map((c) => ({ name: c.name, quantity: c.quantity }))}
+                      />
+                    )}
                     <p className="ck__item-meta">
-                      {item.quantity} × {formatCurrency(item.unitPrice)}
+                      {item.quantity} × <PriceTag price={item.unitPrice} compareAt={cartUnitCompareAt(item)} />
                     </p>
                   </div>
                   <span className="ck__item-price">{formatCurrency(item.subtotal)}</span>
@@ -659,6 +667,12 @@ export const CheckoutPage = () => {
               <span>Tạm tính</span>
               <span>{formatCurrency(subtotal)}</span>
             </div>
+            {savingsAmount > 0 && (
+              <div className="summary__row summary__row--free">
+                <span>Bạn tiết kiệm được</span>
+                <span>{formatCurrency(savingsAmount)}</span>
+              </div>
+            )}
             <div className={`summary__row${selectedOption?.freeship ? ' summary__row--free' : ''}`}>
               <span>
                 <Truck size={14} /> Phí giao hàng

@@ -102,3 +102,9 @@ export interface ReportFilterParams {
   limit?: number;
   storeId?: number;
 }
+
+/** Tiền ưu đãi từ giá KM và combo trên đơn đã giao */
+export interface PriceSavings {
+  amount: number;
+  orderCount: number;
+}

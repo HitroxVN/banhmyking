@@ -21,10 +21,11 @@ export const StoreStockPage = () => {
   // Số thứ tự lần tải — phản hồi của cơ sở cũ về muộn sau khi đã đổi cơ sở thì bỏ qua.
   const loadSeq = useRef(0);
 
-  const load = useCallback(async () => {
+  // silent: tải lại nền sau khi bật/tắt hoặc chỉnh tồn — giữ lưới và vị trí cuộn, không hiện skeleton
+  const load = useCallback(async (silent = false) => {
     if (storeId == null) return;
     const seq = ++loadSeq.current;
-    setIsLoading(true);
+    if (!silent) setIsLoading(true);
     try {
       const data = await storeInventoryApi.list(storeId);
       if (seq === loadSeq.current) setItems(data);
@@ -67,6 +68,10 @@ export const StoreStockPage = () => {
       const updated = await storeInventoryApi.setAvailability(storeId, item.productId, !item.available);
       replace(updated);
       toast.success(`${updated.productName}: ${updated.available ? 'mở bán lại' : 'đã báo hết món'}`);
+      // Báo hết / mở lại một món lẻ đổi trạng thái "Tạm hết do" của combo chứa nó → tải lại danh sách
+      if (updated.productType !== 'COMBO' && items.some((i) => i.productType === 'COMBO')) {
+        void load(true);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Cập nhật thất bại');
     } finally {
@@ -104,19 +109,36 @@ export const StoreStockPage = () => {
       ) : (
         <div className="smenu__grid">
           {visible.map((item) => (
-            <article key={item.productId} className={`card smenu__card${item.available && item.onChainMenu ? '' : ' smenu__card--out'}`}>
+            <article
+              key={item.productId}
+              className={`card smenu__card${
+                item.available && item.onChainMenu && (item.blockedBy ?? []).length === 0 ? '' : ' smenu__card--out'
+              }`}
+            >
               <div className="card__body">
                 <h3 className="smenu__name">{item.productName}</h3>
                 <span className="smenu__price">{formatCurrency(item.price)}</span>
                 {!item.onChainMenu && <Badge tone="neutral">Đã ngừng bán toàn chuỗi</Badge>}
-                <div className="smenu__stock-row">
-                  <span className={`smenu__stock${item.lowStock ? ' smenu__stock--low' : ''}`}>
-                    {item.stockQuantity == null ? 'Chưa quản tồn' : `Tồn kho: ${item.stockQuantity}`}
-                  </span>
-                  <Button size="sm" variant="ghost" onClick={() => setStockItem(item)}>
-                    Nhập / điều chỉnh
-                  </Button>
-                </div>
+                {item.productType === 'COMBO' ? (
+                  // Combo không có tồn riêng (spec §4.1): chỉ bật/tắt; thiếu thành phần thì báo lý do
+                  <div className="smenu__stock-row">
+                    <Badge tone="info">Combo</Badge>
+                    {(item.blockedBy ?? []).length > 0 && (
+                      <span className="smenu__stock smenu__stock--low">
+                        Tạm hết do: {(item.blockedBy ?? []).join(', ')}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="smenu__stock-row">
+                    <span className={`smenu__stock${item.lowStock ? ' smenu__stock--low' : ''}`}>
+                      {item.stockQuantity == null ? 'Chưa quản tồn' : `Tồn kho: ${item.stockQuantity}`}
+                    </span>
+                    <Button size="sm" variant="ghost" onClick={() => setStockItem(item)}>
+                      Nhập / điều chỉnh
+                    </Button>
+                  </div>
+                )}
                 <Button
                   variant={item.available ? 'secondary' : 'danger'}
                   disabled={!item.onChainMenu}
@@ -138,6 +160,10 @@ export const StoreStockPage = () => {
           onAdjusted={(updated) => {
             replace(updated);
             setStockItem(null);
+            // Tồn món lẻ đổi → "Tạm hết do" của combo có thể đổi theo
+            if (items.some((i) => i.productType === 'COMBO')) {
+              void load(true);
+            }
           }}
         />
       )}

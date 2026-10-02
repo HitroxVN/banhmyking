@@ -1,6 +1,6 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { SearchX, SlidersHorizontal } from 'lucide-react';
+import { Percent, SearchX, SlidersHorizontal } from 'lucide-react';
 import { catalogApi } from '../api/catalogApi';
 import type { ProductSortValue } from '../api/catalogApi';
 import { Button, ChipGroup, EmptyState, Pagination, Select, Skeleton } from '../components/ui';
@@ -9,6 +9,7 @@ import { PromiseGrid } from '../components/home/HomeSections';
 import { useQuickAdd } from '../hooks/useQuickAdd';
 import type { CategoryItem, ProductItem } from '../types/staff';
 import '../styles/components/menu.css';
+import '../styles/components/pricing.css';
 
 const PAGE_SIZE = 8;
 const DEFAULT_SORT: ProductSortValue = 'FEATURED';
@@ -49,6 +50,8 @@ export const MenuPage = () => {
   const maxPriceParam = searchParams.get('maxPrice') ?? '';
   const minPrice = parsePrice(minPriceParam);
   const maxPrice = parsePrice(maxPriceParam);
+  // Lọc "Đang khuyến mãi" ở server (onSale=true): món lẻ có giá KM đang hiệu lực
+  const onSale = searchParams.get('onSale') === '1';
 
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
@@ -88,6 +91,7 @@ export const MenuPage = () => {
         categoryId: categoryId ?? undefined,
         minPrice: minPrice ?? undefined,
         maxPrice: maxPrice ?? undefined,
+        onSale: onSale || undefined,
         sort,
         page: page - 1,
         size: PAGE_SIZE,
@@ -108,7 +112,7 @@ export const MenuPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [keyword, categoryId, minPrice, maxPrice, sort, page, reloadKey]);
+  }, [keyword, categoryId, minPrice, maxPrice, onSale, sort, page, reloadKey]);
 
   // URL có thể còn ?page=5 từ lần xem trước — vượt tổng số trang thì kéo về trang cuối còn dữ liệu
   useEffect(() => {
@@ -133,6 +137,7 @@ export const MenuPage = () => {
     categoryId?: number | null;
     minPrice?: number | null;
     maxPrice?: number | null;
+    onSale?: boolean;
     sort?: ProductSortValue;
     page?: number;
   }) => {
@@ -141,6 +146,7 @@ export const MenuPage = () => {
     const nextCategory = next.categoryId !== undefined ? next.categoryId : categoryId;
     const nextMinPrice = next.minPrice !== undefined ? next.minPrice : minPrice;
     const nextMaxPrice = next.maxPrice !== undefined ? next.maxPrice : maxPrice;
+    const nextOnSale = next.onSale !== undefined ? next.onSale : onSale;
     const nextSort = next.sort ?? sort;
     const nextPage = next.page ?? 1;
 
@@ -148,6 +154,7 @@ export const MenuPage = () => {
     if (nextCategory !== null && nextCategory !== undefined) params.set('categoryId', String(nextCategory));
     if (nextMinPrice) params.set('minPrice', String(nextMinPrice));
     if (nextMaxPrice) params.set('maxPrice', String(nextMaxPrice));
+    if (nextOnSale) params.set('onSale', '1');
     if (nextSort !== DEFAULT_SORT) params.set('sort', nextSort);
     if (nextPage > 1) params.set('page', String(nextPage));
 
@@ -168,9 +175,10 @@ export const MenuPage = () => {
   };
 
   const hasPriceFilter = minPrice !== null || maxPrice !== null;
-  const hasFilter = Boolean(keyword) || categoryId !== null || hasPriceFilter;
+  const hasFilter = Boolean(keyword) || categoryId !== null || hasPriceFilter || onSale;
 
-  const clearFilters = () => updateParams({ keyword: '', categoryId: null, minPrice: null, maxPrice: null });
+  const clearFilters = () =>
+    updateParams({ keyword: '', categoryId: null, minPrice: null, maxPrice: null, onSale: false });
 
   return (
     <div className="menu">
@@ -202,6 +210,14 @@ export const MenuPage = () => {
               ...categories.map((category) => ({ value: category.id, label: category.name })),
             ]}
           />
+          <button
+            type="button"
+            className={`ui-chip menu__sale-chip${onSale ? ' ui-chip--active' : ''}`}
+            aria-pressed={onSale}
+            onClick={() => updateParams({ onSale: !onSale })}
+          >
+            <Percent size={14} /> Đang khuyến mãi
+          </button>
           {/* Khoảng giá: chỉ áp dụng khi rời ô hoặc nhấn Enter */}
           <div className="menu__price">
             <input

@@ -1,6 +1,7 @@
 package com.banhmyking.banhmyking.repository;
 
 import com.banhmyking.banhmyking.dto.report.CategoryRevenueResponse;
+import com.banhmyking.banhmyking.dto.report.PriceSavingsResponse;
 import com.banhmyking.banhmyking.dto.report.TopProductResponse;
 import com.banhmyking.banhmyking.entity.OrderItem;
 import org.springframework.data.domain.Pageable;
@@ -47,4 +48,19 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     List<CategoryRevenueResponse> findRevenueByCategory(@Param("from") LocalDateTime from,
                                                        @Param("to") LocalDateTime to,
                                                        @Param("storeId") Long storeId);
+
+    /**
+     * Tiền ưu đãi trong [from, to): chỉ đơn DELIVERED; dòng original_unit_price NULL (đơn cũ) hoặc không
+     * rẻ hơn bị bỏ. orderCount = số đơn có ít nhất một dòng ưu đãi.
+     */
+    @Query("SELECT new com.banhmyking.banhmyking.dto.report.PriceSavingsResponse("
+            + "SUM((oi.originalUnitPrice - oi.unitPrice) * oi.quantity), COUNT(DISTINCT oi.order.id)) "
+            + "FROM OrderItem oi "
+            + "WHERE oi.order.status = com.banhmyking.banhmyking.enums.OrderStatus.DELIVERED "
+            + "AND oi.originalUnitPrice IS NOT NULL AND oi.originalUnitPrice > oi.unitPrice "
+            + "AND oi.order.createdAt >= :from AND oi.order.createdAt < :to "
+            + "AND (:storeId IS NULL OR oi.order.store.id = :storeId)")
+    PriceSavingsResponse sumPriceSavings(@Param("from") LocalDateTime from,
+                                         @Param("to") LocalDateTime to,
+                                         @Param("storeId") Long storeId);
 }

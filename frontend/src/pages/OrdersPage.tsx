@@ -6,6 +6,8 @@ import { Button, ChipGroup, EmptyState, Pagination, Skeleton, StatusBadge } from
 import { formatCurrency, formatDateTime } from '../utils/formatters';
 import { usePolling } from '../hooks/usePolling';
 import type { OrderResponse, OrderStatus } from '../types/order';
+import { PriceTag } from '../components/product/PriceTag';
+import '../styles/components/pricing.css';
 import '../styles/components/orders.css';
 
 const PAGE_SIZE = 10;
@@ -169,12 +171,20 @@ export const OrdersPage = () => {
                     {formatDateTime(order.createdAt)} · {order.items.length} món
                   </p>
                   <p className="ord-card__items">
-                    {order.items.map((item) => `${item.quantity}× ${item.productName}`).join(' · ')}
+                    {order.items
+                      .map((item) => {
+                        const parts = (item.components ?? []).map((c) => `${c.quantity}× ${c.productName}`);
+                        return `${item.quantity}× ${item.productName}${parts.length > 0 ? ` (${parts.join(', ')})` : ''}`;
+                      })
+                      .join(' · ')}
                   </p>
                 </div>
 
                 <div className="ord-card__side">
-                  <span className="ord-card__total">{formatCurrency(order.total)}</span>
+                  <PriceTag className="ord-card__total" price={order.total} />
+                  {(order.savingsAmount ?? 0) > 0 && order.status !== 'CANCELLED' && order.status !== 'FAILED' && (
+                    <span className="ord-card__saving">Tiết kiệm {formatCurrency(order.savingsAmount)}</span>
+                  )}
                   <Button size="sm" variant="secondary" onClick={() => navigate(`/orders/${order.orderCode}`)}>
                     Chi tiết
                   </Button>

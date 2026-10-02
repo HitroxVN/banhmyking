@@ -1,12 +1,14 @@
 package com.banhmyking.banhmyking.repository.specification;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.data.jpa.domain.Specification;
 
 import com.banhmyking.banhmyking.entity.Product;
+import com.banhmyking.banhmyking.enums.ProductType;
 
 import jakarta.persistence.criteria.Predicate;
 
@@ -28,6 +30,17 @@ public class ProductSpecifications {
     public static Specification<Product> search(Long categoryId, boolean availableOnly,
                                                 String keyword, Boolean featured,
                                                 BigDecimal minPrice, BigDecimal maxPrice) {
+        return search(categoryId, availableOnly, keyword, featured, minPrice, maxPrice, null, null, null);
+    }
+
+    /**
+     * Như trên, thêm lọc loại sản phẩm và "đang khuyến mãi" (spec combo-sale §6.1): món lẻ có giá KM và
+     * {@code now} nằm trong [saleStartsAt, saleEndsAt) — cùng điều kiện với ProductPricing.isSaleActive.
+     */
+    public static Specification<Product> search(Long categoryId, boolean availableOnly,
+                                                String keyword, Boolean featured,
+                                                BigDecimal minPrice, BigDecimal maxPrice,
+                                                Boolean onSale, ProductType type, LocalDateTime now) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.isFalse(root.get("deleted")));
@@ -46,6 +59,18 @@ public class ProductSpecifications {
             }
             if (maxPrice != null && maxPrice.signum() > 0) {
                 predicates.add(cb.lessThanOrEqualTo(root.get("price"), maxPrice));
+            }
+
+            if (type != null) {
+                predicates.add(cb.equal(root.get("productType"), type));
+            }
+            if (Boolean.TRUE.equals(onSale) && now != null) {
+                predicates.add(cb.equal(root.get("productType"), ProductType.SINGLE));
+                predicates.add(cb.isNotNull(root.get("salePrice")));
+                predicates.add(cb.or(cb.isNull(root.get("saleStartsAt")),
+                        cb.lessThanOrEqualTo(root.<LocalDateTime>get("saleStartsAt"), now)));
+                predicates.add(cb.or(cb.isNull(root.get("saleEndsAt")),
+                        cb.greaterThan(root.<LocalDateTime>get("saleEndsAt"), now)));
             }
 
             if (keyword != null && !keyword.isBlank()) {

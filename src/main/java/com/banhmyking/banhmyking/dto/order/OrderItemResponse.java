@@ -28,8 +28,12 @@ public class OrderItemResponse {
     @Schema(description = "Tên món ăn snapshot tại thời điểm đặt", example = "Bánh mì Pate Chả Lụa")
     private String productName;
 
-    @Schema(description = "Đơn giá gốc món ăn snapshot tại thời điểm đặt", example = "30000.00")
+    @Schema(description = "Giá bán 1 phần chưa gồm topping lúc đặt (giá KM / giá combo nếu có)", example = "25000.00")
     private BigDecimal unitPrice;
+
+    @Schema(description = "Giá gốc 1 phần chưa gồm topping lúc đặt; null = đơn cũ, coi như không có ưu đãi",
+            example = "30000.00")
+    private BigDecimal originalUnitPrice;
 
     @Schema(description = "Số lượng", example = "2")
     private Integer quantity;
@@ -40,4 +44,8 @@ public class OrderItemResponse {
     @Schema(description = "Danh sách snapshot tùy chọn (topping) đính kèm")
     @Builder.Default
     private List<OrderItemOptionResponse> options = new ArrayList<>();
+
+    @Schema(description = "Thành phần combo (snapshot); rỗng với món lẻ")
+    @Builder.Default
+    private List<OrderItemComponentResponse> components = new ArrayList<>();
 }

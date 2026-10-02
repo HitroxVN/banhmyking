@@ -9,6 +9,7 @@ import com.banhmyking.banhmyking.dto.catalog.ProductRequest;
 import com.banhmyking.banhmyking.dto.catalog.ProductResponse;
 import com.banhmyking.banhmyking.dto.common.PageResponse;
 import com.banhmyking.banhmyking.enums.ProductSort;
+import com.banhmyking.banhmyking.enums.ProductType;
 
 public interface CatalogService {
     List<CategoryResponse> getCategories();
@@ -17,11 +18,12 @@ public interface CatalogService {
     void deleteCategory(Long categoryId);
 
     /**
-     * Tìm/lọc/sắp xếp thực đơn ở phía server. {@code keyword}, {@code featured} và khoảng giá
-     * bỏ trống = không lọc theo tiêu chí đó.
+     * Tìm/lọc/sắp xếp thực đơn ở phía server. {@code keyword}, {@code featured}, khoảng giá,
+     * {@code onSale}, {@code type} bỏ trống = không lọc theo tiêu chí đó.
      */
     PageResponse<ProductResponse> getProducts(Long categoryId, boolean availableOnly, String keyword,
                                               Boolean featured, BigDecimal minPrice, BigDecimal maxPrice,
+                                              Boolean onSale, ProductType type,
                                               ProductSort sort, int page, int size);
 
     ProductResponse getProduct(Long productId);

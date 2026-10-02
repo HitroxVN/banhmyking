@@ -1,6 +1,7 @@
 package com.banhmyking.banhmyking.service.impl;
 
 import com.banhmyking.banhmyking.dto.report.CategoryRevenueResponse;
+import com.banhmyking.banhmyking.dto.report.PriceSavingsResponse;
 import com.banhmyking.banhmyking.dto.report.ShipperRevenueResponse;
 import com.banhmyking.banhmyking.dto.report.StoreRevenueResponse;
 import com.banhmyking.banhmyking.dto.report.TopProductResponse;
@@ -54,6 +55,15 @@ public class AdminReportServiceImpl implements AdminReportService {
         LocalDate to = resolveTo(toDate);
         assertValidRange(from, to);
         return orderRepository.findRevenueByStore(from.atStartOfDay(), to.plusDays(1).atStartOfDay());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PriceSavingsResponse getPriceSavings(LocalDate fromDate, LocalDate toDate, Long storeId) {
+        LocalDate from = resolveFrom(fromDate, toDate);
+        LocalDate to = resolveTo(toDate);
+        assertValidRange(from, to);
+        return orderItemRepository.sumPriceSavings(from.atStartOfDay(), to.plusDays(1).atStartOfDay(), storeId);
     }
 
     @Override

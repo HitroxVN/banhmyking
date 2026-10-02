@@ -6,6 +6,9 @@ import com.banhmyking.banhmyking.dto.cart.UpdateCartItemRequest;
 import com.banhmyking.banhmyking.entity.Cart;
 import com.banhmyking.banhmyking.entity.CartItem;
 import com.banhmyking.banhmyking.entity.CartItemOption;
+import com.banhmyking.banhmyking.entity.ComboItem;
+import com.banhmyking.banhmyking.entity.ComboItemId;
+import com.banhmyking.banhmyking.enums.ProductType;
 import com.banhmyking.banhmyking.entity.OptionGroup;
 import com.banhmyking.banhmyking.entity.Product;
 import com.banhmyking.banhmyking.entity.ProductOption;
@@ -60,6 +63,11 @@ class CartServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @org.mockito.Spy
+    private ProductPricing productPricing = new ProductPricing(
+            java.time.Clock.fixed(java.time.Instant.parse("2026-10-02T03:00:00Z"),
+                    com.banhmyking.banhmyking.config.TimeConfig.VIETNAM));
 
     @InjectMocks
     private CartServiceImpl cartService;
@@ -144,6 +152,21 @@ class CartServiceTest {
         assertThat(response.getItems()).hasSize(1);
         assertThat(response.getTotalQuantity()).isEqualTo(1);
         assertThat(response.getSubtotal()).isEqualByComparingTo(BigDecimal.valueOf(30000));
+    }
+
+    @Test
+    @DisplayName("Giỏ tính theo giá KM đang hiệu lực")
+    void addToCart_usesActiveSalePrice() {
+        availableProduct.setSalePrice(BigDecimal.valueOf(25000));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testUser));
+        when(productRepository.findByIdAndDeletedFalse(10L)).thenReturn(Optional.of(availableProduct));
+        when(cartRepository.findByUserId(1L)).thenReturn(Optional.empty());
+        when(cartRepository.save(any(Cart.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CartResponse response = cartService.addToCart(1L, AddToCartRequest.builder().productId(10L).quantity(2).build());
+
+        assertThat(response.getItems().get(0).getUnitPrice()).isEqualByComparingTo("25000");
+        assertThat(response.getSubtotal()).isEqualByComparingTo("50000");
     }
 
     @Test
@@ -515,5 +538,107 @@ class CartServiceTest {
         CartResponse response = cartService.addToCart(1L, cartRequest(List.of(101L)));
 
         assertThat(response.getItems()).hasSize(1);
+    }
+
+    // ─── Giá KM + combo trong giỏ (spec combo-sale §6.2) ─────────────────────
+
+    /** Combo 45.000đ = 1 Bánh mì Thập Cẩm (30.000) + 1 Cà phê (20.000) → giá gốc 50.000. */
+    private Product comboProduct(Product coffee) {
+        Product combo = new Product();
+        combo.setId(30L);
+        combo.setName("Combo Sáng no nê");
+        combo.setProductType(ProductType.COMBO);
+        combo.setPrice(BigDecimal.valueOf(45000));
+        combo.setAvailable(true);
+        combo.setComboItems(List.of(comboItem(combo, availableProduct, 1), comboItem(combo, coffee, 1)));
+        return combo;
+    }
+
+    private Product coffee() {
+        Product coffee = new Product();
+        coffee.setId(31L);
+        coffee.setName("Cà phê sữa đá");
+        coffee.setPrice(BigDecimal.valueOf(20000));
+        coffee.setAvailable(true);
+        return coffee;
+    }
+
+    private static ComboItem comboItem(Product combo, Product component, int quantity) {
+        ComboItem item = new ComboItem();
+        item.setId(new ComboItemId(combo.getId(), component.getId()));
+        item.setCombo(combo);
+        item.setComponent(component);
+        item.setQuantity(quantity);
+        return item;
+    }
+
+    private Cart cartWith(Product product, int quantity) {
+        Cart cart = new Cart();
+        cart.setId(100L);
+        CartItem item = new CartItem();
+        item.setId(500L);
+        item.setCart(cart);
+        item.setProduct(product);
+        item.setQuantity(quantity);
+        cart.getItems().add(item);
+        return cart;
+    }
+
+    @Test
+    @DisplayName("Món lẻ đang KM: basePrice = giá KM, originalUnitPrice = giá gốc, giỏ có tiền tiết kiệm")
+    void getCart_saleItemShowsOriginalPriceAndSavings() {
+        availableProduct.setSalePrice(BigDecimal.valueOf(25000));
+        when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(cartWith(availableProduct, 2)));
+
+        CartResponse response = cartService.getCart(1L);
+
+        var line = response.getItems().get(0);
+        assertThat(line.getProductType()).isEqualTo(ProductType.SINGLE);
+        assertThat(line.getBasePrice()).isEqualByComparingTo("25000");
+        assertThat(line.getOriginalUnitPrice()).isEqualByComparingTo("30000");
+        assertThat(line.getUnitPrice()).isEqualByComparingTo("25000");
+        assertThat(line.getComboItems()).isEmpty();
+        assertThat(response.getSubtotal()).isEqualByComparingTo("50000");
+        assertThat(response.getSavingsAmount()).isEqualByComparingTo("10000");
+    }
+
+    @Test
+    @DisplayName("Dòng combo: giá combo, giá gốc = tổng giá lẻ, kèm thành phần")
+    void getCart_comboLine() {
+        Product combo = comboProduct(coffee());
+        when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(cartWith(combo, 1)));
+
+        CartResponse response = cartService.getCart(1L);
+
+        var line = response.getItems().get(0);
+        assertThat(line.getProductType()).isEqualTo(ProductType.COMBO);
+        assertThat(line.getUnitPrice()).isEqualByComparingTo("45000");
+        assertThat(line.getOriginalUnitPrice()).isEqualByComparingTo("50000");
+        assertThat(line.getComboItems()).extracting("name").containsExactly("Bánh mì Thập Cẩm", "Cà phê sữa đá");
+        assertThat(response.getSavingsAmount()).isEqualByComparingTo("5000");
+    }
+
+    @Test
+    @DisplayName("Không thêm vào giỏ combo có thành phần đã ngừng bán toàn chuỗi")
+    void addToCart_rejectsComboWithDisabledComponent() {
+        Product coffee = coffee();
+        coffee.setAvailable(false);
+        Product combo = comboProduct(coffee);
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testUser));
+        when(productRepository.findByIdAndDeletedFalse(30L)).thenReturn(Optional.of(combo));
+
+        assertThatThrownBy(() -> cartService.addToCart(1L,
+                AddToCartRequest.builder().productId(30L).quantity(1).build()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("hiện không khả dụng");
+        verify(cartRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Giỏ rỗng có savingsAmount = 0")
+    void getCart_emptyHasZeroSavings() {
+        when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.empty());
+
+        assertThat(cartService.getCart(1L).getSavingsAmount()).isEqualByComparingTo("0");
     }
 }

@@ -1,6 +1,6 @@
 import { axiosClient } from './axiosClient';
 import type { ApiResponse, UserInfoResponse } from '../types/auth';
-import type { DailyRevenue, DashboardMetrics, ReportFilterParams, TopProduct } from '../types/admin';
+import type { DailyRevenue, DashboardMetrics, PriceSavings, ReportFilterParams, TopProduct } from '../types/admin';
 
 /** API riêng của Quản lý cơ sở — server tự khoá về cơ sở của người gọi */
 export const managerApi = {
@@ -20,6 +20,10 @@ export const managerApi = {
   },
   async topProducts(params: ReportFilterParams = {}): Promise<TopProduct[]> {
     const res = await axiosClient.get<ApiResponse<TopProduct[]>>('/manager/reports/top-products', { params });
+    return res.data.data;
+  },
+  async priceSavings(params: ReportFilterParams = {}): Promise<PriceSavings> {
+    const res = await axiosClient.get<ApiResponse<PriceSavings>>('/manager/reports/price-savings', { params });
     return res.data.data;
   },
 };

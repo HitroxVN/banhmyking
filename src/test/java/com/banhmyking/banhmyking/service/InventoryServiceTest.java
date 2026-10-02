@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,14 +19,18 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Sort;
 
 import jakarta.persistence.EntityManager;
 
 import com.banhmyking.banhmyking.dto.catalog.StockChangeRequest;
 import com.banhmyking.banhmyking.dto.store.StoreStockResponse;
+import com.banhmyking.banhmyking.entity.ComboItem;
+import com.banhmyking.banhmyking.entity.ComboItemId;
 import com.banhmyking.banhmyking.entity.InventoryMovement;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.OrderItem;
@@ -34,6 +39,7 @@ import com.banhmyking.banhmyking.entity.Store;
 import com.banhmyking.banhmyking.entity.StoreProduct;
 import com.banhmyking.banhmyking.entity.StoreProductId;
 import com.banhmyking.banhmyking.enums.InventoryReason;
+import com.banhmyking.banhmyking.enums.ProductType;
 import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.repository.InventoryMovementRepository;
 import com.banhmyking.banhmyking.repository.ProductRepository;
@@ -51,6 +57,8 @@ class InventoryServiceTest {
     private static final Long PRODUCT_ID = 1L;
     private static final Long ORDER_ID = 7L;
     private static final Long STORE_ID = 3L;
+    private static final Long COFFEE_ID = 2L;
+    private static final Long COMBO_ID = 50L;
 
     @Mock
     private ProductRepository productRepository;
@@ -426,6 +434,134 @@ class InventoryServiceTest {
         assertThat(movement.getChangeQty()).isEqualTo(-4);
     }
 
+    // ------------------------------------------------------------------ combo
+
+    @Test
+    @DisplayName("decreaseForOrder: combo × 2 + bánh mì lẻ → trừ theo món lẻ đã gộp, ghi sổ ORDER từng món")
+    void decreaseForOrderExpandsComboIntoComponents() {
+        Product banhMi = banhMi();
+        Product coffee = coffee();
+        Order order = order(combo(banhMi, coffee), 2);
+        OrderItem single = new OrderItem();
+        single.setProduct(banhMi);
+        single.setQuantity(1);
+        order.setItems(List.of(order.getItems().get(0), single));
+        stubTracked(row(10, true), rowFor(COFFEE_ID, 10, true));
+        when(storeProductRepository.decrementStockAtomic(STORE_ID, PRODUCT_ID, 3)).thenReturn(1);
+        when(storeProductRepository.decrementStockAtomic(STORE_ID, COFFEE_ID, 4)).thenReturn(1);
+
+        inventoryService.decreaseForOrder(order);
+
+        ArgumentCaptor<InventoryMovement> captor = ArgumentCaptor.forClass(InventoryMovement.class);
+        verify(inventoryMovementRepository, times(2)).save(captor.capture());
+        assertThat(captor.getAllValues())
+                .extracting(m -> m.getProduct().getId(), InventoryMovement::getChangeQty)
+                .containsExactlyInAnyOrder(tuple(PRODUCT_ID, -3), tuple(COFFEE_ID, -4));
+        verify(storeProductRepository, never()).decrementStockAtomic(eq(STORE_ID), eq(COMBO_ID), anyInt());
+    }
+
+    @Test
+    @DisplayName("tryDecreaseForOrder: thiếu một thành phần của combo → không trừ gì (cộng trả) và không ghi sổ")
+    void tryDecreaseForOrderComboAllOrNothing() {
+        Order order = order(combo(banhMi(), coffee()), 1);
+        stubTracked(row(10, true), rowFor(COFFEE_ID, 1, true));
+        when(storeProductRepository.decrementStockAtomic(STORE_ID, PRODUCT_ID, 1)).thenReturn(1);
+        when(storeProductRepository.decrementStockAtomic(STORE_ID, COFFEE_ID, 2)).thenReturn(0);
+
+        assertThat(inventoryService.tryDecreaseForOrder(order)).isFalse();
+
+        verify(storeProductRepository).incrementStockAtomic(STORE_ID, PRODUCT_ID, 1);
+        verify(inventoryMovementRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("restoreForOrder: đơn combo → hoàn đúng các thành phần theo sổ ORDER, không bao giờ hoàn chính combo")
+    void restoreForOrderRestoresComponentsOnlyForComboOrder() {
+        Product banhMi = banhMi();
+        Product coffee = coffee();
+        Order order = order(combo(banhMi, coffee), 1);
+        when(inventoryMovementRepository.findByOrderIdAndReason(ORDER_ID, InventoryReason.ORDER))
+                .thenReturn(List.of(orderMovement(STORE_ID, banhMi, -1), orderMovement(STORE_ID, coffee, -2)));
+        when(storeProductRepository.incrementStockAtomic(STORE_ID, PRODUCT_ID, 1)).thenReturn(1);
+        when(storeProductRepository.incrementStockAtomic(STORE_ID, COFFEE_ID, 2)).thenReturn(1);
+
+        inventoryService.restoreForOrder(order);
+
+        verify(storeProductRepository, never()).incrementStockAtomic(eq(STORE_ID), eq(COMBO_ID), anyInt());
+        ArgumentCaptor<InventoryMovement> captor = ArgumentCaptor.forClass(InventoryMovement.class);
+        verify(inventoryMovementRepository, times(2)).save(captor.capture());
+        assertThat(captor.getAllValues())
+                .extracting(m -> m.getProduct().getId(), InventoryMovement::getChangeQty, InventoryMovement::getReason)
+                .containsExactlyInAnyOrder(
+                        tuple(PRODUCT_ID, 1, InventoryReason.RESTORE),
+                        tuple(COFFEE_ID, 2, InventoryReason.RESTORE));
+    }
+
+    @Test
+    @DisplayName("unavailableItems: quản lý báo hết chính combo tại cơ sở → trả tên combo")
+    void unavailableItemsWhenComboTurnedOffAtStore() {
+        Product combo = combo(banhMi(), coffee());
+        when(storeProductRepository.findByIdStoreIdAndIdProductIdIn(eq(STORE_ID), anyCollection()))
+                .thenReturn(List.of(rowFor(COMBO_ID, null, false)));
+
+        assertThat(inventoryService.unavailableItems(STORE_ID, Map.of(combo, 1)))
+                .containsExactly("Combo Sáng no nê");
+    }
+
+    @Test
+    @DisplayName("unavailableItems: thiếu tồn thành phần theo nhu cầu gộp → 'Combo (hết <món>)'")
+    void unavailableItemsNamesBlockingComponent() {
+        Product combo = combo(banhMi(), coffee());
+        when(storeProductRepository.findByIdStoreIdAndIdProductIdIn(eq(STORE_ID), anyCollection()))
+                .thenReturn(List.of(rowFor(COFFEE_ID, 3, true)));
+
+        // combo × 2 cần 4 cà phê, cơ sở chỉ còn 3
+        assertThat(inventoryService.unavailableItems(STORE_ID, Map.of(combo, 2)))
+                .containsExactly("Combo Sáng no nê (hết Cà phê sữa đá)");
+    }
+
+    @Test
+    @DisplayName("unavailableItems: combo đủ hàng thì không báo gì")
+    void unavailableItemsComboAvailable() {
+        when(storeProductRepository.findByIdStoreIdAndIdProductIdIn(eq(STORE_ID), anyCollection()))
+                .thenReturn(List.of(rowFor(COFFEE_ID, 10, true)));
+
+        assertThat(inventoryService.unavailableItems(STORE_ID, Map.of(combo(banhMi(), coffee()), 2))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("adjustStock: combo không có tồn riêng → lỗi nghiệp vụ, không ghi sổ")
+    void adjustStockRejectsCombo() {
+        when(productRepository.findByIdAndDeletedFalse(COMBO_ID)).thenReturn(Optional.of(combo(banhMi(), coffee())));
+
+        assertThatThrownBy(() -> inventoryService.adjustStock(STORE_ID, COMBO_ID, change(5), 5L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Combo không có tồn kho riêng");
+        verify(inventoryMovementRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("listStoreStock: combo loại COMBO, không có số tồn, blockedBy = thành phần đang hết")
+    void listStoreStockMarksBlockedCombo() {
+        Product banhMi = banhMi();
+        Product coffee = coffee();
+        Product combo = combo(banhMi, coffee);
+        when(storeProductRepository.findByIdStoreId(STORE_ID)).thenReturn(List.of(rowFor(COFFEE_ID, null, false)));
+        when(productRepository.findAll(any(Sort.class))).thenReturn(List.of(banhMi, coffee, combo));
+
+        List<StoreStockResponse> result = inventoryService.listStoreStock(STORE_ID);
+
+        StoreStockResponse comboRow = result.stream()
+                .filter(r -> r.getProductId().equals(COMBO_ID)).findFirst().orElseThrow();
+        assertThat(comboRow.getProductType()).isEqualTo(ProductType.COMBO);
+        assertThat(comboRow.getBlockedBy()).containsExactly("Cà phê sữa đá");
+        assertThat(comboRow.getStockQuantity()).isNull();
+        StoreStockResponse banhMiRow = result.stream()
+                .filter(r -> r.getProductId().equals(PRODUCT_ID)).findFirst().orElseThrow();
+        assertThat(banhMiRow.getProductType()).isEqualTo(ProductType.SINGLE);
+        assertThat(banhMiRow.getBlockedBy()).isEmpty();
+    }
+
     // --------------------------------------------------------------------- helpers
 
     private void stubTracked(StoreProduct... rows) {
@@ -485,5 +621,41 @@ class InventoryServiceTest {
         ArgumentCaptor<InventoryMovement> captor = ArgumentCaptor.forClass(InventoryMovement.class);
         verify(inventoryMovementRepository).save(captor.capture());
         return captor.getValue();
+    }
+
+    private Product coffee() {
+        Product product = new Product();
+        product.setId(COFFEE_ID);
+        product.setName("Cà phê sữa đá");
+        product.setAvailable(true);
+        return product;
+    }
+
+    /** Combo Sáng no nê = 1 bánh mì + 2 cà phê. */
+    private Product combo(Product banhMi, Product coffee) {
+        Product combo = new Product();
+        combo.setId(COMBO_ID);
+        combo.setName("Combo Sáng no nê");
+        combo.setProductType(ProductType.COMBO);
+        combo.setAvailable(true);
+        combo.setComboItems(List.of(comboItem(combo, banhMi, 1), comboItem(combo, coffee, 2)));
+        return combo;
+    }
+
+    private ComboItem comboItem(Product combo, Product component, int quantity) {
+        ComboItem item = new ComboItem();
+        item.setId(new ComboItemId(combo.getId(), component.getId()));
+        item.setCombo(combo);
+        item.setComponent(component);
+        item.setQuantity(quantity);
+        return item;
+    }
+
+    private StoreProduct rowFor(Long productId, Integer stock, boolean available) {
+        StoreProduct sp = new StoreProduct();
+        sp.setId(new StoreProductId(STORE_ID, productId));
+        sp.setAvailable(available);
+        sp.setStockQuantity(stock);
+        return sp;
     }
 }

@@ -22,7 +22,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PriceCalculatorTest {
 
-    private final PriceCalculator priceCalculator = new PriceCalculator();
+    /** 10:00 ngày 02/10/2026 giờ Việt Nam — mốc cố định cho giá KM. */
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 2, 10, 0);
+
+    private final PriceCalculator priceCalculator = new PriceCalculator(new ProductPricing(
+            java.time.Clock.fixed(NOW.atZone(com.banhmyking.banhmyking.config.TimeConfig.VIETNAM).toInstant(),
+                    com.banhmyking.banhmyking.config.TimeConfig.VIETNAM)));
 
     private Cart cart;
     private Product product1;
@@ -359,6 +364,74 @@ class PriceCalculatorTest {
             promo.setMinOrderAmount(BigDecimal.valueOf(76001)); // Đơn chỉ có 76.000đ
 
             assertThatThrownBy(() -> priceCalculator.calculate(cart, promo))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("chưa đạt giá trị tối thiểu");
+        }
+    }
+
+    @Nested
+    @DisplayName("7. Giá khuyến mãi + mã giảm giá cộng dồn (B3)")
+    class SalePriceTests {
+
+        private Promotion promo(DiscountType type, BigDecimal value, BigDecimal minOrder) {
+            Promotion promo = new Promotion();
+            promo.setCode("SALE_TEST");
+            promo.setActive(true);
+            promo.setDiscountType(type);
+            promo.setValue(value);
+            promo.setMinOrderAmount(minOrder);
+            promo.setStartsAt(LocalDateTime.now().minusDays(1));
+            promo.setEndsAt(LocalDateTime.now().plusDays(1));
+            return promo;
+        }
+
+        @Test
+        @DisplayName("Tạm tính dùng giá KM đang hiệu lực: 2 × (25.000 + 8.000) = 66.000đ")
+        void subtotalUsesActiveSalePrice() {
+            product1.setSalePrice(BigDecimal.valueOf(25000));
+
+            assertThat(priceCalculator.calculateSubtotal(cart)).isEqualByComparingTo("66000");
+        }
+
+        @Test
+        @DisplayName("KM hết hạn đúng mốc now → quay về giá gốc 76.000đ")
+        void expiredSaleFallsBackToOriginalPrice() {
+            product1.setSalePrice(BigDecimal.valueOf(25000));
+            product1.setSaleEndsAt(NOW);
+
+            assertThat(priceCalculator.calculateSubtotal(cart)).isEqualByComparingTo("76000");
+        }
+
+        @Test
+        @DisplayName("Mốc pricedAt truyền vào quyết định giá (chốt giá lúc tạo đơn)")
+        void pricedAtDecidesSale() {
+            product1.setSalePrice(BigDecimal.valueOf(25000));
+            product1.setSaleStartsAt(NOW.plusHours(1));
+
+            assertThat(priceCalculator.calculateSubtotal(cart, NOW)).isEqualByComparingTo("76000");
+            assertThat(priceCalculator.calculateSubtotal(cart, NOW.plusHours(2))).isEqualByComparingTo("66000");
+        }
+
+        @Test
+        @DisplayName("PERCENTAGE 10% tính trên tạm tính đã giảm: 10% × 66.000 = 6.600đ")
+        void percentagePromotionAppliesOnDiscountedSubtotal() {
+            product1.setSalePrice(BigDecimal.valueOf(25000));
+            Promotion promo = promo(DiscountType.PERCENTAGE, BigDecimal.TEN, BigDecimal.ZERO);
+
+            PriceBreakdown breakdown = priceCalculator.calculate(cart, promo, BigDecimal.ZERO, NOW);
+
+            assertThat(breakdown.getSubtotal()).isEqualByComparingTo("66000");
+            assertThat(breakdown.getDiscountAmount()).isEqualByComparingTo("6600");
+            assertThat(breakdown.getTotal()).isEqualByComparingTo("59400");
+        }
+
+        @Test
+        @DisplayName("Đơn tối thiểu xét trên tạm tính đã giảm: 66.000 < 70.000 → từ chối")
+        void minOrderAmountCheckedOnDiscountedSubtotal() {
+            product1.setSalePrice(BigDecimal.valueOf(25000));
+            Promotion promo = promo(DiscountType.FIXED_AMOUNT, BigDecimal.valueOf(5000), BigDecimal.valueOf(70000));
+
+            assertThatThrownBy(() -> priceCalculator.calculate(cart, promo, BigDecimal.ZERO, NOW))
                     .isInstanceOf(BusinessException.class)
                     .hasMessageContaining("chưa đạt giá trị tối thiểu");
         }

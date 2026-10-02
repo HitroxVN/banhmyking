@@ -1,5 +1,7 @@
 package com.banhmyking.banhmyking.dto.cart;
 
+import com.banhmyking.banhmyking.dto.catalog.ComboItemResponse;
+import com.banhmyking.banhmyking.enums.ProductType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -31,8 +33,20 @@ public class CartItemResponse {
     @Schema(description = "URL hình ảnh món ăn", example = "https://example.com/banh-mi.jpg")
     private String productImageUrl;
 
-    @Schema(description = "Giá gốc của món", example = "30000.00")
+    @Schema(description = "SINGLE | COMBO", example = "SINGLE")
+    private ProductType productType;
+
+    @Schema(description = "Giá đang áp dụng của 1 phần (giá KM nếu đang KM, giá combo), chưa gồm topping",
+            example = "25000.00")
     private BigDecimal basePrice;
+
+    @Schema(description = "Giá gốc 1 phần chưa gồm topping: món lẻ = giá niêm yết, combo = tổng giá lẻ thành phần",
+            example = "30000.00")
+    private BigDecimal originalUnitPrice;
+
+    @Schema(description = "Thành phần combo (rỗng với món lẻ)")
+    @Builder.Default
+    private List<ComboItemResponse> comboItems = new ArrayList<>();
 
     @Schema(description = "Số lượng", example = "2")
     private Integer quantity;

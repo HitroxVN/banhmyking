@@ -9,6 +9,9 @@ import { PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL, PAYMENT_STATUS_TONE } from 
 import { ORDER_STATUS_LABEL } from '../utils/orderStatus';
 import { usePolling } from '../hooks/usePolling';
 import type { OrderItemResponse, OrderResponse, OrderStatus, OrderStatusHistoryItem } from '../types/order';
+import { PriceTag } from '../components/product/PriceTag';
+import { ComboContents } from '../components/product/ComboContents';
+import { orderUnitCompareAt } from '../utils/pricing';
 import '../styles/components/order.css';
 import '../styles/components/tracking.css';
 
@@ -275,8 +278,13 @@ export const OrderTrackingPage = () => {
                         ))}
                       </p>
                     )}
+                    {(item.components ?? []).length > 0 && (
+                      <ComboContents
+                        items={(item.components ?? []).map((c) => ({ name: c.productName, quantity: c.quantity }))}
+                      />
+                    )}
                     <p className="cart-row__unit">
-                      {formatCurrency(item.unitPrice)} × {item.quantity}
+                      <PriceTag price={item.unitPrice} compareAt={orderUnitCompareAt(item)} /> × {item.quantity}
                     </p>
                   </div>
                   <div className="cart-row__side">
@@ -351,6 +359,11 @@ export const OrderTrackingPage = () => {
                   <span>Giảm giá{order.promotionCode ? ` (${order.promotionCode})` : ''}</span>
                   <span>-{formatCurrency(order.discountAmount)}</span>
                 </div>
+              )}
+              {(order.savingsAmount ?? 0) > 0 && (
+                <p className="summary__row summary__row--note summary__row--free">
+                  Bạn đã tiết kiệm {formatCurrency(order.savingsAmount)} nhờ giá khuyến mãi và combo (đã tính trong tạm tính)
+                </p>
               )}
 
               <div className="summary__divider" />
