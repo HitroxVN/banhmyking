@@ -143,6 +143,12 @@ export const CustomerLayout = () => {
             <NavLink to="/stores" className={navLinkClass}>
               Cửa hàng
             </NavLink>
+            <NavLink to="/tin-tuc" className={navLinkClass}>
+              Tin tức
+            </NavLink>
+            <NavLink to="/tuyen-dung" className={navLinkClass}>
+              Tuyển dụng
+            </NavLink>
             <NavLink to="/about" className={navLinkClass}>
               Giới thiệu
             </NavLink>
@@ -280,6 +286,8 @@ export const CustomerLayout = () => {
             <p className="cshop__foot-title">Khám phá</p>
             <Link to="/menu">Thực đơn</Link>
             <Link to="/stores">Hệ thống cửa hàng</Link>
+            <Link to="/tin-tuc">Tin tức</Link>
+            <Link to="/tuyen-dung">Tuyển dụng</Link>
             <Link to="/cart">Giỏ hàng</Link>
             <Link to="/orders">Đơn của tôi</Link>
             <Link to="/about">Giới thiệu</Link>

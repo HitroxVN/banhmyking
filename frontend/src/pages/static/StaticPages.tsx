@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Mail, MapPin, Phone, Sandwich } from 'lucide-react';
 import { useSiteSettings } from '../../context/useSiteSettings';
 import { EmptyState } from '../../components/ui';
+import { FeedbackForm } from '../../components/feedback/FeedbackForm';
 import '../../styles/components/static-pages.css';
 
 /**
@@ -60,7 +61,7 @@ export const ContactPage = () => {
   const hasContact = Boolean(settings.contactPhone || settings.contactEmail || settings.contactAddress);
 
   return (
-    <StaticPage title="Liên hệ" subtitle="Gọi điện cho cửa hàng khi cần gấp, hoặc gửi email cho các việc khác.">
+    <StaticPage title="Liên hệ" subtitle="Gọi điện khi cần gấp, hoặc gửi phản hồi để cửa hàng xử lý.">
       {hasContact ? (
         <div className="static__contact">
           {settings.contactPhone && (
@@ -109,9 +110,11 @@ export const ContactPage = () => {
 
       <h2>Cần trao đổi về một đơn cụ thể?</h2>
       <p>
-        Mở <Link to="/orders">Đơn của tôi</Link>, chọn đơn đang giao và đọc trạng thái mới nhất trước khi gọi —
-        cửa hàng sẽ hỏi mã đơn (dạng <strong>BMK-…</strong>) để tra nhanh hơn.
+        Mở <Link to="/orders">Đơn của tôi</Link>, chọn đơn rồi bấm <strong>Phản hồi về đơn này</strong> — form bên
+        dưới sẽ tự gắn đơn và cơ sở phục vụ. Việc gấp vẫn nên gọi hotline của cửa hàng.
       </p>
+
+      <FeedbackForm />
     </StaticPage>
   );
 };

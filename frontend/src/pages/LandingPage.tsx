@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Mail, Phone, Sandwich } from 'lucide-react';
 import { useSiteSettings } from '../context/useSiteSettings';
 import { FeaturedStrip, HeroSection, PromiseGrid } from '../components/home/HomeSections';
+import { LatestNewsSection } from '../components/home/LatestNewsSection';
 import '../styles/components/landing.css';
 
 /**
@@ -17,6 +18,7 @@ export const LandingPage = () => {
     <div>
       <HeroSection />
       <FeaturedStrip />
+      <LatestNewsSection />
       <PromiseGrid />
 
       <section className="land-cta">

@@ -51,6 +51,15 @@ axiosClient.interceptors.response.use(
     return response;
   },
   async (error: AxiosError<ErrorResponse>) => {
+    // Tải file (responseType blob): thân lỗi JSON của backend cũng là Blob → đọc ra để có câu thông báo tiếng Việt
+    if (typeof Blob !== 'undefined' && error.response?.data instanceof Blob) {
+      try {
+        const text = await (error.response.data as Blob).text();
+        error.response.data = JSON.parse(text) as ErrorResponse;
+      } catch {
+        error.response.data = undefined as unknown as ErrorResponse;
+      }
+    }
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     // Bỏ qua nếu lỗi không phải 401 hoặc request là đăng nhập/đăng ký/refresh
@@ -135,7 +144,7 @@ axiosClient.interceptors.response.use(
  * Lỗi backend kèm errorCode để màn hình quyết định UI
  * (vd: EMAIL_NOT_VERIFIED → hiện nút gửi lại mail xác thực).
  */
-export type ApiError = Error & { errorCode?: string };
+export type ApiError = Error & { errorCode?: string; status?: number };
 
 /**
  * Trích xuất câu thông báo lỗi rõ ràng từ backend envelope
@@ -150,7 +159,7 @@ export function extractErrorMessage(error: AxiosError<ErrorResponse>): ApiError 
     } else if (data.errors && typeof data.errors === 'object') {
       const firstKey = Object.keys(data.errors)[0];
       if (firstKey) {
-        return Object.assign(new Error(data.errors[firstKey]), { errorCode: data.errorCode });
+        return Object.assign(new Error(data.errors[firstKey]), { errorCode: data.errorCode, status: error.response?.status });
       }
     }
   }
@@ -162,5 +171,5 @@ export function extractErrorMessage(error: AxiosError<ErrorResponse>): ApiError 
         : new Error(error.message || 'Đã có lỗi xảy ra, vui lòng thử lại.');
   }
 
-  return Object.assign(result, { errorCode: data?.errorCode });
+  return Object.assign(result, { errorCode: data?.errorCode, status: error.response?.status });
 }

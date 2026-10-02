@@ -30,6 +30,10 @@ import { LandingPage } from './pages/LandingPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { AboutPage, ContactPage, FaqPage, PrivacyPage, TermsPage } from './pages/static/StaticPages';
 import { StoresPage } from './pages/StoresPage';
+import { NewsListPage } from './pages/news/NewsListPage';
+import { NewsDetailPage } from './pages/news/NewsDetailPage';
+import { JobsPage } from './pages/careers/JobsPage';
+import { JobDetailPage } from './pages/careers/JobDetailPage';
 import { CartPage } from './pages/CartPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { PaymentPage } from './pages/PaymentPage';
@@ -44,6 +48,9 @@ import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
 import { AdminStoresPage } from './pages/admin/AdminStoresPage';
 import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage';
 import { AdminPromotionsPage } from './pages/admin/AdminPromotionsPage';
+import { AdminNewsPage } from './pages/admin/AdminNewsPage';
+import { AdminJobsPage } from './pages/admin/AdminJobsPage';
+import { FeedbackInboxPage } from './pages/inbox/FeedbackInboxPage';
 import { AdminReportsPage } from './pages/admin/AdminReportsPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminSiteSettingsPage } from './pages/admin/AdminSiteSettingsPage';
@@ -52,6 +59,7 @@ import { StaffMenuPage } from './pages/staff/StaffMenuPage';
 import { StoreStockPage } from './pages/staff/StoreStockPage';
 import { ManagerReportsPage } from './pages/manager/ManagerReportsPage';
 import { ManagerStaffPage } from './pages/manager/ManagerStaffPage';
+import { ManagerApplicationsPage } from './pages/manager/ManagerApplicationsPage';
 import { ShipperOrdersPage } from './pages/shipper/ShipperOrdersPage';
 
 const StaffAreaLayout = () => {
@@ -98,6 +106,10 @@ export const App: FC = () => (
                 <Route path="about" element={<AboutPage />} />
                 <Route path="contact" element={<ContactPage />} />
                 <Route path="stores" element={<StoresPage />} />
+                <Route path="tin-tuc" element={<NewsListPage />} />
+                <Route path="tin-tuc/:slug" element={<NewsDetailPage />} />
+                <Route path="tuyen-dung" element={<JobsPage />} />
+                <Route path="tuyen-dung/:slug" element={<JobDetailPage />} />
                 <Route path="faq" element={<FaqPage />} />
                 <Route path="terms" element={<TermsPage />} />
                 <Route path="privacy" element={<PrivacyPage />} />
@@ -124,6 +136,9 @@ export const App: FC = () => (
                   <Route path="categories" element={<AdminCategoriesPage />} />
                   <Route path="menu" element={<StaffMenuPage />} />
                   <Route path="promotions" element={<AdminPromotionsPage />} />
+                  <Route path="news" element={<AdminNewsPage />} />
+                  <Route path="jobs" element={<AdminJobsPage />} />
+                  <Route path="feedbacks" element={<FeedbackInboxPage />} />
                   <Route path="reports" element={<AdminReportsPage />} />
                   <Route path="reviews" element={<ReviewManagerPage />} />
                   <Route path="users" element={<AdminUsersPage />} />
@@ -143,6 +158,8 @@ export const App: FC = () => (
                   <Route element={<RequireRole roles={['MANAGER']} area="Quản lý cơ sở" />}>
                     <Route path="reports" element={<ManagerReportsPage />} />
                     <Route path="team" element={<ManagerStaffPage />} />
+                    <Route path="applications" element={<ManagerApplicationsPage />} />
+                    <Route path="feedbacks" element={<FeedbackInboxPage />} />
                   </Route>
                 </Route>
               </Route>

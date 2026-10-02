@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { LogOut, PauseCircle, PlayCircle } from 'lucide-react';
 import { storeApi } from '../../api/storeApi';
 import { useAuth } from '../../context/useAuth';
+import { useInboxCounts } from '../../hooks/useInboxCounts';
 import { useSiteSettings } from '../../context/useSiteSettings';
 import { useStoreScope } from '../../context/useStoreScope';
 import { Button, useConfirm, useToast } from '../ui';
@@ -29,6 +30,8 @@ export const DashboardLayout = ({ navItems, brand, showStore = false }: Dashboar
   const toast = useToast();
   const [accepting, setAccepting] = useState(true);
   const BrandIcon = brand.icon;
+  // Chỉ menu có mục gắn huy hiệu (ADMIN, MANAGER) mới hỏi count-new — STAFF/SHIPPER không gọi API này
+  const inboxCounts = useInboxCounts(navItems.some((item) => item.badge !== undefined));
 
   useEffect(() => {
     if (!showStore || scope.storeId == null) return;
@@ -123,6 +126,11 @@ export const DashboardLayout = ({ navItems, brand, showStore = false }: Dashboar
                   <ItemIcon size={19} />
                 </span>
                 <span className="dash__nav-label">{item.label}</span>
+                {item.badge && inboxCounts[item.badge] > 0 && (
+                  <span className="dash__nav-badge" aria-label={`${inboxCounts[item.badge]} mục mới`}>
+                    {inboxCounts[item.badge] > 99 ? '99+' : inboxCounts[item.badge]}
+                  </span>
+                )}
               </NavLink>
             );
           })}
