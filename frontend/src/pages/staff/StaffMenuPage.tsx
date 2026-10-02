@@ -4,7 +4,6 @@ import {
   ChevronUp,
   CupSoda,
   ImagePlus,
-  PackagePlus,
   Plus,
   Sandwich,
   Search,
@@ -33,10 +32,8 @@ import type {
   OptionGroupPayload,
   ProductCreatePayload,
   ProductItem,
-  StockMovement,
-  StockMovementReason,
 } from '../../types/staff';
-import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { formatCurrency } from '../../utils/formatters';
 import '../../styles/components/staff-menu.css';
 
 const MAX_IMAGE_MB = 5;
@@ -79,7 +76,6 @@ export const StaffMenuPage = () => {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
-  const [stockProduct, setStockProduct] = useState<ProductItem | null>(null);
 
   const confirm = useConfirm();
   const toast = useToast();
@@ -137,7 +133,7 @@ export const StaffMenuPage = () => {
     try {
       const updated = await staffCatalogApi.toggleProductAvailability(product);
       replaceProduct(updated);
-      toast.success(`${updated.name}: ${updated.available ? 'còn hàng' : 'đã tạm hết hàng'}`);
+      toast.success(`${updated.name}: ${updated.available ? 'bán lại toàn chuỗi' : 'đã ngừng bán toàn chuỗi'}`);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Cập nhật tình trạng món thất bại.');
     } finally {
@@ -166,8 +162,8 @@ export const StaffMenuPage = () => {
   return (
     <>
       <PageHeader
-        title="Thực đơn của quán"
-        subtitle={`${products.length} món · sửa giá, mô tả và tình trạng còn hàng`}
+        title="Thực đơn chung"
+        subtitle={`${products.length} món · sửa giá, mô tả và trạng thái bán toàn chuỗi`}
         onRefresh={reload}
         isRefreshing={isRefreshing}
       />
@@ -259,27 +255,13 @@ export const StaffMenuPage = () => {
                   </div>
                   <p className="smenu__desc">{product.description || 'Chưa có mô tả cho món này.'}</p>
 
-                  <div className="smenu__stock-row">
-                    <span className={`smenu__stock${product.lowStock ? ' smenu__stock--low' : ''}`}>
-                      {product.stockQuantity == null ? 'Chưa quản tồn' : `Tồn kho: ${product.stockQuantity}`}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      icon={<PackagePlus size={15} />}
-                      onClick={() => setStockProduct(product)}
-                    >
-                      Nhập kho
-                    </Button>
-                  </div>
-
                   <Button
                     size="sm"
                     variant={product.available ? 'secondary' : 'danger'}
                     loading={busy}
                     onClick={() => void handleToggleAvailable(product)}
                   >
-                    {product.available ? 'Đang bán — chuyển hết hàng' : 'Tạm hết hàng — mở bán lại'}
+                    {product.available ? 'Đang bán toàn chuỗi — ngừng bán' : 'Đã ngừng bán — bán lại toàn chuỗi'}
                   </Button>
                 </div>
 
@@ -301,7 +283,6 @@ export const StaffMenuPage = () => {
         <ProductFormModal
           title="Thêm món ăn mới"
           categories={categories}
-          showInitialStock
           initial={emptyForm(categories[0]?.id ?? 1)}
           submitLabel="Thêm vào thực đơn"
           onClose={() => setShowCreateModal(false)}
@@ -327,7 +308,6 @@ export const StaffMenuPage = () => {
             price: editingProduct.price,
             available: editingProduct.available,
             featured: editingProduct.featured,
-            lowStockThreshold: editingProduct.lowStockThreshold,
             // Gửi cả mảng = thay toàn bộ nhóm; map lại thành payload phẳng (bỏ id của row cũ).
             optionGroups: (editingProduct.optionGroups ?? []).map((group) => ({
               name: group.name,
@@ -347,163 +327,7 @@ export const StaffMenuPage = () => {
         />
       )}
 
-      {stockProduct && (
-        <StockAdjustModal
-          product={stockProduct}
-          onClose={() => setStockProduct(null)}
-          onAdjusted={replaceProduct}
-        />
-      )}
     </>
-  );
-};
-
-const MOVEMENT_LABEL: Record<StockMovementReason, string> = {
-  IMPORT: 'Nhập kho',
-  ORDER: 'Trừ theo đơn',
-  RESTORE: 'Hoàn khi huỷ đơn',
-  ADJUST: 'Điều chỉnh',
-};
-
-interface StockAdjustModalProps {
-  product: ProductItem;
-  onClose: () => void;
-  onAdjusted: (updated: ProductItem) => void;
-}
-
-/** Nhập/điều chỉnh tồn kho một món, kèm sổ kho gần đây để đối chiếu. */
-const StockAdjustModal = ({ product, onClose, onAdjusted }: StockAdjustModalProps) => {
-  const [mode, setMode] = useState<'in' | 'out'>('in');
-  const [qty, setQty] = useState(1);
-  const [note, setNote] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [movements, setMovements] = useState<StockMovement[]>([]);
-  const [isLoadingLog, setIsLoadingLog] = useState(true);
-  const toast = useToast();
-
-  useEffect(() => {
-    let cancelled = false;
-    staffCatalogApi
-      .getStockMovements(product.id)
-      .then((list) => {
-        if (!cancelled) setMovements(list);
-      })
-      .catch(() => {
-        // Sổ kho hỏng thì vẫn cho nhập hàng, chỉ thiếu phần đối chiếu
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoadingLog(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [product.id]);
-
-  const current = product.stockQuantity ?? null;
-  const delta = mode === 'in' ? qty : -qty;
-  const after = (current ?? 0) + delta;
-
-  const handleSubmit = async () => {
-    setIsSubmitting(true);
-    setErrorMsg(null);
-    try {
-      const updated = await staffCatalogApi.adjustStock(product.id, delta, note.trim() || undefined);
-      onAdjusted(updated);
-      toast.success(`${updated.name}: tồn kho còn ${updated.stockQuantity}`);
-      onClose();
-    } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Cập nhật tồn kho thất bại.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      size="sm"
-      title={`Nhập kho — ${product.name}`}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Đóng
-          </Button>
-          <Button variant="primary" loading={isSubmitting} disabled={qty < 1} onClick={() => void handleSubmit()}>
-            Xác nhận
-          </Button>
-        </>
-      }
-    >
-      {errorMsg && (
-        <div className="alert-banner alert-error" role="alert">
-          <XCircle size={17} />
-          <div>{errorMsg}</div>
-        </div>
-      )}
-
-      <div className="smenu__form">
-        <p className="stockadj__now">
-          {current === null ? 'Món này chưa quản tồn — lần nhập này sẽ bắt đầu quản.' : `Tồn hiện tại: ${current}`}
-        </p>
-
-        <Select
-          label="Loại thay đổi"
-          value={mode}
-          onChange={(event) => setMode(event.target.value as 'in' | 'out')}
-        >
-          <option value="in">Nhập thêm</option>
-          {/* Chưa quản tồn thì chưa có gì để giảm — backend cũng chặn */}
-          {current !== null && <option value="out">Giảm bớt</option>}
-        </Select>
-
-        <Input
-          label="Số lượng"
-          type="number"
-          required
-          min={1}
-          value={qty}
-          onChange={(event) => setQty(Number(event.target.value))}
-        />
-
-        <Input
-          label="Ghi chú"
-          placeholder="Ví dụ: nhập buổi sáng, hao hụt kiểm kê..."
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-        />
-
-        <p className="stockadj__after">
-          Tồn sau khi lưu: <strong>{after}</strong>
-        </p>
-
-        <div className="stockadj__log">
-          <span className="stockadj__log-title">Sổ kho gần đây</span>
-          {isLoadingLog ? (
-            <Spinner size={18} />
-          ) : movements.length === 0 ? (
-            <p className="stockadj__log-empty">Chưa có thay đổi nào.</p>
-          ) : (
-            <ul className="stockadj__log-list">
-              {movements.map((movement) => (
-                <li key={movement.id} className="stockadj__log-item">
-                  <span className={`stockadj__delta${movement.changeQty < 0 ? ' stockadj__delta--out' : ''}`}>
-                    {movement.changeQty > 0 ? `+${movement.changeQty}` : movement.changeQty}
-                  </span>
-                  <span className="stockadj__log-main">
-                    {MOVEMENT_LABEL[movement.reason]}
-                    {movement.orderCode ? ` · ${movement.orderCode}` : ''}
-                    {movement.note ? ` · ${movement.note}` : ''}
-                  </span>
-                  <time className="stockadj__log-time">{formatDateTime(movement.createdAt)}</time>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    </Modal>
   );
 };
 
@@ -512,8 +336,6 @@ interface ProductFormModalProps {
   categories: CategoryItem[];
   initial: ProductCreatePayload;
   submitLabel: string;
-  /** Chỉ form tạo mới cho nhập tồn ban đầu; sửa tồn phải qua màn Nhập kho để còn ghi sổ. */
-  showInitialStock?: boolean;
   onClose: () => void;
   onSubmit: (payload: ProductCreatePayload) => Promise<void>;
 }
@@ -524,7 +346,6 @@ const ProductFormModal = ({
   categories,
   initial,
   submitLabel,
-  showInitialStock = false,
   onClose,
   onSubmit,
 }: ProductFormModalProps) => {
@@ -612,36 +433,6 @@ const ProductFormModal = ({
           step={1000}
           value={form.price}
           onChange={(event) => setForm({ ...form, price: Number(event.target.value) })}
-        />
-
-        {showInitialStock && (
-          <Input
-            label="Tồn ban đầu"
-            type="number"
-            min={0}
-            placeholder="Bỏ trống = không quản tồn món này"
-            value={form.stockQuantity ?? ''}
-            onChange={(event) =>
-              setForm({
-                ...form,
-                stockQuantity: event.target.value === '' ? undefined : Number(event.target.value),
-              })
-            }
-          />
-        )}
-
-        <Input
-          label="Ngưỡng cảnh báo sắp hết"
-          type="number"
-          min={0}
-          placeholder="Mặc định 5"
-          value={form.lowStockThreshold ?? ''}
-          onChange={(event) =>
-            setForm({
-              ...form,
-              lowStockThreshold: event.target.value === '' ? undefined : Number(event.target.value),
-            })
-          }
         />
 
         <Textarea

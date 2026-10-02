@@ -14,5 +14,7 @@ public record UserDetailResponse(
         @Schema(description = "URL ảnh đại diện") String image,
         @Schema(description = "Vai trò") RoleName role,
         @Schema(description = "Đã bị khoá?") boolean banned,
-        @Schema(description = "Thời điểm tạo tài khoản") LocalDateTime createdAt) {
+        @Schema(description = "Thời điểm tạo tài khoản") LocalDateTime createdAt,
+        @Schema(description = "ID cơ sở làm việc") Long storeId,
+        @Schema(description = "Tên cơ sở làm việc") String storeName) {
 }

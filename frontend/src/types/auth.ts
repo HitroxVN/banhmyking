@@ -1,4 +1,4 @@
-export type RoleName = 'CUSTOMER' | 'STAFF' | 'SHIPPER' | 'ADMIN';
+export type RoleName = 'CUSTOMER' | 'STAFF' | 'SHIPPER' | 'MANAGER' | 'ADMIN';
 
 export interface RegisterRequest {
   fullName: string;
@@ -31,6 +31,8 @@ export interface UserInfoResponse {
   /** Đường dẫn ảnh đại diện; null = dùng mặc định (chữ cái đầu của tên). */
   image?: string | null;
   role: RoleName;
+  storeId?: number | null;
+  storeName?: string | null;
 }
 
 export interface ApiResponse<T> {

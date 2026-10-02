@@ -10,8 +10,12 @@ import java.util.List;
 public interface AdminReportService {
 
     /** Món bán chạy nhất trong khoảng ngày (bao gồm cả ngày kết thúc). */
-    List<TopProductResponse> getTopProducts(LocalDate fromDate, LocalDate toDate, int limit);
+    List<TopProductResponse> getTopProducts(LocalDate fromDate, LocalDate toDate, int limit, Long storeId);
 
-    /** Nội dung file CSV theo loại báo cáo, kèm BOM để Excel đọc đúng tiếng Việt. */
-    byte[] exportCsv(ReportType type, LocalDate fromDate, LocalDate toDate, int limit);
+    /** Nội dung file CSV theo loại báo cáo, kèm BOM để Excel đọc đúng tiếng Việt. storeId null = toàn chuỗi. */
+    byte[] exportCsv(ReportType type, LocalDate fromDate, LocalDate toDate, int limit, Long storeId);
+
+    /** Doanh thu từng cơ sở trong khoảng ngày (bao gồm cả ngày kết thúc). */
+    List<com.banhmyking.banhmyking.dto.report.StoreRevenueResponse> getRevenueByStore(
+            LocalDate fromDate, LocalDate toDate);
 }

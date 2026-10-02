@@ -6,11 +6,13 @@ import com.banhmyking.banhmyking.dto.user.UpdateRoleRequest;
 import com.banhmyking.banhmyking.dto.user.UpdateStatusRequest;
 import com.banhmyking.banhmyking.dto.user.UserDetailResponse;
 import com.banhmyking.banhmyking.entity.RefreshToken;
+import com.banhmyking.banhmyking.entity.Store;
 import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.enums.RoleName;
 import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.repository.RefreshTokenRepository;
+import com.banhmyking.banhmyking.repository.StoreRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
 import com.banhmyking.banhmyking.service.FileStorageService;
 import com.banhmyking.banhmyking.service.UserService;
@@ -35,6 +37,10 @@ public class UserServiceImpl implements UserService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final FileStorageService fileStorageService;
+    private final StoreRepository storeRepository;
+
+    private static final java.util.Set<RoleName> STORE_ROLES =
+            java.util.EnumSet.of(RoleName.STAFF, RoleName.SHIPPER, RoleName.MANAGER);
 
     // ─── Self-service ─────────────────────────────────────────────────────────
 
@@ -104,10 +110,10 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize("hasRole('ADMIN')")
-    public PageResponse<UserDetailResponse> getUsers(RoleName role, Boolean banned, String keyword, int page, int size) {
+    public PageResponse<UserDetailResponse> getUsers(RoleName role, Boolean banned, String keyword, Long storeId, int page, int size) {
         Pageable pageable = PageableFactory.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<UserDetailResponse> result = userRepository
-                .searchUsers(role, banned, (keyword == null || keyword.isBlank()) ? null : keyword.trim(), pageable)
+                .searchUsers(role, banned, (keyword == null || keyword.isBlank()) ? null : keyword.trim(), storeId, pageable)
                 .map(this::toDetail);
         return PageResponse.from(result);
     }
@@ -119,6 +125,19 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy user"));
         return toDetail(user);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
+    public List<UserDetailResponse> getStoreStaff(Long actorId) {
+        User actor = userRepository.findById(actorId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy user"));
+        if (actor.getRole() != RoleName.MANAGER || actor.getStore() == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Quản trị viên xem nhân sự ở trang Tài khoản");
+        }
+        return userRepository.findByStoreIdAndDeletedFalseOrderByRoleAscFullNameAsc(actor.getStore().getId())
+                .stream().map(this::toDetail).toList();
     }
 
     // ─── Admin — ghi ─────────────────────────────────────────────────────────
@@ -138,6 +157,7 @@ public class UserServiceImpl implements UserService {
         user.setFullName(request.fullName().trim());
         user.setPhone(request.phone() != null && !request.phone().isBlank() ? request.phone().trim() : null);
         user.setRole(request.role() != null ? request.role() : RoleName.CUSTOMER);
+        user.setStore(resolveStore(user.getRole(), request.storeId()));
         user.setBanned(false);
         user.setDeleted(false);
         // ADMIN tạo tài khoản nội bộ (staff/shipper) — không đi qua luồng xác thực email
@@ -167,14 +187,22 @@ public class UserServiceImpl implements UserService {
             revokeRefreshTokens(targetId);
         }
 
-        if (request.role() != null && request.role() != target.getRole()) {
+        RoleName newRole = request.role() != null ? request.role() : target.getRole();
+        Long newStoreId = request.storeId() != null ? request.storeId() : storeIdOf(target);
+        boolean roleChanged = newRole != target.getRole();
+        if (roleChanged) {
             if (targetId.equals(actorId)) {
                 throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Không thể thay đổi vai trò của chính mình");
             }
             if (target.getRole() == RoleName.ADMIN && countActiveAdmins() <= 1) {
                 throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Không thể thay đổi vai trò của ADMIN cuối cùng");
             }
-            target.setRole(request.role());
+        }
+        Store newStore = resolveStore(newRole, newStoreId);
+        boolean storeChanged = !java.util.Objects.equals(newStore == null ? null : newStore.getId(), storeIdOf(target));
+        target.setRole(newRole);
+        target.setStore(newStore);
+        if (roleChanged || storeChanged) {
             revokeRefreshTokens(targetId);
         }
 
@@ -212,6 +240,7 @@ public class UserServiceImpl implements UserService {
                     "Không thể thay đổi vai trò của ADMIN cuối cùng");
         }
 
+        target.setStore(resolveStore(request.role(), request.storeId() != null ? request.storeId() : storeIdOf(target)));
         target.setRole(request.role());
         userRepository.save(target);
 
@@ -266,6 +295,22 @@ public class UserServiceImpl implements UserService {
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
+    /** STAFF/SHIPPER/MANAGER bắt buộc thuộc một cơ sở; vai trò khác luôn không thuộc cơ sở nào (spec §4). */
+    private Store resolveStore(RoleName role, Long storeId) {
+        if (!STORE_ROLES.contains(role)) {
+            return null;
+        }
+        if (storeId == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Vui lòng chọn cơ sở làm việc cho vai trò " + role);
+        }
+        return storeRepository.findByIdAndDeletedFalse(storeId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy cơ sở với ID: " + storeId));
+    }
+
+    private static Long storeIdOf(User user) {
+        return user.getStore() == null ? null : user.getStore().getId();
+    }
+
     private User findActiveTarget(Long targetId) {
         return userRepository.findByIdAndDeletedFalse(targetId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy user"));
@@ -290,6 +335,8 @@ public class UserServiceImpl implements UserService {
     private UserDetailResponse toDetail(User user) {
         return new UserDetailResponse(
                 user.getId(), user.getEmail(), user.getFullName(), user.getPhone(),
-                user.getImage(), user.getRole(), user.isBanned(), user.getCreatedAt());
+                user.getImage(), user.getRole(), user.isBanned(), user.getCreatedAt(),
+                user.getStore() == null ? null : user.getStore().getId(),
+                user.getStore() == null ? null : user.getStore().getName());
     }
 }

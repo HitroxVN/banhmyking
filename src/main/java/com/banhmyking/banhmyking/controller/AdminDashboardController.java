@@ -30,8 +30,10 @@ public class AdminDashboardController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Lấy các chỉ số KPI tổng quan hệ thống",
             description = "Bao gồm tổng doanh thu, doanh thu hôm nay, tổng đơn hàng, tỷ lệ thành công, số lượng người dùng theo vai trò.")
-    public ResponseEntity<ApiResponse<DashboardMetricsResponse>> getDashboardMetrics() {
-        DashboardMetricsResponse response = adminDashboardService.getDashboardMetrics();
+    public ResponseEntity<ApiResponse<DashboardMetricsResponse>> getDashboardMetrics(
+            @Parameter(description = "Lọc theo cơ sở; bỏ trống = toàn chuỗi")
+            @RequestParam(required = false) Long storeId) {
+        DashboardMetricsResponse response = adminDashboardService.getDashboardMetrics(storeId);
         return ResponseEntity.ok(ApiResponse.ok("Lấy chỉ số thống kê tổng quan thành công", response));
     }
 
@@ -41,8 +43,10 @@ public class AdminDashboardController {
             description = "Thống kê doanh thu và số lượng đơn hàng theo chuỗi ngày (mặc định 7 ngày gần nhất).")
     public ResponseEntity<ApiResponse<List<DailyRevenueResponse>>> getDailyRevenueChart(
             @Parameter(description = "Số ngày thống kê (1-90)", example = "7")
-            @RequestParam(defaultValue = "7") int days) {
-        List<DailyRevenueResponse> response = adminDashboardService.getDailyRevenueChart(days);
+            @RequestParam(defaultValue = "7") int days,
+            @Parameter(description = "Lọc theo cơ sở; bỏ trống = toàn chuỗi")
+            @RequestParam(required = false) Long storeId) {
+        List<DailyRevenueResponse> response = adminDashboardService.getDailyRevenueChart(days, storeId);
         return ResponseEntity.ok(ApiResponse.ok("Lấy dữ liệu biểu đồ doanh thu thành công", response));
     }
 
@@ -50,8 +54,10 @@ public class AdminDashboardController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Lấy dữ liệu phân bổ trạng thái đơn hàng",
             description = "Phân bổ số lượng và tỷ lệ % đơn hàng theo từng trạng thái (Pending, Confirmed, Delivered...).")
-    public ResponseEntity<ApiResponse<List<OrderStatusStatResponse>>> getOrderStatusStats() {
-        List<OrderStatusStatResponse> response = adminDashboardService.getOrderStatusStats();
+    public ResponseEntity<ApiResponse<List<OrderStatusStatResponse>>> getOrderStatusStats(
+            @Parameter(description = "Lọc theo cơ sở; bỏ trống = toàn chuỗi")
+            @RequestParam(required = false) Long storeId) {
+        List<OrderStatusStatResponse> response = adminDashboardService.getOrderStatusStats(storeId);
         return ResponseEntity.ok(ApiResponse.ok("Lấy dữ liệu phân bổ trạng thái đơn hàng thành công", response));
     }
 }

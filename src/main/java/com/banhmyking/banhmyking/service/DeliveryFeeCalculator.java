@@ -58,6 +58,15 @@ public class DeliveryFeeCalculator {
      * @return DeliveryFeeResult Chứa phí thực tế, phí gốc, cờ freeship và mô tả
      */
     public DeliveryFeeResult calculateFee(BigDecimal distanceKm, String shippingAddress, BigDecimal subtotal) {
+        return calculateFee(distanceKm, shippingAddress, subtotal, null);
+    }
+
+    /**
+     * Như trên + freeship theo bán kính của cơ sở (spec §3.3): khoảng cách ≤ freeShipRadiusKm → miễn phí.
+     * freeShipRadiusKm null/0 = chỉ xét ngưỡng giá trị đơn.
+     */
+    public DeliveryFeeResult calculateFee(BigDecimal distanceKm, String shippingAddress, BigDecimal subtotal,
+                                          BigDecimal freeShipRadiusKm) {
         // input rác chặn tại nguồn — distanceKm/subtotal âm trước đây lọt qua branch
         // "tính theo khu vực" (null-check chỉ > 0) nhưng vẫn được echo vào result/description.
         if (distanceKm != null && distanceKm.compareTo(BigDecimal.ZERO) < 0) {
@@ -90,12 +99,20 @@ public class DeliveryFeeCalculator {
 
         originalFee = originalFee.setScale(2, RoundingMode.HALF_UP);
 
+        boolean freeByRadius = distanceKm != null && freeShipRadiusKm != null
+                && freeShipRadiusKm.compareTo(BigDecimal.ZERO) > 0
+                && distanceKm.compareTo(freeShipRadiusKm) <= 0;
+
         // Kiểm tra ngưỡng Freeship
         boolean isFreeship = false;
         BigDecimal finalFee = originalFee;
         String description;
 
-        if (subtotal != null && subtotal.compareTo(freeshipThreshold) >= 0) {
+        if (freeByRadius) {
+            isFreeship = true;
+            finalFee = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            description = String.format("Miễn phí giao hàng trong bán kính %.1f km", freeShipRadiusKm.doubleValue());
+        } else if (subtotal != null && subtotal.compareTo(freeshipThreshold) >= 0) {
             isFreeship = true;
             finalFee = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
             description = String.format("Đơn hàng đạt từ %,.0fđ được miễn phí giao hàng", freeshipThreshold.doubleValue());

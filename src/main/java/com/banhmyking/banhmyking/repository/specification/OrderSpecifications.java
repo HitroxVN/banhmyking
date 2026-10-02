@@ -46,10 +46,17 @@ public class OrderSpecifications {
     }
 
     /**
-     * Specification cho Staff/Admin lọc đơn hàng toàn hệ thống.
+     * Lọc đơn theo status/khoảng thời gian, KHÔNG giới hạn cơ sở — chỉ dùng cho ngữ cảnh toàn chuỗi
+     * (ADMIN); luồng STAFF/MANAGER phải dùng bản có storeId bên dưới.
      * ?status&fromDate&toDate
      */
     public static Specification<Order> withFilters(OrderStatus status, LocalDateTime fromDate, LocalDateTime toDate) {
+        return withFilters(status, fromDate, toDate, null);
+    }
+
+    /** Staff/Manager/Admin lọc đơn; storeId null = mọi cơ sở (chỉ ADMIN được truyền null — xem StoreAccessGuard). */
+    public static Specification<Order> withFilters(OrderStatus status, LocalDateTime fromDate, LocalDateTime toDate,
+                                                   Long storeId) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -61,6 +68,9 @@ public class OrderSpecifications {
             }
             if (toDate != null) {
                 predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), toDate));
+            }
+            if (storeId != null) {
+                predicates.add(cb.equal(root.get("store").get("id"), storeId));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));

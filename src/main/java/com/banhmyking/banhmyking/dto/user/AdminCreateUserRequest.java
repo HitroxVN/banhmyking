@@ -28,6 +28,9 @@ public record AdminCreateUserRequest(
         String phone,
 
         @NotNull(message = "Vai trò không được để trống")
-        @Schema(description = "Vai trò phân quyền (STAFF, SHIPPER, CUSTOMER, ADMIN)", example = "STAFF")
-        RoleName role
+        @Schema(description = "Vai trò phân quyền (STAFF, SHIPPER, MANAGER, CUSTOMER, ADMIN)", example = "STAFF")
+        RoleName role,
+
+        @Schema(description = "Cơ sở làm việc — bắt buộc với STAFF/SHIPPER/MANAGER", example = "1")
+        Long storeId
 ) {}

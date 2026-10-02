@@ -10,7 +10,9 @@ import com.banhmyking.banhmyking.dto.payment.PaymentResponse;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.OrderStatusHistory;
 import com.banhmyking.banhmyking.entity.Payment;
+import com.banhmyking.banhmyking.entity.Store;
 import com.banhmyking.banhmyking.entity.User;
+import com.banhmyking.banhmyking.security.StoreAccessGuard;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.enums.PaymentMethod;
 import com.banhmyking.banhmyking.enums.PaymentStatus;
@@ -77,6 +79,9 @@ class OrderOwnershipTest {
     @Mock
     private InventoryService inventoryService;
 
+    @Spy
+    private StoreAccessGuard storeAccessGuard = new StoreAccessGuard();
+
     @InjectMocks
     private OrderServiceImpl orderService;
 
@@ -95,7 +100,11 @@ class OrderOwnershipTest {
     @BeforeEach
     void setUp() {
         internalPaymentService = new PaymentServiceImpl(
-                paymentRepository, orderRepository, userRepository, orderStatusHistoryRepository, inventoryService);
+                paymentRepository, orderRepository, userRepository, orderStatusHistoryRepository, inventoryService,
+                storeAccessGuard);
+
+        Store store = new Store();
+        store.setId(1L);
 
         customerA = new User();
         customerA.setId(10L);
@@ -111,6 +120,7 @@ class OrderOwnershipTest {
         staff.setId(30L);
         staff.setFullName("Nhân Viên Quán");
         staff.setRole(RoleName.STAFF);
+        staff.setStore(store);
 
         admin = new User();
         admin.setId(40L);
@@ -121,16 +131,19 @@ class OrderOwnershipTest {
         assignedShipper.setId(50L);
         assignedShipper.setFullName("Tài Xế Được Gán");
         assignedShipper.setRole(RoleName.SHIPPER);
+        assignedShipper.setStore(store);
 
         otherShipper = new User();
         otherShipper.setId(60L);
         otherShipper.setFullName("Tài Xế Khác");
         otherShipper.setRole(RoleName.SHIPPER);
+        otherShipper.setStore(store);
 
         orderA = new Order();
         orderA.setId(100L);
         orderA.setOrderCode("BMK-20260912-ORD_A");
         orderA.setUser(customerA);
+        orderA.setStore(store);
         orderA.setStatus(OrderStatus.PENDING);
         orderA.setSubtotal(BigDecimal.valueOf(70000));
         orderA.setShippingFee(BigDecimal.valueOf(15000));

@@ -1,5 +1,6 @@
 package com.banhmyking.banhmyking.service;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,6 +21,8 @@ import com.banhmyking.banhmyking.dto.address.AddressRequest;
 import com.banhmyking.banhmyking.dto.address.AddressResponse;
 import com.banhmyking.banhmyking.entity.Address;
 import com.banhmyking.banhmyking.entity.User;
+import com.banhmyking.banhmyking.exception.BusinessException;
+import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
 import com.banhmyking.banhmyking.mapper.AddressMapper;
 import com.banhmyking.banhmyking.repository.AddressRepository;
@@ -105,11 +108,48 @@ class AddressServiceTest {
         verify(addressRepository, never()).delete(any(Address.class));
     }
 
+    @Test
+    void createAddressWithoutPinIsRejected() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        AddressRequest request = AddressRequest.builder()
+                .receiverName("Nguyen Van A")
+                .receiverPhone("0901234567")
+                .fullAddress("123 Le Loi, Quan 1")
+                .latitude(new BigDecimal("10.7769"))
+                .build();
+
+        assertThatThrownBy(() -> addressService.createAddress(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Vui lòng ghim vị trí trên bản đồ")
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.BUSINESS_ERROR);
+        verify(addressRepository, never()).save(any(Address.class));
+    }
+
+    @Test
+    void updateAddressWithoutPinIsRejected() {
+        Address existing = address(10L, false);
+        when(addressRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(existing));
+        AddressRequest request = AddressRequest.builder()
+                .receiverName("Nguyen Van A")
+                .receiverPhone("0901234567")
+                .fullAddress("123 Le Loi, Quan 1")
+                .build();
+
+        assertThatThrownBy(() -> addressService.updateAddress(1L, 10L, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Vui lòng ghim vị trí trên bản đồ");
+        verify(addressMapper, never()).updateEntity(any(Address.class), any(AddressRequest.class));
+        verify(addressRepository, never()).save(any(Address.class));
+    }
+
     private AddressRequest request(boolean defaultAddress) {
         return AddressRequest.builder()
                 .receiverName("Nguyen Van A")
                 .receiverPhone("0901234567")
                 .fullAddress("123 Le Loi, Quan 1")
+                .latitude(new BigDecimal("10.7769"))
+                .longitude(new BigDecimal("106.7009"))
                 .defaultAddress(defaultAddress)
                 .build();
     }

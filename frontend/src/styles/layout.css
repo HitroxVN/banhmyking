@@ -872,3 +872,21 @@ img.dash__avatar {
   gap: var(--space-3);
   flex-wrap: wrap;
 }
+
+.dash__store {
+  padding: 0 16px 12px;
+}
+
+.dash__store .ui-field__label {
+  color: #94A3B8;
+}
+
+.dash__store-name {
+  display: block;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-50);
+  color: var(--primary-800);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}

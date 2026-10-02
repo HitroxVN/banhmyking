@@ -106,7 +106,7 @@ public class OrderStatusValidator {
                 throw new BusinessException(ErrorCode.BUSINESS_ERROR,
                         "Khách hàng chỉ có thể hủy đơn khi đơn hàng ở trạng thái PENDING hoặc CONFIRMED. Trạng thái hiện tại: " + currentStatus);
             }
-        } else if (role == RoleName.STAFF || role == RoleName.ADMIN) {
+        } else if (role == RoleName.STAFF || role == RoleName.MANAGER || role == RoleName.ADMIN) {
             // Cho phép hủy tới bước READY_FOR_PICKUP (PENDING, CONFIRMED, PREPARING, READY_FOR_PICKUP)
             if (!currentStatus.cancelableByStaff()) {
                 throw new BusinessException(ErrorCode.BUSINESS_ERROR,

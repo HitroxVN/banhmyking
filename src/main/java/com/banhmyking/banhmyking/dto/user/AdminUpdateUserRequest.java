@@ -20,5 +20,8 @@ public record AdminUpdateUserRequest(
         Boolean banned,
 
         @Schema(description = "Mật khẩu mới (nếu muốn đặt lại mật khẩu cho user)", example = "newPass123")
-        String password
+        String password,
+
+        @Schema(description = "Đổi cơ sở làm việc (STAFF/SHIPPER/MANAGER)", example = "2")
+        Long storeId
 ) {}

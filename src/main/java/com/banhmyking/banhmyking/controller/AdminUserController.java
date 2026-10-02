@@ -39,11 +39,12 @@ public class AdminUserController {
             @Parameter(description = "Lọc theo vai trò") @RequestParam(required = false) RoleName role,
             @Parameter(description = "Lọc theo trạng thái khoá") @RequestParam(required = false) Boolean banned,
             @Parameter(description = "Từ khoá tìm email/họ tên") @RequestParam(required = false) String keyword,
+            @Parameter(description = "Lọc theo cơ sở làm việc") @RequestParam(required = false) Long storeId,
             @Parameter(description = "Trang (0-based)") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Số phần tử/trang (tối đa 50)") @RequestParam(defaultValue = "10") int size) {
 
         return ApiResponse.ok("Lấy danh sách người dùng thành công",
-                userService.getUsers(role, banned, keyword, page, Math.min(size, 50)));
+                userService.getUsers(role, banned, keyword, storeId, page, Math.min(size, 50)));
     }
 
     @GetMapping("/{id}")

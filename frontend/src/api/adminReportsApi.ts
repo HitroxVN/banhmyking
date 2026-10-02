@@ -1,6 +1,7 @@
 import { axiosClient } from './axiosClient';
 import type { ApiResponse } from '../types/auth';
 import type { ReportFilterParams, ReportType, TopProduct } from '../types/admin';
+import type { StoreRevenue } from '../types/store';
 
 /** Bóc tên file từ `Content-Disposition: attachment; filename="..."`. */
 const readFileName = (disposition: unknown, fallback: string): string => {
@@ -23,6 +24,11 @@ export const adminReportsApi = {
   /** Bảng món bán chạy trong khoảng ngày (mặc định 30 ngày gần nhất) */
   async getTopProducts(params: ReportFilterParams = {}): Promise<TopProduct[]> {
     const res = await axiosClient.get<ApiResponse<TopProduct[]>>('/admin/reports/top-products', { params });
+    return res.data.data;
+  },
+
+  async getRevenueByStore(params: ReportFilterParams = {}): Promise<StoreRevenue[]> {
+    const res = await axiosClient.get<ApiResponse<StoreRevenue[]>>('/admin/reports/revenue-by-store', { params });
     return res.data.data;
   },
 

@@ -5,6 +5,7 @@ import com.banhmyking.banhmyking.entity.Category;
 import com.banhmyking.banhmyking.entity.Product;
 import com.banhmyking.banhmyking.entity.ProductOption;
 import com.banhmyking.banhmyking.entity.Promotion;
+import com.banhmyking.banhmyking.entity.Store;
 import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.enums.DiscountType;
 import com.banhmyking.banhmyking.enums.RoleName;
@@ -13,6 +14,7 @@ import com.banhmyking.banhmyking.repository.CategoryRepository;
 import com.banhmyking.banhmyking.repository.ProductOptionRepository;
 import com.banhmyking.banhmyking.repository.ProductRepository;
 import com.banhmyking.banhmyking.repository.PromotionRepository;
+import com.banhmyking.banhmyking.repository.StoreRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +35,7 @@ import java.util.List;
 public class DataInitializer implements ApplicationRunner {
 
     private final UserRepository userRepository;
+    private final StoreRepository storeRepository;
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
     private final ProductOptionRepository productOptionRepository;
@@ -45,15 +48,29 @@ public class DataInitializer implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         // toàn bộ seed user đi qua seedUserIfAbsent (guard existsByEmail) — idempotent,
         // độc lập với trạng thái catalog.
-        seedUserIfAbsent("customer@gmail.com", "12345678", "Khách Hàng Test", "0901234567", RoleName.CUSTOMER);
-        seedUserIfAbsent("admin@gmail.com", "12345678", "Quản Trị Viên", "0900000001", RoleName.ADMIN);
-        seedUserIfAbsent("staff@gmail.com", "12345678", "Nhân Viên Test", "0900000002", RoleName.STAFF);
-        seedUserIfAbsent("shipper@gmail.com", "12345678", "Shipper Test", "0900000003", RoleName.SHIPPER);
+        // CS01 do V11 tạo, nhưng ADMIN có thể đổi mã / xoá nó → không orElseThrow (app sẽ không khởi động
+        // được). Mất CS01 thì gắn user demo vào cơ sở đang hoạt động đầu tiên; không còn cơ sở nào thì bỏ qua.
+        Store cs01 = activeStoreByCode("CS01")
+                .or(() -> storeRepository.findByActiveTrueAndDeletedFalseOrderByCodeAsc().stream().findFirst())
+                .orElse(null);
+        Store cs02 = seedStoreIfAbsent("CS02", "Cơ sở Cầu Giấy", "Phường Dịch Vọng, Hà Nội",
+                new BigDecimal("21.033300"), new BigDecimal("105.792000"));
+        seedStoreIfAbsent("CS03", "Cơ sở Hà Đông", "Phường Hà Đông, Hà Nội",
+                new BigDecimal("20.971400"), new BigDecimal("105.778800"));
 
-        seedUserIfAbsent("customer@banhmyking.vn", "123456", "Khách Hàng Test", "0901234567", RoleName.CUSTOMER);
-        seedUserIfAbsent("staff@banhmyking.vn", "123456", "Nhân Viên Quán", "0908889999", RoleName.STAFF);
-        seedUserIfAbsent("admin@banhmyking.vn", "123456", "Quản Trị Viên", "0907778888", RoleName.ADMIN);
-        seedUserIfAbsent("shipper@banhmyking.vn", "123456", "Tài Xế Giao Hàng", "0906665555", RoleName.SHIPPER);
+        seedUserIfAbsent("customer@gmail.com", "12345678", "Khách Hàng Test", "0901234567", RoleName.CUSTOMER, null);
+        seedUserIfAbsent("admin@gmail.com", "12345678", "Quản Trị Viên", "0900000001", RoleName.ADMIN, null);
+        seedUserIfAbsent("staff@gmail.com", "12345678", "Nhân Viên Test", "0900000002", RoleName.STAFF, cs01);
+        seedUserIfAbsent("shipper@gmail.com", "12345678", "Shipper Test", "0900000003", RoleName.SHIPPER, cs01);
+
+        seedUserIfAbsent("customer@banhmyking.vn", "123456", "Khách Hàng Test", "0901234567", RoleName.CUSTOMER, null);
+        seedUserIfAbsent("staff@banhmyking.vn", "123456", "Nhân Viên Quán", "0908889999", RoleName.STAFF, cs01);
+        seedUserIfAbsent("admin@banhmyking.vn", "123456", "Quản Trị Viên", "0907778888", RoleName.ADMIN, null);
+        seedUserIfAbsent("shipper@banhmyking.vn", "123456", "Tài Xế Giao Hàng", "0906665555", RoleName.SHIPPER, cs01);
+
+        seedUserIfAbsent("manager@gmail.com", "12345678", "Quản Lý Cơ Sở 1", "0900000004", RoleName.MANAGER, cs01);
+        seedUserIfAbsent("staff2@gmail.com", "12345678", "Nhân Viên Cầu Giấy", "0900000005", RoleName.STAFF, cs02);
+        seedUserIfAbsent("shipper2@gmail.com", "12345678", "Shipper Cầu Giấy", "0900000006", RoleName.SHIPPER, cs02);
 
         if (productRepository.count() == 0) {
             log.info("Khởi tạo dữ liệu mẫu cho kiểm thử...");
@@ -153,8 +170,14 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     /** Seed 1 user demo nếu chưa tồn tại — encode BCrypt. guard duy nhất cho mọi user. */
-    private void seedUserIfAbsent(String email, String rawPassword, String fullName, String phone, RoleName role) {
+    private void seedUserIfAbsent(String email, String rawPassword, String fullName, String phone, RoleName role, Store store) {
         if (userRepository.existsByEmail(email)) {
+            return;
+        }
+        // STAFF/SHIPPER/MANAGER bắt buộc thuộc 1 cơ sở — không có cơ sở hợp lệ thì không seed (thay vì
+        // tạo user vi phạm bất biến hoặc làm hỏng khởi động).
+        if (store == null && role != RoleName.CUSTOMER && role != RoleName.ADMIN) {
+            log.warn("Bỏ qua seed user {} (role {}): không có cơ sở hoạt động để gắn", email, role);
             return;
         }
         User u = new User();
@@ -163,9 +186,40 @@ public class DataInitializer implements ApplicationRunner {
         u.setFullName(fullName);
         u.setPhone(phone);
         u.setRole(role);
+        u.setStore(store);
         // seed đi kèm DB sẵn sàng dùng luôn — không bắt user demo đi xác thực email
         u.setEmailVerified(true);
         userRepository.save(u);
         log.info("Seed user: {} (role {})", email, role);
+    }
+
+    /** Cơ sở theo mã, chỉ khi chưa xoá mềm. */
+    private java.util.Optional<Store> activeStoreByCode(String code) {
+        return storeRepository.findByCode(code).filter(s -> !s.isDeleted());
+    }
+
+    /**
+     * Seed cơ sở demo nếu mã CHƯA TỪNG tồn tại. uk_stores_code phủ cả dòng đã xoá mềm (V11), nên
+     * cơ sở demo đã bị ADMIN xoá thì tôn trọng quyết định đó: không tạo lại (sẽ vi phạm unique key),
+     * trả null để bỏ qua user demo gắn với nó.
+     */
+    private Store seedStoreIfAbsent(String code, String name, String address, BigDecimal lat, BigDecimal lng) {
+        java.util.Optional<Store> existing = storeRepository.findByCode(code);
+        if (existing.isPresent()) {
+            if (existing.get().isDeleted()) {
+                log.info("Cơ sở demo {} đã bị xoá — không seed lại", code);
+                return null;
+            }
+            return existing.get();
+        }
+        Store store = new Store();
+        store.setCode(code);
+        store.setName(name);
+        store.setAddress(address);
+        store.setLatitude(lat);
+        store.setLongitude(lng);
+        store.setMinOrderAmount(new BigDecimal("50000"));
+        log.info("Seed cơ sở demo: {} {}", code, name);
+        return storeRepository.save(store);
     }
 }

@@ -35,17 +35,21 @@ public class CreateOrderRequest {
     @Builder.Default
     private PaymentMethod paymentMethod = PaymentMethod.COD;
 
+    /** Cơ sở khách chọn; bỏ trống = server tự chọn cơ sở gần nhất đủ điều kiện (spec §3.2). */
+    @Schema(description = "ID cơ sở phục vụ (tuỳ chọn)", example = "1")
+    private Long storeId;
+
     // Không còn nhận distanceKm từ client (khách gửi 0 để được ship rẻ) — server tự tính từ toạ độ.
     // Dùng khi giao tới địa chỉ mới (không có addressId); địa chỉ đã lưu lấy toạ độ trong sổ địa chỉ.
     /** Toạ độ điểm giao (ghim trên bản đồ). Có toạ độ + quán đã ghim vị trí → server tự tính khoảng cách. */
     @jakarta.validation.constraints.DecimalMin(value = "8.0", message = "Vĩ độ nằm ngoài Việt Nam")
     @jakarta.validation.constraints.DecimalMax(value = "23.5", message = "Vĩ độ nằm ngoài Việt Nam")
-    @Schema(description = "Vĩ độ điểm giao (tuỳ chọn)", example = "21.028511")
+    @Schema(description = "Vĩ độ điểm giao — BẮT BUỘC khi không có addressId (địa chỉ mới phải ghim trên bản đồ)", example = "21.028511")
     private java.math.BigDecimal latitude;
 
     @jakarta.validation.constraints.DecimalMin(value = "102.0", message = "Kinh độ nằm ngoài Việt Nam")
     @jakarta.validation.constraints.DecimalMax(value = "110.0", message = "Kinh độ nằm ngoài Việt Nam")
-    @Schema(description = "Kinh độ điểm giao (tuỳ chọn)", example = "105.804817")
+    @Schema(description = "Kinh độ điểm giao — BẮT BUỘC khi không có addressId (địa chỉ mới phải ghim trên bản đồ)", example = "105.804817")
     private java.math.BigDecimal longitude;
 
     @Schema(description = "Ghi chú cho quán hoặc shipper", example = "Giao trước 12h trưa, không ớt")

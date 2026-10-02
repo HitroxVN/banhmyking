@@ -23,7 +23,10 @@ public interface UserService {
 
     // ─── Admin — đọc (STAFF + ADMIN) ─────────────────────────────────────────
 
-    PageResponse<UserDetailResponse> getUsers(RoleName role, Boolean banned, String keyword, int page, int size);
+    PageResponse<UserDetailResponse> getUsers(RoleName role, Boolean banned, String keyword, Long storeId, int page, int size);
+
+    /** MANAGER: nhân sự cơ sở mình; ADMIN: lỗi 400. */
+    java.util.List<UserDetailResponse> getStoreStaff(Long actorId);
 
     UserDetailResponse getUser(Long id);
 

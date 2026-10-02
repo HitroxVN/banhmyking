@@ -2,16 +2,19 @@ import { useEffect, useState } from 'react';
 import { Download, PackageSearch } from 'lucide-react';
 import { Button, EmptyState, Input, PageHeader, Select, Skeleton, useToast } from '../../components/ui';
 import { adminReportsApi } from '../../api/adminReportsApi';
+import { StoreScopeSelect } from '../../components/store/StoreScopeSelect';
 import type { ReportType, TopProduct } from '../../types/admin';
+import type { StoreRevenue } from '../../types/store';
 import { formatCurrency } from '../../utils/formatters';
 import '../../styles/components/admin-reports.css';
 
-/** Bốn loại file CSV backend hỗ trợ — nhãn ngắn để vừa một hàng nút */
+/** Năm loại file CSV backend hỗ trợ — nhãn ngắn để vừa một hàng nút */
 const REPORT_TYPES: { type: ReportType; label: string }[] = [
   { type: 'TOP_PRODUCTS', label: 'Món bán chạy' },
   { type: 'REVENUE_BY_DAY', label: 'Doanh thu theo ngày' },
   { type: 'REVENUE_BY_CATEGORY', label: 'Theo danh mục' },
   { type: 'REVENUE_BY_SHIPPER', label: 'Theo tài xế' },
+  { type: 'REVENUE_BY_STORE', label: 'Doanh thu theo cơ sở' },
 ];
 
 const LIMIT_OPTIONS = [10, 20, 50];
@@ -21,7 +24,10 @@ export const AdminReportsPage = () => {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [limit, setLimit] = useState(10);
+  const [storeId, setStoreId] = useState<number | null>(null);
+  const [storeRows, setStoreRows] = useState<StoreRevenue[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isStoreLoading, setIsStoreLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [exportingType, setExportingType] = useState<ReportType | null>(null);
   const toast = useToast();
@@ -31,7 +37,12 @@ export const AdminReportsPage = () => {
     setIsLoading(true);
 
     adminReportsApi
-      .getTopProducts({ fromDate: fromDate || undefined, toDate: toDate || undefined, limit })
+      .getTopProducts({
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        limit,
+        storeId: storeId ?? undefined,
+      })
       .then((data) => {
         if (!cancelled) setRows(data);
       })
@@ -50,7 +61,26 @@ export const AdminReportsPage = () => {
     };
     // toast là API ổn định từ context, không cần đưa vào deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromDate, toDate, limit, reloadKey]);
+  }, [fromDate, toDate, limit, storeId, reloadKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsStoreLoading(true);
+    adminReportsApi
+      .getRevenueByStore({ fromDate: fromDate || undefined, toDate: toDate || undefined })
+      .then((data) => {
+        if (!cancelled) setStoreRows(data);
+      })
+      .catch(() => {
+        if (!cancelled) setStoreRows([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsStoreLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fromDate, toDate, reloadKey]);
 
   const handleExport = async (type: ReportType) => {
     setExportingType(type);
@@ -59,6 +89,8 @@ export const AdminReportsPage = () => {
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
         limit,
+        // Báo cáo theo cơ sở luôn gộp toàn chuỗi — không lọc theo cơ sở đang chọn
+        storeId: type === 'REVENUE_BY_STORE' ? undefined : storeId ?? undefined,
       });
       toast.success('Đã tải file báo cáo');
     } catch (err: unknown) {
@@ -72,11 +104,12 @@ export const AdminReportsPage = () => {
     setFromDate('');
     setToDate('');
     setLimit(10);
+    setStoreId(null);
   };
 
   const totalSold = rows.reduce((sum, row) => sum + row.quantitySold, 0);
   const totalRevenue = rows.reduce((sum, row) => sum + row.revenue, 0);
-  const hasFilter = Boolean(fromDate) || Boolean(toDate);
+  const hasFilter = Boolean(fromDate) || Boolean(toDate) || storeId != null;
 
   return (
     <div>
@@ -114,6 +147,7 @@ export const AdminReportsPage = () => {
               </option>
             ))}
           </Select>
+          <StoreScopeSelect value={storeId} onChange={setStoreId} />
           {hasFilter && (
             <Button variant="ghost" onClick={clearFilters}>
               Xoá lọc
@@ -191,6 +225,48 @@ export const AdminReportsPage = () => {
           ))}
         </div>
       </section>
+
+      {storeId == null && (
+        <section className="card">
+          <div className="card__head">
+            <h2 className="card__title">Doanh thu theo cơ sở</h2>
+          </div>
+          <div className="card__body">
+            {isStoreLoading ? (
+              <Skeleton variant="row" count={3} />
+            ) : storeRows.length === 0 ? (
+              <EmptyState
+                icon={<PackageSearch size={28} />}
+                title="Chưa có dữ liệu"
+                description="Chưa có đơn nào được giao trong khoảng ngày đã chọn."
+              />
+            ) : (
+              <div className="table-wrap">
+                <table className="ui-table">
+                  <thead>
+                    <tr>
+                      <th>Cơ sở</th>
+                      <th>Số đơn</th>
+                      <th>Doanh thu</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {storeRows.map((row) => (
+                      <tr key={row.storeId}>
+                        <td>
+                          <span className="ui-table__primary">{row.storeName}</span>
+                        </td>
+                        <td>{row.orderCount}</td>
+                        <td className="ui-table__amount">{formatCurrency(row.revenue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
     </div>
   );
 };

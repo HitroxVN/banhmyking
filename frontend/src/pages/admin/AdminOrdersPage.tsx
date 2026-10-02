@@ -15,6 +15,7 @@ import {
 import { AssignShipperModal } from '../../components/order/AssignShipperModal';
 import { CancelOrderModal } from '../../components/order/CancelOrderModal';
 import { RefundOrderModal } from '../../components/order/RefundOrderModal';
+import { StoreScopeSelect } from '../../components/store/StoreScopeSelect';
 import { staffOrderApi } from '../../api/staffOrderApi';
 import type { OrderResponse, OrderStatus } from '../../types/order';
 import { ORDER_NEXT_STATUSES, isFinalStatus } from '../../types/order';
@@ -31,6 +32,7 @@ export const AdminOrdersPage = () => {
   const [status, setStatus] = useState<OrderStatus | 'ALL'>('ALL');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [storeId, setStoreId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
@@ -57,6 +59,7 @@ export const AdminOrdersPage = () => {
           toDate: toDate || undefined,
           page: page - 1,
           size: PAGE_SIZE,
+          storeId: storeId ?? undefined,
         });
         setOrders(data.content ?? []);
         setTotalPages(data.totalPages || 1);
@@ -68,7 +71,7 @@ export const AdminOrdersPage = () => {
         setIsRefreshing(false);
       }
     },
-    [status, fromDate, toDate, page]
+    [status, fromDate, toDate, storeId, page]
   );
 
   useEffect(() => {
@@ -153,11 +156,20 @@ export const AdminOrdersPage = () => {
             }}
           />
 
-          {(status !== 'ALL' || fromDate || toDate) && (
+          <StoreScopeSelect
+            value={storeId}
+            onChange={(id) => {
+              setStoreId(id);
+              setPage(1);
+            }}
+          />
+
+          {(status !== 'ALL' || fromDate || toDate || storeId != null) && (
             <Button
               variant="ghost"
               onClick={() => {
                 setStatus('ALL');
+                setStoreId(null);
                 setFromDate('');
                 setToDate('');
                 setPage(1);
@@ -193,6 +205,7 @@ export const AdminOrdersPage = () => {
                   <th>Tổng tiền</th>
                   <th>Thanh toán</th>
                   <th>Trạng thái</th>
+                  <th>Cơ sở</th>
                   <th>Tài xế</th>
                   <th aria-label="Hành động" />
                 </tr>
@@ -236,6 +249,7 @@ export const AdminOrdersPage = () => {
                       <td>
                         <StatusBadge status={order.status} />
                       </td>
+                      <td>{order.storeName ?? '—'}</td>
                       <td>
                         {order.shipperName || <span className="ui-table__meta">Chưa gán</span>}
                       </td>

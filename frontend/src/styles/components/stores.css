@@ -1,0 +1,133 @@
+/* Trang Hệ thống cửa hàng + thẻ chọn cơ sở ở thanh toán */
+.stores {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.stores__sub {
+  margin: 4px 0 0;
+  font-size: var(--text-sm);
+  color: var(--stone-500);
+}
+
+.stores__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.stores__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+}
+
+.stores__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.stores__name {
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--stone-800);
+}
+
+.stores__line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--stone-600);
+  text-decoration: none;
+}
+
+.stores__line svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--primary-600);
+}
+
+.stores__km {
+  color: var(--stone-500);
+}
+
+.stores__dir {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+/* Thẻ "Giao từ cơ sở" ở trang thanh toán */
+.ck-store {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--primary-50);
+}
+
+.ck-store__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ck-store__name {
+  font-weight: 600;
+  color: var(--stone-800);
+}
+
+.ck-store__meta {
+  font-size: var(--text-sm);
+  color: var(--stone-600);
+}
+
+.ck-store__options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ck-store__option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.ck-store__option--off {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.ck-store__reason {
+  display: block;
+  color: var(--danger);
+  font-size: var(--text-xs);
+}
+
+.ck-store__warn {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--danger);
+}

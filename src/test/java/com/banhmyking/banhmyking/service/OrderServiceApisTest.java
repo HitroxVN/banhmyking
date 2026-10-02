@@ -7,7 +7,9 @@ import com.banhmyking.banhmyking.dto.order.OrderResponse;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.OrderStatusHistory;
 import com.banhmyking.banhmyking.entity.Payment;
+import com.banhmyking.banhmyking.entity.Store;
 import com.banhmyking.banhmyking.entity.User;
+import com.banhmyking.banhmyking.security.StoreAccessGuard;
 import com.banhmyking.banhmyking.enums.OrderStatus;
 import com.banhmyking.banhmyking.enums.PaymentMethod;
 import com.banhmyking.banhmyking.enums.PaymentStatus;
@@ -25,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -63,6 +66,9 @@ class OrderServiceApisTest {
     @Mock
     private InventoryService inventoryService;
 
+    @Spy
+    private StoreAccessGuard storeAccessGuard = new StoreAccessGuard();
+
     @InjectMocks
     private OrderServiceImpl orderService;
 
@@ -76,6 +82,9 @@ class OrderServiceApisTest {
 
     @BeforeEach
     void setUp() {
+        Store store = new Store();
+        store.setId(1L);
+
         customer = new User();
         customer.setId(1L);
         customer.setFullName("Khách hàng 1");
@@ -90,6 +99,7 @@ class OrderServiceApisTest {
         staff.setId(2L);
         staff.setFullName("Nhân viên quán");
         staff.setRole(RoleName.STAFF);
+        staff.setStore(store);
 
         admin = new User();
         admin.setId(3L);
@@ -101,17 +111,20 @@ class OrderServiceApisTest {
         shipper.setFullName("Tài xế Hoàng");
         shipper.setPhone("0906665555");
         shipper.setRole(RoleName.SHIPPER);
+        shipper.setStore(store);
 
         otherShipper = new User();
         otherShipper.setId(5L);
         otherShipper.setFullName("Tài xế Nam");
         otherShipper.setPhone("0907776666");
         otherShipper.setRole(RoleName.SHIPPER);
+        otherShipper.setStore(store);
 
         sampleOrder = new Order();
         sampleOrder.setId(10L);
         sampleOrder.setOrderCode("BMK-20260909-TEST1");
         sampleOrder.setUser(customer);
+        sampleOrder.setStore(store);
         sampleOrder.setStatus(OrderStatus.READY_FOR_PICKUP);
         sampleOrder.setReceiverName("Khách hàng 1");
         sampleOrder.setReceiverPhone("0901234567");
@@ -181,7 +194,7 @@ class OrderServiceApisTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(customer));
 
         assertThrows(BusinessException.class,
-                () -> orderService.getAllOrdersForAdmin(1L, null, null, null, 0, 10));
+                () -> orderService.getAllOrdersForAdmin(1L, null, null, null, null, 0, 10));
     }
 
     @Test
@@ -192,7 +205,7 @@ class OrderServiceApisTest {
         when(orderRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(page);
 
         PageResponse<OrderResponse> result = orderService.getAllOrdersForAdmin(
-                2L, OrderStatus.READY_FOR_PICKUP, "2026-09-01", "2026-09-30", 0, 10);
+                2L, OrderStatus.READY_FOR_PICKUP, "2026-09-01", "2026-09-30", null, 0, 10);
 
         assertNotNull(result);
         assertEquals(1, result.content().size());

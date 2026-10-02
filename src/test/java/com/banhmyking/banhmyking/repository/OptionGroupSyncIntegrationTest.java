@@ -58,11 +58,11 @@ class OptionGroupSyncIntegrationTest {
     @Autowired
     private EntityManager entityManager;
 
-    /** Service đứng sau {@code @PreAuthorize("hasAnyRole('STAFF','ADMIN')")} — phải có principal. */
+    /** Service đứng sau {@code @PreAuthorize("hasRole('ADMIN')")} — phải có principal. */
     @BeforeEach
-    void authenticateAsStaff() {
+    void authenticateAsAdmin() {
         var auth = new UsernamePasswordAuthenticationToken(
-                "staff-sync-test", null, List.of(new SimpleGrantedAuthority("ROLE_STAFF")));
+                "admin-sync-test", null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
         SecurityContextHolder.getContext().setAuthentication(auth);
     }
 

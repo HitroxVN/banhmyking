@@ -44,6 +44,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final UserRepository userRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final InventoryService inventoryService;
+    private final com.banhmyking.banhmyking.security.StoreAccessGuard storeAccessGuard;
 
     private static final Pattern PATTERN_HYPHEN = Pattern.compile("BMK-\\d{8}-[A-Za-z0-9]+", Pattern.CASE_INSENSITIVE);
     private static final Pattern PATTERN_FLEXIBLE = Pattern
@@ -93,7 +94,7 @@ public class PaymentServiceImpl implements PaymentService {
      * Chặn đọc payment của đơn không liên quan:
      * CUSTOMER chỉ xem đơn của mình (mask NOT_FOUND), SHIPPER chỉ xem đơn được phân
      * công (403).
-     * STAFF/ADMIN xem tự do.
+     * STAFF/MANAGER chỉ xem đơn thuộc cơ sở của mình (404 nếu khác cơ sở); ADMIN xem toàn chuỗi.
      */
     private void assertCanViewOrderPayment(Order order, User actor, Long userId, String notFoundMessage) {
         if (actor.getRole() == RoleName.CUSTOMER
@@ -103,6 +104,9 @@ public class PaymentServiceImpl implements PaymentService {
         if (actor.getRole() == RoleName.SHIPPER
                 && (order == null || order.getShipper() == null || !order.getShipper().getId().equals(userId))) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "Bạn không được phân công giao đơn hàng này");
+        }
+        if (order != null) {
+            storeAccessGuard.requireOrderAccess(actor, order);
         }
     }
 
@@ -219,13 +223,13 @@ public class PaymentServiceImpl implements PaymentService {
             // Chuyển khoản/ví điện tử: khách và shipper KHÔNG được tự xác nhận đã trả tiền.
             // Tiền vào chỉ được ghi nhận bởi webhook SePay đã xác thực (processSepayWebhook)
             // hoặc do STAFF/ADMIN đối soát tay (tiền về tài khoản khác, SePay chưa cấu hình...).
-            boolean canReconcileManually = actor.getRole() == RoleName.STAFF
-                    || actor.getRole() == RoleName.ADMIN;
+            boolean canReconcileManually = storeAccessGuard.isOperator(actor);
             if (!canReconcileManually) {
                 throw new BusinessException(ErrorCode.FORBIDDEN,
                         "Đơn chuyển khoản được xác nhận tự động khi hệ thống nhận đủ tiền. "
                                 + "Vui lòng chuyển khoản đúng số tiền và nội dung, đơn sẽ tự cập nhật.");
             }
+            storeAccessGuard.requireOrderAccess(actor, order);
 
             payment.setStatus(PaymentStatus.PAID);
             payment.setPaidAt(LocalDateTime.now());

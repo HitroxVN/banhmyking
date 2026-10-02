@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.math.BigDecimal;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -62,7 +63,7 @@ class AdminDashboardControllerTest {
                 .shipperCount(4)
                 .build();
 
-        when(adminDashboardService.getDashboardMetrics()).thenReturn(metrics);
+        when(adminDashboardService.getDashboardMetrics(any())).thenReturn(metrics);
 
         mockMvc.perform(get("/api/v1/admin/dashboard/metrics"))
                 .andExpect(status().isOk())
@@ -80,7 +81,7 @@ class AdminDashboardControllerTest {
                 new DailyRevenueResponse("2026-09-14", BigDecimal.valueOf(1500000), 15)
         );
 
-        when(adminDashboardService.getDailyRevenueChart(anyInt())).thenReturn(chartData);
+        when(adminDashboardService.getDailyRevenueChart(anyInt(), any())).thenReturn(chartData);
 
         mockMvc.perform(get("/api/v1/admin/dashboard/revenue-chart?days=7"))
                 .andExpect(status().isOk())
@@ -98,7 +99,7 @@ class AdminDashboardControllerTest {
                 new OrderStatusStatResponse(OrderStatus.CANCELLED, "Đã hủy", 9, 6.0, BigDecimal.ZERO)
         );
 
-        when(adminDashboardService.getOrderStatusStats()).thenReturn(stats);
+        when(adminDashboardService.getOrderStatusStats(any())).thenReturn(stats);
 
         mockMvc.perform(get("/api/v1/admin/dashboard/order-status-stats"))
                 .andExpect(status().isOk())

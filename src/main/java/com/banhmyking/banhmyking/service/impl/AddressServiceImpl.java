@@ -9,6 +9,8 @@ import com.banhmyking.banhmyking.dto.address.AddressRequest;
 import com.banhmyking.banhmyking.dto.address.AddressResponse;
 import com.banhmyking.banhmyking.entity.Address;
 import com.banhmyking.banhmyking.entity.User;
+import com.banhmyking.banhmyking.exception.BusinessException;
+import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
 import com.banhmyking.banhmyking.mapper.AddressMapper;
 import com.banhmyking.banhmyking.repository.AddressRepository;
@@ -44,6 +46,7 @@ public class AddressServiceImpl implements AddressService {
 	public AddressResponse createAddress(Long userId, AddressRequest request) {
 		User user = userRepository.findById(userId)
 				.orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + userId));
+		requirePin(request);
 		Address address = addressMapper.toEntity(request);
 		address.setUser(user);
 		if (address.isDefaultAddress() || addressRepository.findByUserId(userId).isEmpty()) {
@@ -57,6 +60,7 @@ public class AddressServiceImpl implements AddressService {
 	@Transactional
 	public AddressResponse updateAddress(Long userId, Long addressId, AddressRequest request) {
 		Address address = findAddress(userId, addressId);
+		requirePin(request);
 		addressMapper.updateEntity(address, request);
 		if (address.isDefaultAddress()) {
 			clearDefaultAddress(userId, addressId);
@@ -85,6 +89,17 @@ public class AddressServiceImpl implements AddressService {
 		clearDefaultAddress(userId, addressId);
 		address.setDefaultAddress(true);
 		return addressMapper.toResponse(addressRepository.save(address));
+	}
+
+	/**
+	 * R12: địa chỉ tạo/sửa trong sổ địa chỉ bắt buộc có toạ độ — nếu không, khách có thể lưu địa chỉ
+	 * không ghim rồi đặt bằng addressId để né kiểm tra bán kính (lỗ hổng R10). Dòng cũ chưa có toạ độ
+	 * vẫn giữ nguyên trong DB cho tới khi khách sửa.
+	 */
+	private static void requirePin(AddressRequest request) {
+		if (request.getLatitude() == null || request.getLongitude() == null) {
+			throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Vui lòng ghim vị trí trên bản đồ");
+		}
 	}
 
 	private Address findAddress(Long userId, Long addressId) {

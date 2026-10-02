@@ -6,7 +6,6 @@ import type {
   ProductItem,
   ProductCreatePayload,
   ProductUpdatePayload,
-  StockMovement,
 } from '../types/staff';
 
 export interface CategoryPayload {
@@ -127,28 +126,6 @@ export const staffCatalogApi = {
       },
     });
     return res.data.data;
-  },
-
-  /**
-   * Nhập hoặc điều chỉnh tồn kho (changeQty âm = giảm). Mọi thay đổi đều vào sổ kho.
-   */
-  async adjustStock(productId: number, changeQty: number, note?: string): Promise<ProductItem> {
-    const res = await axiosClient.post<ApiResponse<ProductItem>>(`/catalog/products/${productId}/stock`, {
-      changeQty,
-      note,
-    });
-    return res.data.data;
-  },
-
-  /**
-   * Sổ kho gần đây của một món (mới nhất trước)
-   */
-  async getStockMovements(productId: number, size = 8): Promise<StockMovement[]> {
-    const res = await axiosClient.get<ApiResponse<PageResponse<StockMovement>>>(
-      `/catalog/products/${productId}/stock-movements`,
-      { params: { size } },
-    );
-    return res.data.data.content;
   },
 };
 

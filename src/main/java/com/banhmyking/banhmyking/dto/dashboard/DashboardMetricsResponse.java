@@ -21,7 +21,7 @@ public class DashboardMetricsResponse {
     @Schema(description = "Doanh thu trong ngày hôm nay (VND)", example = "1250000")
     private BigDecimal todayRevenue;
 
-    @Schema(description = "Tổng số đơn hàng toàn hệ thống", example = "142")
+    @Schema(description = "Tổng số đơn hàng toàn chuỗi hoặc theo cơ sở được chọn", example = "142")
     private long totalOrders;
 
     @Schema(description = "Số đơn hàng phát sinh hôm nay", example = "18")

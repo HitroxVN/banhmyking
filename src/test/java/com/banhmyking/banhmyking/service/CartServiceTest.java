@@ -61,9 +61,6 @@ class CartServiceTest {
     @Mock
     private UserRepository userRepository;
 
-    @Mock
-    private InventoryService inventoryService;
-
     @InjectMocks
     private CartServiceImpl cartService;
 

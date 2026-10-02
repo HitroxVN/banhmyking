@@ -1,12 +1,9 @@
-import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Info, Receipt, Sandwich, ShoppingBag, Trash2 } from 'lucide-react';
 import { useCart } from '../context/useCart';
-import { deliveryApi } from '../api/deliveryApi';
 import { Button, EmptyState, QuantityStepper, Spinner, useConfirm, useToast } from '../components/ui';
 import { formatCurrency } from '../utils/formatters';
 import type { CartItem } from '../types/cart';
-import type { DeliveryFeeResult } from '../types/delivery';
 import '../styles/components/order.css';
 
 export const CartPage = () => {
@@ -16,41 +13,8 @@ export const CartPage = () => {
   const confirm = useConfirm();
   const toast = useToast();
 
-  const [fee, setFee] = useState<DeliveryFeeResult | null>(null);
-  const [isLoadingFee, setIsLoadingFee] = useState(false);
-
-  // Ngưỡng + phí ship lấy từ backend, không hardcode ở FE
-  useEffect(() => {
-    if (subtotal <= 0) {
-      setFee(null);
-      return;
-    }
-
-    let cancelled = false;
-    setIsLoadingFee(true);
-    deliveryApi
-      .getFee({ subtotal })
-      .then((result) => {
-        if (!cancelled) setFee(result);
-      })
-      .catch(() => {
-        if (!cancelled) setFee(null);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoadingFee(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [subtotal]);
-
   const items = cart?.items ?? [];
   const isEmpty = items.length === 0;
-  const shippingFee = fee?.shippingFee ?? 0;
-  const threshold = fee?.freeshipThreshold ?? 0;
-  const total = subtotal + shippingFee;
-  const progress = threshold > 0 ? Math.min(100, Math.round((subtotal / threshold) * 100)) : 0;
 
   const handleQuantity = async (item: CartItem, quantity: number) => {
     try {
@@ -199,36 +163,20 @@ export const CartPage = () => {
               </h2>
             </div>
             <div className="card__body">
-              {threshold > 0 && (
-                <div className="freeship">
-                  <p className="freeship__text">
-                    {fee?.freeship
-                      ? 'Đơn của bạn được miễn phí giao hàng.'
-                      : `Mua thêm ${formatCurrency(Math.max(0, threshold - subtotal))} để được miễn phí giao hàng.`}
-                  </p>
-                  <div className="freeship__bar">
-                    <div
-                      className={`freeship__fill${fee?.freeship ? ' freeship__fill--done' : ''}`}
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
               <div className="summary__row">
                 <span>Tạm tính ({totalQuantity} món)</span>
                 <span>{formatCurrency(subtotal)}</span>
               </div>
-              <div className={`summary__row${fee?.freeship ? ' summary__row--free' : ''}`}>
+              <div className="summary__row">
                 <span>Phí giao hàng</span>
-                <span>{isLoadingFee ? 'Đang tính…' : fee?.freeship ? 'Miễn phí' : formatCurrency(shippingFee)}</span>
+                <span>Tính ở bước thanh toán</span>
               </div>
 
               <div className="summary__divider" />
 
               <div className="summary__total">
-                <span className="summary__total-label">Tổng cộng</span>
-                <span className="summary__total-price">{formatCurrency(total)}</span>
+                <span className="summary__total-label">Tạm tính</span>
+                <span className="summary__total-price">{formatCurrency(subtotal)}</span>
               </div>
 
               <p className="summary__row summary__row--note">

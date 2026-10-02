@@ -1,25 +1,50 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { LogOut, PauseCircle, PlayCircle } from 'lucide-react';
+import { storeApi } from '../../api/storeApi';
 import { useAuth } from '../../context/useAuth';
 import { useSiteSettings } from '../../context/useSiteSettings';
-import { useConfirm } from '../ui';
+import { useStoreScope } from '../../context/useStoreScope';
+import { Button, useConfirm, useToast } from '../ui';
+import { StoreScopeSelect } from '../store/StoreScopeSelect';
 import type { BrandConfig, NavItem } from './navItems';
 
 export interface DashboardLayoutProps {
   navItems: NavItem[];
   brand: BrandConfig;
+  /** Hiện cơ sở đang làm việc (và nút tạm ngưng nhận đơn cho MANAGER/ADMIN) */
+  showStore?: boolean;
 }
 
 /**
  * Khung vận hành dùng chung cho Staff / Shipper / Admin.
  * Thay cho 3 file layout gần như trùng nhau trước đây.
  */
-export const DashboardLayout = ({ navItems, brand }: DashboardLayoutProps) => {
+export const DashboardLayout = ({ navItems, brand, showStore = false }: DashboardLayoutProps) => {
   const { user, logout } = useAuth();
   const { settings } = useSiteSettings();
   const confirm = useConfirm();
   const navigate = useNavigate();
+  const scope = useStoreScope();
+  const toast = useToast();
+  const [accepting, setAccepting] = useState(true);
   const BrandIcon = brand.icon;
+
+  useEffect(() => {
+    if (!showStore || scope.storeId == null) return;
+    let alive = true;
+    storeApi
+      .listPublic()
+      .then((stores) => {
+        if (alive) setAccepting(stores.find((s) => s.id === scope.storeId)?.acceptingOrders ?? true);
+      })
+      .catch(() => {
+        // Không tải được trạng thái thì giữ mặc định, nút vẫn dùng được
+      });
+    return () => {
+      alive = false;
+    };
+  }, [showStore, scope.storeId]);
 
   const handleLogout = async () => {
     const accepted = await confirm({
@@ -46,6 +71,42 @@ export const DashboardLayout = ({ navItems, brand }: DashboardLayoutProps) => {
             <span className="dash__brand-sub">{brand.sub}</span>
           </span>
         </div>
+
+        {showStore && (
+          <div className="dash__store">
+            {scope.canChoose ? (
+              <StoreScopeSelect
+                label="Cơ sở đang xem"
+                allowAll={false}
+                value={scope.storeId}
+                onChange={(id) => scope.setStore(id, null)}
+              />
+            ) : (
+              <span className="dash__store-name">{scope.storeName ?? 'Chưa được gán cơ sở'}</span>
+            )}
+          </div>
+        )}
+
+        {showStore && (user?.role === 'MANAGER' || user?.role === 'ADMIN') && scope.storeId != null && (
+          <div className="dash__store">
+            <Button
+              size="sm"
+              variant={accepting ? 'danger' : 'success'}
+              icon={accepting ? <PauseCircle size={16} /> : <PlayCircle size={16} />}
+              onClick={async () => {
+                try {
+                  const store = await storeApi.setAccepting(scope.storeId as number, !accepting);
+                  setAccepting(store.acceptingOrders);
+                  toast.success(store.acceptingOrders ? 'Đã mở lại nhận đơn' : 'Đã tạm ngưng nhận đơn');
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Thao tác thất bại');
+                }
+              }}
+            >
+              {accepting ? 'Tạm ngưng nhận đơn' : 'Mở lại nhận đơn'}
+            </Button>
+          </div>
+        )}
 
         <nav className="dash__nav">
           <div className="dash__nav-title">{brand.navTitle}</div>

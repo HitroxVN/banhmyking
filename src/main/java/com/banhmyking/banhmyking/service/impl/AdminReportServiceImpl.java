@@ -2,6 +2,7 @@ package com.banhmyking.banhmyking.service.impl;
 
 import com.banhmyking.banhmyking.dto.report.CategoryRevenueResponse;
 import com.banhmyking.banhmyking.dto.report.ShipperRevenueResponse;
+import com.banhmyking.banhmyking.dto.report.StoreRevenueResponse;
 import com.banhmyking.banhmyking.dto.report.TopProductResponse;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.enums.OrderStatus;
@@ -38,41 +39,60 @@ public class AdminReportServiceImpl implements AdminReportService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<TopProductResponse> getTopProducts(LocalDate fromDate, LocalDate toDate, int limit) {
+    public List<TopProductResponse> getTopProducts(LocalDate fromDate, LocalDate toDate, int limit, Long storeId) {
         LocalDate from = resolveFrom(fromDate, toDate);
         LocalDate to = resolveTo(toDate);
         assertValidRange(from, to);
 
-        return fetchTopProducts(from, to, limit);
+        return fetchTopProducts(from, to, limit, storeId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public byte[] exportCsv(ReportType type, LocalDate fromDate, LocalDate toDate, int limit) {
+    public List<StoreRevenueResponse> getRevenueByStore(LocalDate fromDate, LocalDate toDate) {
+        LocalDate from = resolveFrom(fromDate, toDate);
+        LocalDate to = resolveTo(toDate);
+        assertValidRange(from, to);
+        return orderRepository.findRevenueByStore(from.atStartOfDay(), to.plusDays(1).atStartOfDay());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] exportCsv(ReportType type, LocalDate fromDate, LocalDate toDate, int limit, Long storeId) {
         LocalDate from = resolveFrom(fromDate, toDate);
         LocalDate to = resolveTo(toDate);
         assertValidRange(from, to);
 
         List<String[]> rows = switch (type) {
-            case TOP_PRODUCTS -> topProductRows(from, to, limit);
-            case REVENUE_BY_DAY -> revenueByDayRows(from, to);
-            case REVENUE_BY_CATEGORY -> revenueByCategoryRows(from, to);
-            case REVENUE_BY_SHIPPER -> revenueByShipperRows(from, to);
+            case TOP_PRODUCTS -> topProductRows(from, to, limit, storeId);
+            case REVENUE_BY_DAY -> revenueByDayRows(from, to, storeId);
+            case REVENUE_BY_CATEGORY -> revenueByCategoryRows(from, to, storeId);
+            case REVENUE_BY_SHIPPER -> revenueByShipperRows(from, to, storeId);
+            case REVENUE_BY_STORE -> revenueByStoreRows(from, to);
         };
         return CsvWriter.toBytes(rows);
     }
 
-    private List<TopProductResponse> fetchTopProducts(LocalDate from, LocalDate to, int limit) {
+    private List<TopProductResponse> fetchTopProducts(LocalDate from, LocalDate to, int limit, Long storeId) {
         return orderItemRepository.findTopProducts(
-                from.atStartOfDay(), to.plusDays(1).atStartOfDay(), pageOf(limit));
+                from.atStartOfDay(), to.plusDays(1).atStartOfDay(), storeId, pageOf(limit));
+    }
+
+    private List<String[]> revenueByStoreRows(LocalDate from, LocalDate to) {
+        List<String[]> rows = new ArrayList<>();
+        rows.add(new String[] {"Cơ sở", "Số đơn", "Doanh thu (đ)"});
+        for (StoreRevenueResponse item : getRevenueByStore(from, to)) {
+            rows.add(new String[] {item.getStoreName(), String.valueOf(item.getOrderCount()), plain(item.getRevenue())});
+        }
+        return rows;
     }
 
     // ─── Sinh dòng CSV theo từng loại báo cáo ────────────────────────────────
 
-    private List<String[]> topProductRows(LocalDate from, LocalDate to, int limit) {
+    private List<String[]> topProductRows(LocalDate from, LocalDate to, int limit, Long storeId) {
         List<String[]> rows = new ArrayList<>();
         rows.add(new String[] {"Món", "Số lượng bán", "Doanh thu (đ)"});
-        for (TopProductResponse item : fetchTopProducts(from, to, limit)) {
+        for (TopProductResponse item : fetchTopProducts(from, to, limit, storeId)) {
             rows.add(new String[] {
                     item.getProductName(),
                     String.valueOf(item.getQuantitySold()),
@@ -82,11 +102,11 @@ public class AdminReportServiceImpl implements AdminReportService {
         return rows;
     }
 
-    private List<String[]> revenueByDayRows(LocalDate from, LocalDate to) {
+    private List<String[]> revenueByDayRows(LocalDate from, LocalDate to, Long storeId) {
         // Ngày không phát sinh đơn không xuất dòng — CSV là sổ bán hàng, không phải lịch.
         Map<LocalDate, BigDecimal> revenueByDay = new TreeMap<>();
         Map<LocalDate, Long> ordersByDay = new TreeMap<>();
-        for (Order order : orderRepository.findByCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+        for (Order order : orderRepository.findInRange(storeId,
                 from.atStartOfDay(), to.plusDays(1).atStartOfDay())) {
             if (isRevenueOrder(order)) {
                 revenueByDay.merge(order.getCreatedAt().toLocalDate(), nullToZero(order.getTotal()), BigDecimal::add);
@@ -106,11 +126,11 @@ public class AdminReportServiceImpl implements AdminReportService {
         return rows;
     }
 
-    private List<String[]> revenueByCategoryRows(LocalDate from, LocalDate to) {
+    private List<String[]> revenueByCategoryRows(LocalDate from, LocalDate to, Long storeId) {
         List<String[]> rows = new ArrayList<>();
         rows.add(new String[] {"Danh mục", "Số lượng bán", "Doanh thu (đ)"});
         for (CategoryRevenueResponse item : orderItemRepository.findRevenueByCategory(
-                from.atStartOfDay(), to.plusDays(1).atStartOfDay())) {
+                from.atStartOfDay(), to.plusDays(1).atStartOfDay(), storeId)) {
             rows.add(new String[] {
                     item.getCategoryName(),
                     String.valueOf(item.getQuantitySold()),
@@ -120,11 +140,11 @@ public class AdminReportServiceImpl implements AdminReportService {
         return rows;
     }
 
-    private List<String[]> revenueByShipperRows(LocalDate from, LocalDate to) {
+    private List<String[]> revenueByShipperRows(LocalDate from, LocalDate to, Long storeId) {
         List<String[]> rows = new ArrayList<>();
         rows.add(new String[] {"Tài xế", "Số đơn", "Doanh thu (đ)"});
         for (ShipperRevenueResponse item : orderRepository.findRevenueByShipper(
-                from.atStartOfDay(), to.plusDays(1).atStartOfDay())) {
+                from.atStartOfDay(), to.plusDays(1).atStartOfDay(), storeId)) {
             rows.add(new String[] {
                     item.getShipperName(),
                     String.valueOf(item.getOrderCount()),

@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   Bike,
   ChefHat,
   ClipboardList,
@@ -6,10 +7,13 @@ import {
   FolderTree,
   LayoutDashboard,
   LineChart,
+  PackageCheck,
   Settings,
   Star,
+  Store as StoreIcon,
   Ticket,
   Users,
+  UsersRound,
   UtensilsCrossed,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -43,11 +47,35 @@ export const STAFF_BRAND: BrandConfig = {
   navTitle: 'QUẢN LÝ VẬN HÀNH',
 };
 
+/** ADMIN vào khu /staff: giữ khung bếp nhưng hiện đúng vai trò */
+export const ADMIN_STAFF_BRAND: BrandConfig = {
+  ...STAFF_BRAND,
+  sub: 'BẾP & ĐIỀU PHỐI (ADMIN)',
+  roleLabel: 'Quản trị viên',
+};
+
 export const STAFF_NAV: NavItem[] = [
   { to: '/staff/orders', label: 'Hàng đợi Đơn hàng (POS)', icon: ClipboardList },
-  { to: '/staff/menu', label: 'Quản lý Thực đơn (Menu)', icon: UtensilsCrossed },
+  { to: '/staff/menu', label: 'Tình trạng món', icon: PackageCheck },
   { to: '/staff/reviews', label: 'Đánh giá của khách', icon: Star },
 ];
+
+export const MANAGER_NAV: NavItem[] = [
+  ...STAFF_NAV,
+  { to: '/staff/reports', label: 'Báo cáo cơ sở', icon: BarChart3 },
+  { to: '/staff/team', label: 'Nhân viên', icon: UsersRound },
+];
+
+export const MANAGER_BRAND: BrandConfig = {
+  name: 'BÁNH MỲ KING',
+  sub: 'QUẢN LÝ CƠ SỞ',
+  icon: ChefHat,
+  roleLabel: 'Quản lý cơ sở',
+  navTitle: 'VẬN HÀNH CƠ SỞ',
+};
+
+/** Menu của khu /staff theo vai trò */
+export const navForRole = (role: RoleName | undefined): NavItem[] => (role === 'MANAGER' ? MANAGER_NAV : STAFF_NAV);
 
 export const SHIPPER_BRAND: BrandConfig = {
   name: 'BÁNH MỲ KING',
@@ -72,7 +100,9 @@ export const ADMIN_BRAND: BrandConfig = {
 export const ADMIN_NAV: NavItem[] = [
   { to: '/admin/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
   { to: '/admin/orders', label: 'Đơn hàng', icon: ClipboardList },
+  { to: '/admin/stores', label: 'Cơ sở', icon: StoreIcon },
   { to: '/admin/categories', label: 'Danh mục món', icon: FolderTree },
+  { to: '/admin/menu', label: 'Thực đơn', icon: UtensilsCrossed },
   { to: '/admin/promotions', label: 'Mã giảm giá', icon: Ticket },
   { to: '/admin/reports', label: 'Báo cáo', icon: LineChart },
   { to: '/admin/reviews', label: 'Đánh giá', icon: Star },
@@ -86,6 +116,7 @@ export const roleHomePath = (role: RoleName | undefined): string => {
     case 'ADMIN':
       return '/admin';
     case 'STAFF':
+    case 'MANAGER':
       return '/staff';
     case 'SHIPPER':
       return '/shipper';

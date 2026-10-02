@@ -4,6 +4,7 @@ import { Button, PageHeader, Skeleton } from '../../components/ui';
 import { RevenueChart } from '../../components/admin/RevenueChart';
 import { OrderStatusBreakdown } from '../../components/admin/OrderStatusBreakdown';
 import { UserBreakdownCard } from '../../components/admin/UserBreakdownCard';
+import { StoreScopeSelect } from '../../components/store/StoreScopeSelect';
 import { adminDashboardApi } from '../../api/adminDashboardApi';
 import type { DashboardMetrics, DailyRevenue, OrderStatusStat } from '../../types/admin';
 import { formatCurrency } from '../../utils/formatters';
@@ -14,6 +15,7 @@ export const AdminDashboardPage = () => {
   const [revenueData, setRevenueData] = useState<DailyRevenue[]>([]);
   const [orderStats, setOrderStats] = useState<OrderStatusStat[]>([]);
   const [chartDays, setChartDays] = useState<number>(7);
+  const [storeId, setStoreId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -24,9 +26,9 @@ export const AdminDashboardPage = () => {
     setErrorMsg(null);
     try {
       const [m, r, s] = await Promise.all([
-        adminDashboardApi.getMetrics(),
-        adminDashboardApi.getRevenueChart(chartDays),
-        adminDashboardApi.getOrderStatusStats(),
+        adminDashboardApi.getMetrics(storeId ?? undefined),
+        adminDashboardApi.getRevenueChart(chartDays, storeId ?? undefined),
+        adminDashboardApi.getOrderStatusStats(storeId ?? undefined),
       ]);
       setMetrics(m);
       setRevenueData(r);
@@ -37,14 +39,14 @@ export const AdminDashboardPage = () => {
     } finally {
       setIsRefreshing(false);
     }
-  }, [chartDays]);
+  }, [chartDays, storeId]);
 
   useEffect(() => {
     let isMounted = true;
     Promise.all([
-      adminDashboardApi.getMetrics(),
-      adminDashboardApi.getRevenueChart(chartDays),
-      adminDashboardApi.getOrderStatusStats(),
+      adminDashboardApi.getMetrics(storeId ?? undefined),
+      adminDashboardApi.getRevenueChart(chartDays, storeId ?? undefined),
+      adminDashboardApi.getOrderStatusStats(storeId ?? undefined),
     ])
       .then(([m, r, s]) => {
         if (!isMounted) return;
@@ -63,12 +65,20 @@ export const AdminDashboardPage = () => {
     return () => {
       isMounted = false;
     };
-  }, [chartDays]);
+  }, [chartDays, storeId]);
+
+  // Đổi cơ sở: bỏ số liệu của cơ sở cũ ngay để khung tải hiện ra, không để số cũ nằm đó lúc đang tải
+  const handleStoreChange = (next: number | null) => {
+    setStoreId(next);
+    setMetrics(null);
+    setErrorMsg(null);
+    setIsLoading(true);
+  };
 
   const handleDaysChange = async (days: number) => {
     setChartDays(days);
     try {
-      setRevenueData(await adminDashboardApi.getRevenueChart(days));
+      setRevenueData(await adminDashboardApi.getRevenueChart(days, storeId ?? undefined));
     } catch {
       setErrorMsg('Không tải được dữ liệu biểu đồ doanh thu.');
     }
@@ -81,6 +91,7 @@ export const AdminDashboardPage = () => {
         subtitle={`Cập nhật lúc ${lastUpdated.toLocaleTimeString('vi-VN')}`}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
+        actions={<StoreScopeSelect value={storeId} onChange={handleStoreChange} />}
       />
 
       {errorMsg && (

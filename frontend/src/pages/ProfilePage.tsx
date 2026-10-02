@@ -118,7 +118,12 @@ export const ProfilePage = () => {
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
   const [addressError, setAddressError] = useState<string | null>(null);
   const [addressForm, setAddressForm] = useState<AddressForm | null>(null);
-  const [formErrors, setFormErrors] = useState<{ receiverName?: string; receiverPhone?: string; fullAddress?: string }>({});
+  const [formErrors, setFormErrors] = useState<{
+    receiverName?: string;
+    receiverPhone?: string;
+    fullAddress?: string;
+    pin?: string;
+  }>({});
   const [isSavingAddress, setIsSavingAddress] = useState(false);
 
   const loadAddresses = useCallback(async () => {
@@ -217,6 +222,10 @@ export const ProfilePage = () => {
     else if (!PHONE_REGEX.test(trimmedPhone)) errors.receiverPhone = 'Số điện thoại không đúng định dạng Việt Nam';
     if (addressForm.location.fullAddress.trim().length < 5) {
       errors.fullAddress = 'Địa chỉ quá ngắn, vui lòng ghi rõ số nhà và đường';
+    }
+    // R12: sổ địa chỉ bắt buộc ghim vị trí (server cũng chặn) — để chọn cơ sở và tính phí ship đúng
+    if (addressForm.location.latitude == null || addressForm.location.longitude == null) {
+      errors.pin = 'Vui lòng ghim vị trí trên bản đồ';
     }
 
     setFormErrors(errors);
@@ -560,6 +569,12 @@ export const ProfilePage = () => {
               onChange={(location) => setAddressForm({ ...addressForm, location })}
               fullAddressError={formErrors.fullAddress}
             />
+            {/* Lỗi tự ẩn ngay khi khách ghim vị trí */}
+            {formErrors.pin && (addressForm.location.latitude == null || addressForm.location.longitude == null) && (
+              <p className="ui-field__msg ui-field__msg--error" role="alert">
+                {formErrors.pin}
+              </p>
+            )}
             <label className="ui-check">
               <input
                 type="checkbox"

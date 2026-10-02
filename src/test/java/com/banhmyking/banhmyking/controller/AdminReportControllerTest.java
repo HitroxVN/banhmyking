@@ -56,7 +56,7 @@ class AdminReportControllerTest {
     @Test
     @DisplayName("GET /top-products trả envelope JSON kèm số liệu gộp theo món")
     void getTopProducts_returnsRows() throws Exception {
-        when(adminReportService.getTopProducts(any(), any(), eq(10))).thenReturn(List.of(
+        when(adminReportService.getTopProducts(any(), any(), eq(10), any())).thenReturn(List.of(
                 new TopProductResponse(10L, "Bánh mì Đặc Biệt", 12L, BigDecimal.valueOf(420000))));
 
         mockMvc.perform(get("/api/v1/admin/reports/top-products"))
@@ -70,7 +70,7 @@ class AdminReportControllerTest {
     @Test
     @DisplayName("GET /top-products với ngày bắt đầu sau ngày kết thúc trả 400 kèm mã lỗi VALIDATION_ERROR")
     void getTopProducts_whenFromAfterTo_returnsBadRequest() throws Exception {
-        when(adminReportService.getTopProducts(any(), any(), eq(10))).thenThrow(
+        when(adminReportService.getTopProducts(any(), any(), eq(10), any())).thenThrow(
                 new BusinessException(ErrorCode.VALIDATION_ERROR, "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc"));
 
         mockMvc.perform(get("/api/v1/admin/reports/top-products")
@@ -84,7 +84,7 @@ class AdminReportControllerTest {
     @DisplayName("GET /export trả file CSV đính kèm, tên file mang đúng loại báo cáo và khoảng ngày")
     void export_returnsCsvAttachment() throws Exception {
         byte[] csv = new byte[] {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF, 'A'};
-        when(adminReportService.exportCsv(eq(ReportType.TOP_PRODUCTS), any(), any(), eq(10))).thenReturn(csv);
+        when(adminReportService.exportCsv(eq(ReportType.TOP_PRODUCTS), any(), any(), eq(10), any())).thenReturn(csv);
 
         MvcResult result = mockMvc.perform(get("/api/v1/admin/reports/export")
                         .param("type", "TOP_PRODUCTS")
@@ -110,7 +110,7 @@ class AdminReportControllerTest {
     @DisplayName("GET /export không truyền ngày vẫn xuất được (mặc định 30 ngày gần nhất)")
     void export_whenNoDates_usesDefaults() throws Exception {
         byte[] csv = "Nội dung".getBytes(StandardCharsets.UTF_8);
-        when(adminReportService.exportCsv(eq(ReportType.REVENUE_BY_DAY), any(), any(), eq(10))).thenReturn(csv);
+        when(adminReportService.exportCsv(eq(ReportType.REVENUE_BY_DAY), any(), any(), eq(10), any())).thenReturn(csv);
 
         mockMvc.perform(get("/api/v1/admin/reports/export").param("type", "REVENUE_BY_DAY"))
                 .andExpect(status().isOk())

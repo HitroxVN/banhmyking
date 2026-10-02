@@ -17,6 +17,7 @@ import type { BadgeTone } from '../../components/ui';
 import { adminUserApi } from '../../api/adminUserApi';
 import type { AdminCreateUserPayload, AdminUpdateUserPayload, AdminUser } from '../../types/admin';
 import type { RoleName } from '../../types/auth';
+import { StoreScopeSelect } from '../../components/store/StoreScopeSelect';
 import { useAuth } from '../../context/useAuth';
 import '../../styles/components/admin-users.css';
 
@@ -26,14 +27,18 @@ const ROLE_LABEL: Record<RoleName, string> = {
   CUSTOMER: 'Khách hàng',
   STAFF: 'Nhân viên bếp',
   SHIPPER: 'Tài xế giao hàng',
+  MANAGER: 'Quản lý cơ sở',
   ADMIN: 'Quản trị viên',
 };
 const ROLE_TONE: Record<RoleName, BadgeTone> = {
   CUSTOMER: 'neutral',
   STAFF: 'info',
   SHIPPER: 'warning',
+  MANAGER: 'info',
   ADMIN: 'success',
 };
+/** Vai trò bắt buộc thuộc đúng 1 cơ sở */
+const STORE_BOUND_ROLES: RoleName[] = ['STAFF', 'SHIPPER', 'MANAGER'];
 const ROLE_OPTIONS = (Object.keys(ROLE_LABEL) as RoleName[]).map((role) => ({
   value: role,
   label: ROLE_LABEL[role],
@@ -61,6 +66,7 @@ export const AdminUsersPage = () => {
   const [keyword, setKeyword] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleName | 'ALL'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'BANNED'>('ALL');
+  const [storeFilter, setStoreFilter] = useState<number | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -85,6 +91,7 @@ export const AdminUsersPage = () => {
           keyword: keyword || undefined,
           role: roleFilter === 'ALL' ? undefined : roleFilter,
           banned: statusFilter === 'ALL' ? undefined : statusFilter === 'BANNED',
+          storeId: storeFilter ?? undefined,
         });
         setUsers(data.content ?? []);
         setTotalPages(data.totalPages || 1);
@@ -96,7 +103,7 @@ export const AdminUsersPage = () => {
         setIsRefreshing(false);
       }
     },
-    [page, keyword, roleFilter, statusFilter]
+    [page, keyword, roleFilter, statusFilter, storeFilter]
   );
 
   useEffect(() => {
@@ -230,6 +237,14 @@ export const AdminUsersPage = () => {
             <option value="BANNED">Đã bị khoá</option>
           </Select>
 
+          <StoreScopeSelect
+            value={storeFilter}
+            onChange={(id) => {
+              setStoreFilter(id);
+              setPage(1);
+            }}
+          />
+
           <Button variant="primary" icon={<Plus size={17} />} onClick={() => setCreateOpen(true)}>
             Thêm tài khoản
           </Button>
@@ -257,6 +272,7 @@ export const AdminUsersPage = () => {
                   <th>Người dùng</th>
                   <th>Điện thoại</th>
                   <th>Vai trò</th>
+                  <th>Cơ sở</th>
                   <th>Trạng thái</th>
                   <th>Ngày tạo</th>
                   <th aria-label="Hành động" />
@@ -291,6 +307,7 @@ export const AdminUsersPage = () => {
                           {ROLE_LABEL[item.role] ?? item.role}
                         </Badge>
                       </td>
+                      <td>{item.storeName ?? '—'}</td>
                       <td>
                         <Badge tone={item.banned ? 'danger' : 'success'}>
                           {item.banned ? 'Đã bị khoá' : 'Hoạt động'}
@@ -402,10 +419,18 @@ const CreateUserModal = ({ onClose, onCreated }: { onClose: () => void; onCreate
   const toast = useToast();
 
   const handleSubmit = async () => {
+    if (STORE_BOUND_ROLES.includes(form.role) && !form.storeId) {
+      toast.error('Vui lòng chọn cơ sở làm việc');
+      return;
+    }
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      await adminUserApi.createUser({ ...form, phone: form.phone?.trim() || undefined });
+      await adminUserApi.createUser({
+        ...form,
+        phone: form.phone?.trim() || undefined,
+        storeId: STORE_BOUND_ROLES.includes(form.role) ? (form.storeId ?? null) : null,
+      });
       toast.success(`Đã tạo tài khoản ${form.fullName}`);
       onCreated();
     } catch (err: unknown) {
@@ -479,7 +504,10 @@ const CreateUserModal = ({ onClose, onCreated }: { onClose: () => void; onCreate
           label="Vai trò"
           hint="Cấp quyền ADMIN cho nhân sự qua nút “Vai trò” trong bảng."
           value={form.role}
-          onChange={(event) => setForm({ ...form, role: event.target.value as RoleName })}
+          onChange={(event) => {
+            const role = event.target.value as RoleName;
+            setForm({ ...form, role, storeId: STORE_BOUND_ROLES.includes(role) ? form.storeId : null });
+          }}
         >
           {CREATABLE_ROLES.map((option) => (
             <option key={option.value} value={option.value}>
@@ -487,6 +515,14 @@ const CreateUserModal = ({ onClose, onCreated }: { onClose: () => void; onCreate
             </option>
           ))}
         </Select>
+        {STORE_BOUND_ROLES.includes(form.role) && (
+          <StoreScopeSelect
+            label="Cơ sở làm việc"
+            allowAll={false}
+            value={form.storeId ?? null}
+            onChange={(storeId) => setForm({ ...form, storeId })}
+          />
+        )}
       </div>
     </Modal>
   );
@@ -509,12 +545,18 @@ const EditUserModal = ({
     role: user.role,
     banned: user.banned,
     password: '',
+    storeId: user.storeId ?? null,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const toast = useToast();
 
   const handleSubmit = async () => {
+    const editRole = form.role ?? user.role;
+    if (STORE_BOUND_ROLES.includes(editRole) && !form.storeId) {
+      toast.error('Vui lòng chọn cơ sở làm việc');
+      return;
+    }
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
@@ -522,6 +564,7 @@ const EditUserModal = ({
         fullName: form.fullName,
         phone: form.phone?.trim() || undefined,
         role: form.role,
+        storeId: STORE_BOUND_ROLES.includes(editRole) ? (form.storeId ?? null) : null,
         banned: form.banned,
         password: form.password ? form.password : undefined,
       });
@@ -585,7 +628,10 @@ const EditUserModal = ({
           value={form.role}
           disabled={isSelf}
           hint={isSelf ? 'Bạn không thể tự đổi vai trò của chính mình.' : undefined}
-          onChange={(event) => setForm({ ...form, role: event.target.value as RoleName })}
+          onChange={(event) => {
+            const role = event.target.value as RoleName;
+            setForm({ ...form, role, storeId: STORE_BOUND_ROLES.includes(role) ? form.storeId : null });
+          }}
         >
           {ROLE_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -593,6 +639,15 @@ const EditUserModal = ({
             </option>
           ))}
         </Select>
+
+        {STORE_BOUND_ROLES.includes(form.role ?? user.role) && (
+          <StoreScopeSelect
+            label="Cơ sở làm việc"
+            allowAll={false}
+            value={form.storeId ?? null}
+            onChange={(storeId) => setForm({ ...form, storeId })}
+          />
+        )}
 
         <Input
           label="Đặt lại mật khẩu"
@@ -621,15 +676,21 @@ const EditUserModal = ({
 
 const RoleModal = ({ user, onClose, onSaved }: { user: AdminUser; onClose: () => void; onSaved: () => void }) => {
   const [role, setRole] = useState<RoleName>(user.role);
+  const [storeId, setStoreId] = useState<number | null>(user.storeId ?? null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const toast = useToast();
+  const needsStore = STORE_BOUND_ROLES.includes(role);
 
   const handleSubmit = async () => {
+    if (needsStore && !storeId) {
+      toast.error('Vui lòng chọn cơ sở làm việc');
+      return;
+    }
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      await adminUserApi.changeRole(user.id, role);
+      await adminUserApi.changeRole(user.id, role, needsStore ? storeId : null);
       toast.success(`Đã đổi vai trò ${user.fullName} thành ${ROLE_LABEL[role]}`);
       onSaved();
     } catch (err: unknown) {
@@ -653,7 +714,7 @@ const RoleModal = ({ user, onClose, onSaved }: { user: AdminUser; onClose: () =>
           <Button
             variant="primary"
             loading={isSubmitting}
-            disabled={role === user.role}
+            disabled={role === user.role && (!needsStore || storeId === (user.storeId ?? null))}
             onClick={handleSubmit}
           >
             Cập nhật vai trò
@@ -678,7 +739,11 @@ const RoleModal = ({ user, onClose, onSaved }: { user: AdminUser; onClose: () =>
           label="Vai trò mới"
           value={role}
           hint="Đổi vai trò sẽ thu hồi các phiên đăng nhập cũ để áp dụng quyền mới."
-          onChange={(event) => setRole(event.target.value as RoleName)}
+          onChange={(event) => {
+            const next = event.target.value as RoleName;
+            setRole(next);
+            if (!STORE_BOUND_ROLES.includes(next)) setStoreId(null);
+          }}
         >
           {ROLE_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -686,6 +751,10 @@ const RoleModal = ({ user, onClose, onSaved }: { user: AdminUser; onClose: () =>
             </option>
           ))}
         </Select>
+
+        {needsStore && (
+          <StoreScopeSelect label="Cơ sở làm việc" allowAll={false} value={storeId} onChange={setStoreId} />
+        )}
       </div>
     </Modal>
   );

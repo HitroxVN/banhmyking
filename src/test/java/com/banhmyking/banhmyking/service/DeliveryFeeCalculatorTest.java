@@ -383,4 +383,18 @@ class DeliveryFeeCalculatorTest {
                 .isInstanceOf(com.banhmyking.banhmyking.exception.BusinessException.class)
                 .hasMessageContaining("không được âm");
     }
+
+    @Test
+    @DisplayName("Freeship theo bán kính: trong bán kính miễn phí, đúng bằng bán kính vẫn miễn phí, ngoài thì tính phí")
+    void calculateFee_freeShipRadius() {
+        DeliveryFeeResult inside = calculator.calculateFee(new BigDecimal("2.5"), "Hà Nội", new BigDecimal("50000"), new BigDecimal("3"));
+        DeliveryFeeResult edge = calculator.calculateFee(new BigDecimal("3.0"), "Hà Nội", new BigDecimal("50000"), new BigDecimal("3"));
+        DeliveryFeeResult outside = calculator.calculateFee(new BigDecimal("3.5"), "Hà Nội", new BigDecimal("50000"), new BigDecimal("3"));
+
+        assertThat(inside.isFreeship()).isTrue();
+        assertThat(inside.getShippingFee()).isEqualByComparingTo("0");
+        assertThat(edge.isFreeship()).isTrue();
+        assertThat(outside.isFreeship()).isFalse();
+        assertThat(outside.getShippingFee()).isEqualByComparingTo("25000");
+    }
 }

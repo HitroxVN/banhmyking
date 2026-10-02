@@ -31,6 +31,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -87,7 +88,7 @@ class AdminOrderControllerTest {
                 List.of(response), 0, 10, 1L, 1, true
         );
 
-        when(orderService.getAllOrdersForAdmin(eq(2L), eq(OrderStatus.PENDING), eq("2026-09-01"), eq("2026-09-30"), eq(0), eq(10)))
+        when(orderService.getAllOrdersForAdmin(eq(2L), eq(OrderStatus.PENDING), eq("2026-09-01"), eq("2026-09-30"), isNull(), eq(0), eq(10)))
                 .thenReturn(pageResponse);
 
         mockMvc.perform(get("/api/v1/admin/orders")

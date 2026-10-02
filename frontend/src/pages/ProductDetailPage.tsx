@@ -111,11 +111,9 @@ export const ProductDetailPage = () => {
   }, [product?.imageUrl, product?.images]);
   const activeUrl = gallery[activeImage] ?? null;
 
-  // null = món không quản tồn -> giữ trần 20 như cũ
-  const stock = product?.stockQuantity ?? null;
-  const maxQty = stock !== null ? Math.max(1, stock) : 20;
-  const soldOut = stock !== null && stock <= 0;
-  const canBuy = Boolean(product?.available) && !soldOut;
+  // Tồn kho theo từng cơ sở — trang này không biết cơ sở phục vụ nên chỉ xét trạng thái bán toàn chuỗi
+  const maxQty = 20;
+  const canBuy = Boolean(product?.available);
   const averageRating = product?.averageRating ?? 0;
   const totalReviews = product?.totalReviews ?? 0;
 
@@ -272,11 +270,7 @@ export const ProductDetailPage = () => {
           </div>
 
           <p className="pdetail__price">{formatCurrency(product.price)}</p>
-          {stock !== null && (
-            <p className={`pdetail__stock${product.lowStock || soldOut ? ' pdetail__stock--low' : ''}`}>
-              {soldOut ? 'Hết hàng' : product.lowStock ? `Sắp hết: còn ${stock}` : `Còn ${stock} phần`}
-            </p>
-          )}
+          {product.available === false && <p className="pdetail__stock pdetail__stock--low">Hết hàng</p>}
 
           {product.description && <p className="pdetail__desc">{product.description}</p>}
 

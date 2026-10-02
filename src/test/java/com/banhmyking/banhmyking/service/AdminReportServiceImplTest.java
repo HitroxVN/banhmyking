@@ -52,14 +52,14 @@ class AdminReportServiceImplTest {
     @Test
     @DisplayName("limit vượt trần bị kẹp về 100, limit <= 0 dùng mặc định 10")
     void getTopProducts_clampsLimit() {
-        when(orderItemRepository.findTopProducts(any(), any(), any())).thenReturn(List.of());
+        when(orderItemRepository.findTopProducts(any(), any(), any(), any())).thenReturn(List.of());
 
-        reportService.getTopProducts(null, null, 500);
-        reportService.getTopProducts(null, null, 0);
+        reportService.getTopProducts(null, null, 500, null);
+        reportService.getTopProducts(null, null, 0, null);
 
         ArgumentCaptor<Pageable> pageCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(orderItemRepository, org.mockito.Mockito.times(2))
-                .findTopProducts(any(), any(), pageCaptor.capture());
+                .findTopProducts(any(), any(), any(), pageCaptor.capture());
 
         assertThat(pageCaptor.getAllValues()).extracting(Pageable::getPageSize).containsExactly(100, 10);
     }
@@ -67,13 +67,13 @@ class AdminReportServiceImplTest {
     @Test
     @DisplayName("Không truyền ngày: lấy đúng 30 ngày gần nhất, ngày kết thúc tính đến hết hôm nay")
     void getTopProducts_whenNoDates_defaultsToLast30Days() {
-        when(orderItemRepository.findTopProducts(any(), any(), any())).thenReturn(List.of());
+        when(orderItemRepository.findTopProducts(any(), any(), any(), any())).thenReturn(List.of());
 
-        reportService.getTopProducts(null, null, 10);
+        reportService.getTopProducts(null, null, 10, null);
 
         ArgumentCaptor<LocalDateTime> fromCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
         ArgumentCaptor<LocalDateTime> toCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
-        verify(orderItemRepository).findTopProducts(fromCaptor.capture(), toCaptor.capture(), any());
+        verify(orderItemRepository).findTopProducts(fromCaptor.capture(), toCaptor.capture(), any(), any());
 
         LocalDate today = LocalDate.now();
         assertThat(fromCaptor.getValue()).isEqualTo(today.minusDays(29).atStartOfDay());
@@ -83,13 +83,13 @@ class AdminReportServiceImplTest {
     @Test
     @DisplayName("Ngày kết thúc được tính trọn ngày — cận trên là 00:00 ngày kế tiếp")
     void getTopProducts_endDateIsInclusive() {
-        when(orderItemRepository.findTopProducts(any(), any(), any())).thenReturn(List.of());
+        when(orderItemRepository.findTopProducts(any(), any(), any(), any())).thenReturn(List.of());
 
-        reportService.getTopProducts(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31), 10);
+        reportService.getTopProducts(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31), 10, null);
 
         ArgumentCaptor<LocalDateTime> fromCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
         ArgumentCaptor<LocalDateTime> toCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
-        verify(orderItemRepository).findTopProducts(fromCaptor.capture(), toCaptor.capture(), any());
+        verify(orderItemRepository).findTopProducts(fromCaptor.capture(), toCaptor.capture(), any(), any());
 
         assertThat(fromCaptor.getValue()).isEqualTo(LocalDateTime.of(2026, 1, 1, 0, 0));
         assertThat(toCaptor.getValue()).isEqualTo(LocalDateTime.of(2026, 2, 1, 0, 0));
@@ -99,7 +99,7 @@ class AdminReportServiceImplTest {
     @DisplayName("Ngày bắt đầu sau ngày kết thúc bị chặn với VALIDATION_ERROR")
     void getTopProducts_whenFromAfterTo_throwsValidationError() {
         assertThatThrownBy(() -> reportService.getTopProducts(
-                LocalDate.of(2026, 2, 1), LocalDate.of(2026, 1, 1), 10))
+                LocalDate.of(2026, 2, 1), LocalDate.of(2026, 1, 1), 10, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.VALIDATION_ERROR));
@@ -108,11 +108,11 @@ class AdminReportServiceImplTest {
     @Test
     @DisplayName("CSV món bán chạy có tiêu đề, tên món và số liệu thô không dấu phân cách")
     void exportCsv_topProducts_writesHeaderAndRows() {
-        when(orderItemRepository.findTopProducts(any(), any(), any())).thenReturn(List.of(
+        when(orderItemRepository.findTopProducts(any(), any(), any(), any())).thenReturn(List.of(
                 new TopProductResponse(10L, "Bánh mì Đặc Biệt", 12L, new BigDecimal("420000.00"))));
 
         byte[] csv = reportService.exportCsv(ReportType.TOP_PRODUCTS,
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31), 10);
+                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31), 10, null);
 
         assertThat(body(csv)).isEqualTo(
                 "Món,Số lượng bán,Doanh thu (đ)\r\n"
@@ -125,11 +125,11 @@ class AdminReportServiceImplTest {
         Order delivered = order(OrderStatus.DELIVERED, LocalDate.of(2026, 1, 5), new BigDecimal("95000.00"));
         Order cancelled = order(OrderStatus.CANCELLED, LocalDate.of(2026, 1, 6), new BigDecimal("50000.00"));
         Order failed = order(OrderStatus.FAILED, LocalDate.of(2026, 1, 6), new BigDecimal("30000.00"));
-        when(orderRepository.findByCreatedAtGreaterThanEqualAndCreatedAtLessThan(any(), any()))
+        when(orderRepository.findInRange(any(), any(), any()))
                 .thenReturn(List.of(delivered, cancelled, failed));
 
         byte[] csv = reportService.exportCsv(ReportType.REVENUE_BY_DAY,
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31), 10);
+                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31), 10, null);
 
         assertThat(body(csv)).isEqualTo(
                 "Ngày,Số đơn,Doanh thu (đ)\r\n"
@@ -139,15 +139,15 @@ class AdminReportServiceImplTest {
     @Test
     @DisplayName("CSV doanh thu theo danh mục và theo tài xế có tiêu đề đúng")
     void exportCsv_categoryAndShipper_haveHeaders() {
-        when(orderItemRepository.findRevenueByCategory(any(), any())).thenReturn(List.of(
+        when(orderItemRepository.findRevenueByCategory(any(), any(), any())).thenReturn(List.of(
                 new CategoryRevenueResponse(3L, "Bánh mì", 20L, new BigDecimal("700000.00"))));
-        when(orderRepository.findRevenueByShipper(any(), any())).thenReturn(List.of(
+        when(orderRepository.findRevenueByShipper(any(), any(), any())).thenReturn(List.of(
                 new ShipperRevenueResponse(4L, "Tài xế Hoàng", 7L, new BigDecimal("665000.00"))));
 
         byte[] byCategory = reportService.exportCsv(ReportType.REVENUE_BY_CATEGORY,
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31), 10);
+                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31), 10, null);
         byte[] byShipper = reportService.exportCsv(ReportType.REVENUE_BY_SHIPPER,
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31), 10);
+                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31), 10, null);
 
         assertThat(body(byCategory)).isEqualTo(
                 "Danh mục,Số lượng bán,Doanh thu (đ)\r\n"

@@ -26,10 +26,12 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
             + "WHERE oi.order.status NOT IN (com.banhmyking.banhmyking.enums.OrderStatus.CANCELLED, "
             + "com.banhmyking.banhmyking.enums.OrderStatus.FAILED) "
             + "AND oi.order.createdAt >= :from AND oi.order.createdAt < :to "
+            + "AND (:storeId IS NULL OR oi.order.store.id = :storeId) "
             + "GROUP BY p.id, oi.productName "
             + "ORDER BY SUM(oi.quantity) DESC")
     List<TopProductResponse> findTopProducts(@Param("from") LocalDateTime from,
                                             @Param("to") LocalDateTime to,
+                                            @Param("storeId") Long storeId,
                                             Pageable pageable);
 
     /** Doanh thu theo danh mục trong [from, to). Chỉ gồm dòng còn gắn được với món + danh mục. */
@@ -39,8 +41,10 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
             + "WHERE oi.order.status NOT IN (com.banhmyking.banhmyking.enums.OrderStatus.CANCELLED, "
             + "com.banhmyking.banhmyking.enums.OrderStatus.FAILED) "
             + "AND oi.order.createdAt >= :from AND oi.order.createdAt < :to "
+            + "AND (:storeId IS NULL OR oi.order.store.id = :storeId) "
             + "GROUP BY c.id, c.name "
             + "ORDER BY SUM(oi.lineTotal) DESC")
     List<CategoryRevenueResponse> findRevenueByCategory(@Param("from") LocalDateTime from,
-                                                       @Param("to") LocalDateTime to);
+                                                       @Param("to") LocalDateTime to,
+                                                       @Param("storeId") Long storeId);
 }
