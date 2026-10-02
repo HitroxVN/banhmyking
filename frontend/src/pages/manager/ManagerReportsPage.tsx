@@ -3,7 +3,7 @@ import { BarChart3 } from 'lucide-react';
 import { managerApi } from '../../api/managerApi';
 import { EmptyState, PageHeader, Skeleton } from '../../components/ui';
 import { formatCurrency } from '../../utils/formatters';
-import type { DashboardMetrics, TopProduct } from '../../types/admin';
+import type { DashboardMetrics, PriceSavings, TopProduct } from '../../types/admin';
 import '../../styles/components/dashboard.css';
 import '../../styles/components/table.css';
 
@@ -11,16 +11,23 @@ import '../../styles/components/table.css';
 export const ManagerReportsPage = () => {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [top, setTop] = useState<TopProduct[]>([]);
+  const [savings, setSavings] = useState<PriceSavings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
-    Promise.all([managerApi.metrics(), managerApi.topProducts({ limit: 10 })])
-      .then(([m, t]) => {
+    Promise.all([
+      managerApi.metrics(),
+      managerApi.topProducts({ limit: 10 }),
+      // Lỗi ô tiền ưu đãi không được làm hỏng cả trang báo cáo → null, hiện "—"
+      managerApi.priceSavings().catch(() => null),
+    ])
+      .then(([m, t, s]) => {
         if (!alive) return;
         setMetrics(m);
         setTop(t);
+        setSavings(s);
       })
       .catch((err) => {
         if (alive) setError(err instanceof Error ? err.message : 'Không tải được báo cáo');
@@ -45,6 +52,10 @@ export const ManagerReportsPage = () => {
     { label: 'Đang xử lý', value: String(metrics.processingOrders) },
     { label: 'Tỉ lệ giao thành công', value: `${metrics.successRate}%` },
     { label: 'Doanh thu tích luỹ', value: formatCurrency(metrics.totalRevenue) },
+    {
+      label: 'Tiền ưu đãi từ giá KM và combo (30 ngày)',
+      value: savings ? `${formatCurrency(savings.amount)} · ${savings.orderCount} đơn` : '—',
+    },
   ];
 
   return (

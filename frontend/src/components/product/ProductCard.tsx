@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Flame, Plus, Sandwich, Star } from 'lucide-react';
 import type { ProductItem } from '../../types/staff';
-import { formatCurrency } from '../../utils/formatters';
+import { PriceTag } from './PriceTag';
+import { ComboContents } from './ComboContents';
+import { priceNow } from '../../utils/pricing';
 import '../../styles/components/product-card.css';
 
 export interface ProductCardProps {
@@ -21,6 +23,8 @@ export const ProductCard = ({ product, onQuickAdd, isQuickAdding = false }: Prod
   const averageRating = product.averageRating ?? 0;
   const totalReviews = product.totalReviews ?? 0;
   const detailPath = `/products/${product.id}`;
+  const isCombo = product.productType === 'COMBO';
+  const discount = product.discountPercent ?? 0;
 
   return (
     <article className={`pcard${disabled ? ' pcard--out' : ''}`}>
@@ -46,6 +50,7 @@ export const ProductCard = ({ product, onQuickAdd, isQuickAdding = false }: Prod
             Nổi bật
           </span>
         )}
+        {!disabled && discount > 0 && <span className="pcard__flag pcard__flag--sale">−{discount}%</span>}
 
         {/* Món chưa có đánh giá thì không hiện — tránh chip "0.0 (0)" vô nghĩa */}
         {!disabled && totalReviews > 0 && (
@@ -60,16 +65,22 @@ export const ProductCard = ({ product, onQuickAdd, isQuickAdding = false }: Prod
       <div className="pcard__body">
         <h3 className="pcard__name" title={product.name}>
           <Link className="pcard__name-link" to={detailPath}>
+            {isCombo && <span className="combo-flag">Combo</span>}
             {product.name}
           </Link>
         </h3>
+        {isCombo && (
+          <ComboContents
+            items={(product.comboItems ?? []).map((item) => ({ name: item.name, quantity: item.quantity }))}
+          />
+        )}
         {product.description && <p className="pcard__desc">{product.description}</p>}
 
         {/* Món có topping: nút + dẫn sang trang chi tiết để khách không vô tình bỏ quên lựa chọn */}
         {hasOptions && !disabled && <span className="pcard__hint">Chọn topping</span>}
 
         <div className="pcard__foot">
-          <span className="pcard__price">{formatCurrency(product.price)}</span>
+          <PriceTag className="pcard__price" price={priceNow(product)} compareAt={product.compareAtPrice} />
           {hasOptions && !disabled ? (
             <Link
               className="pcard__add"

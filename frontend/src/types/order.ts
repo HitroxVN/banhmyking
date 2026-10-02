@@ -61,14 +61,25 @@ export interface OrderItemOptionResponse {
   optionPrice: number;
 }
 
+/** Snapshot thành phần của dòng combo */
+export interface OrderItemComponent {
+  productName: string;
+  /** Số lượng trong MỘT combo */
+  quantity: number;
+}
+
 export interface OrderItemResponse {
   id: number;
   productId: number;
   productName: string;
   productImageUrl?: string;
+  /** Giá bán 1 phần chưa gồm topping lúc đặt */
   unitPrice: number;
+  /** Giá gốc 1 phần lúc đặt; null = đơn cũ (không có ưu đãi) */
+  originalUnitPrice?: number | null;
   quantity: number;
   lineTotal: number;
+  components?: OrderItemComponent[];
   options: OrderItemOptionResponse[];
 }
 
@@ -90,6 +101,8 @@ export interface OrderResponse {
   subtotal: number;
   shippingFee: number;
   discountAmount: number;
+  /** Tiền tiết kiệm nhờ giá KM và combo (đã nằm trong tạm tính) */
+  savingsAmount?: number;
   total: number;
   promotionCode?: string;
   paymentMethod: PaymentMethod;

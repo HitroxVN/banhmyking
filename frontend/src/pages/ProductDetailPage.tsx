@@ -9,8 +9,11 @@ import { ProductReviews } from '../components/review/ProductReviews';
 import { RecentlyViewedStrip } from '../components/product/RecentlyViewedStrip';
 import { rememberProduct } from '../utils/recentProducts';
 import { formatCurrency } from '../utils/formatters';
+import { PriceTag } from '../components/product/PriceTag';
+import { formatSaleEnd, priceNow } from '../utils/pricing';
 import type { OptionGroup, ProductItem, ProductOption } from '../types/staff';
 import '../styles/components/product-detail.css';
+import '../styles/components/pricing.css';
 
 type OptionWithId = ProductOption & { id: number };
 
@@ -100,7 +103,9 @@ export const ProductDetailPage = () => {
   const extraPerUnit = options
     .filter((option) => selected.includes(option.id))
     .reduce((sum, option) => sum + option.extraPrice, 0);
-  const unitPrice = (product?.price ?? 0) + extraPerUnit;
+  // Giá đang bán do server tính (giá KM / giá combo); topping cộng thêm như cũ
+  const unitPrice = (product ? priceNow(product) : 0) + extraPerUnit;
+  const isCombo = product?.productType === 'COMBO';
   const total = unitPrice * quantity;
 
   // Ảnh đại diện đứng đầu, rồi tới bộ ảnh (bỏ ảnh trùng với ảnh đại diện)
@@ -269,12 +274,36 @@ export const ProductDetailPage = () => {
             </div>
           </div>
 
-          <p className="pdetail__price">{formatCurrency(product.price)}</p>
+          <p className="pdetail__price">
+            <PriceTag price={priceNow(product)} compareAt={product.compareAtPrice} />
+            {(product.discountPercent ?? 0) > 0 && <span className="sale-flag">−{product.discountPercent}%</span>}
+          </p>
+          {product.onSale && product.saleEndsAt && (
+            <p className="pdetail__sale-end">KM đến {formatSaleEnd(product.saleEndsAt)}</p>
+          )}
+          {isCombo && (product.comboItems ?? []).length > 0 && (
+            <div className="pdetail__opts-group">
+              <div className="pdetail__group-head">
+                <span className="pdetail__group-title">Combo gồm</span>
+                {product.compareAtPrice != null && (
+                  <span className="pdetail__group-hint">Mua lẻ {formatCurrency(product.compareAtPrice)}</span>
+                )}
+              </div>
+              <ul className="pdetail__combo">
+                {(product.comboItems ?? []).map((item) => (
+                  <li key={item.productId}>
+                    {item.quantity} × <Link to={`/products/${item.productId}`}>{item.name}</Link>{' '}
+                    <span className="pdetail__group-hint">({formatCurrency(item.price)}/phần)</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {product.available === false && <p className="pdetail__stock pdetail__stock--low">Hết hàng</p>}
 
           {product.description && <p className="pdetail__desc">{product.description}</p>}
 
-          {optionGroups.map((group) => (
+          {!isCombo && optionGroups.map((group) => (
             <div key={group.id ?? group.name} className="pdetail__opts-group">
               <div className="pdetail__group-head">
                 <span className="pdetail__group-title">{group.name}</span>
@@ -300,7 +329,7 @@ export const ProductDetailPage = () => {
             </div>
           ))}
 
-          {flatOptions.length > 0 && (
+          {!isCombo && flatOptions.length > 0 && (
             <div className="pdetail__opts-group">
               <div className="pdetail__group-head">
                 <span className="pdetail__group-title">Chọn topping</span>

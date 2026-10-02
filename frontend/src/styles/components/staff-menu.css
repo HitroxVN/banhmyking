@@ -438,3 +438,48 @@
   .smenu__search,
   .smenu__actions .ui-field { flex: 1 1 100%; }
 }
+
+/* Giá khuyến mãi + combo (spec combo-sale §7) */
+.smenu__sale {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+.smenu__sale > :first-child {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 560px) {
+  .smenu__sale {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.smenu__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.smenu__badges:empty {
+  display: none;
+}
+
+.smenu__combo-row .ui-field:nth-child(2) {
+  flex: 0 0 90px;
+}
+
+.smenu__combo-summary {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--stone-700);
+}
+
+.smenu__combo-problem {
+  margin: 4px 0 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--danger);
+}

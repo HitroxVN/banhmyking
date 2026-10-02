@@ -8,6 +8,8 @@ export interface CartContextType {
   error: string | null;
   totalQuantity: number;
   subtotal: number;
+  /** Tiền tiết kiệm nhờ giá KM/combo — tính lại từ các dòng giỏ */
+  savingsAmount: number;
   refreshCart: () => Promise<void>;
   updateQuantity: (itemId: number, quantity: number) => Promise<void>;
   removeItem: (itemId: number) => Promise<void>;

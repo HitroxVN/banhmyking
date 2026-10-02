@@ -37,6 +37,7 @@ import { isFinalStatus } from '../../types/order';
 import { ORDER_STATUS_LABEL } from '../../utils/orderStatus';
 import { PAYMENT_METHOD_LABEL } from '../../utils/payment';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { orderComponentsText } from '../../utils/pricing';
 import { broadcastOrderChange, orderSyncChannel } from '../../utils/orderSyncChannel';
 import '../../styles/components/staff-queue.css';
 
@@ -339,6 +340,7 @@ export const StaffOrderQueuePage = () => {
                         <span className="squeue__item-qty">{item.quantity}×</span>
                         <span className="squeue__item-body">
                           <strong>{item.productName}</strong>
+                          {orderComponentsText(item) && <em>{orderComponentsText(item)}</em>}
                           {item.options && item.options.length > 0 && (
                             <em>
                               {item.options

@@ -3,7 +3,7 @@ import { Download, PackageSearch } from 'lucide-react';
 import { Button, EmptyState, Input, PageHeader, Select, Skeleton, useToast } from '../../components/ui';
 import { adminReportsApi } from '../../api/adminReportsApi';
 import { StoreScopeSelect } from '../../components/store/StoreScopeSelect';
-import type { ReportType, TopProduct } from '../../types/admin';
+import type { PriceSavings, ReportType, TopProduct } from '../../types/admin';
 import type { StoreRevenue } from '../../types/store';
 import { formatCurrency } from '../../utils/formatters';
 import '../../styles/components/admin-reports.css';
@@ -30,6 +30,8 @@ export const AdminReportsPage = () => {
   const [isStoreLoading, setIsStoreLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [exportingType, setExportingType] = useState<ReportType | null>(null);
+  const [savings, setSavings] = useState<PriceSavings | null>(null);
+  const [savingsError, setSavingsError] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
@@ -81,6 +83,31 @@ export const AdminReportsPage = () => {
       cancelled = true;
     };
   }, [fromDate, toDate, reloadKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSavings(null);
+    setSavingsError(false);
+    adminReportsApi
+      .getPriceSavings({
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        storeId: storeId ?? undefined,
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setSavings(data);
+        setSavingsError(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSavings(null);
+        setSavingsError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fromDate, toDate, storeId, reloadKey]);
 
   const handleExport = async (type: ReportType) => {
     setExportingType(type);
@@ -152,6 +179,24 @@ export const AdminReportsPage = () => {
             <Button variant="ghost" onClick={clearFilters}>
               Xoá lọc
             </Button>
+          )}
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="card__head">
+          <h2 className="card__title">Tiền ưu đãi từ giá KM và combo</h2>
+          <span className="arpt__summary">{fromDate || toDate ? 'Đơn đã giao trong khoảng ngày đang lọc' : 'Đơn đã giao trong 30 ngày gần nhất'}</span>
+        </div>
+        <div className="card__body">
+          {savings != null ? (
+            <p className="arpt__summary">
+              <strong>{formatCurrency(savings.amount)}</strong> trên {savings.orderCount} đơn
+            </p>
+          ) : savingsError ? (
+            <p className="arpt__summary">—</p>
+          ) : (
+            <Skeleton variant="row" count={1} />
           )}
         </div>
       </section>

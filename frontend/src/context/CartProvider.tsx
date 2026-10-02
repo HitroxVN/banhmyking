@@ -3,6 +3,7 @@ import type { Cart, CartItem } from '../types/cart';
 import { CartContext } from './cartContextDef';
 import { cartApi } from '../api/cartApi';
 import { useAuth } from './useAuth';
+import { cartSavings } from '../utils/pricing';
 
 interface CartProviderProps {
   children: React.ReactNode;
@@ -27,14 +28,14 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
    */
   const computedTotals = useMemo(() => {
     if (!cart || !cart.items || cart.items.length === 0) {
-      return { totalQuantity: 0, subtotal: 0 };
+      return { totalQuantity: 0, subtotal: 0, savingsAmount: 0 };
     }
     const totalQuantity = cart.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
     const subtotal = cart.items.reduce(
       (sum, item) => sum + (item.unitPrice || item.basePrice || 0) * (item.quantity || 0),
       0
     );
-    return { totalQuantity, subtotal };
+    return { totalQuantity, subtotal, savingsAmount: cartSavings(cart.items) };
   }, [cart]);
 
   /**
@@ -225,6 +226,7 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
       error,
       totalQuantity: computedTotals.totalQuantity,
       subtotal: computedTotals.subtotal,
+      savingsAmount: computedTotals.savingsAmount,
       refreshCart,
       updateQuantity,
       removeItem,
@@ -238,6 +240,7 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
       error,
       computedTotals.totalQuantity,
       computedTotals.subtotal,
+      computedTotals.savingsAmount,
       refreshCart,
       updateQuantity,
       removeItem,

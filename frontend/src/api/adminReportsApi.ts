@@ -1,6 +1,6 @@
 import { axiosClient } from './axiosClient';
 import type { ApiResponse } from '../types/auth';
-import type { ReportFilterParams, ReportType, TopProduct } from '../types/admin';
+import type { PriceSavings, ReportFilterParams, ReportType, TopProduct } from '../types/admin';
 import type { StoreRevenue } from '../types/store';
 
 /** Bóc tên file từ `Content-Disposition: attachment; filename="..."`. */
@@ -29,6 +29,12 @@ export const adminReportsApi = {
 
   async getRevenueByStore(params: ReportFilterParams = {}): Promise<StoreRevenue[]> {
     const res = await axiosClient.get<ApiResponse<StoreRevenue[]>>('/admin/reports/revenue-by-store', { params });
+    return res.data.data;
+  },
+
+  /** Tiền ưu đãi từ giá KM và combo (đơn đã giao) */
+  async getPriceSavings(params: ReportFilterParams = {}): Promise<PriceSavings> {
+    const res = await axiosClient.get<ApiResponse<PriceSavings>>('/admin/reports/price-savings', { params });
     return res.data.data;
   },
 

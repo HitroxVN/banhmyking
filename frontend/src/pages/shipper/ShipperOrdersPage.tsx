@@ -30,6 +30,7 @@ import { shipperOrderApi, type OrderStatusHistoryItem } from '../../api/shipperO
 import { isFinalStatus, type OrderResponse } from '../../types/order';
 import { PAYMENT_METHOD_LABEL } from '../../utils/payment';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { orderComponentsText } from '../../utils/pricing';
 import { broadcastOrderChange, orderSyncChannel, playNotificationSound } from '../../utils/orderSyncChannel';
 import '../../styles/components/shipper-orders.css';
 
@@ -497,6 +498,7 @@ const OrderCard = ({
                 <span className="shipper__item-qty">{item.quantity}×</span>
                 <span className="shipper__item-body">
                   <strong>{item.productName}</strong>
+                  {orderComponentsText(item) && <em>{orderComponentsText(item)}</em>}
                   {item.options && item.options.length > 0 && (
                     <em>{item.options.map((option) => `+ ${option.optionName}`).join(' · ')}</em>
                   )}

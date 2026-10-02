@@ -100,8 +100,13 @@ export const staffCatalogApi = {
       description: product.description,
       imageUrl: product.imageUrl,
       price: product.price,
-      available: !product.available,
+      // Đảo cờ của CHÍNH món: `available` của combo còn tính thành phần nên không dùng được ở đây
+      available: !(product.enabled ?? product.available),
       featured: product.featured,
+      // Bỏ trống salePrice nghĩa là xoá KM — phải gửi lại để bật/tắt không làm mất khuyến mãi
+      salePrice: product.salePrice ?? null,
+      saleStartsAt: product.saleStartsAt ?? null,
+      saleEndsAt: product.saleEndsAt ?? null,
     };
     const res = await axiosClient.put<ApiResponse<ProductItem>>(`/catalog/products/${product.id}`, payload);
     return res.data.data;

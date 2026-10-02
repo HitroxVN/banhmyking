@@ -4,11 +4,24 @@ import { useCart } from '../context/useCart';
 import { Button, EmptyState, QuantityStepper, Spinner, useConfirm, useToast } from '../components/ui';
 import { formatCurrency } from '../utils/formatters';
 import type { CartItem } from '../types/cart';
+import { PriceTag } from '../components/product/PriceTag';
+import { ComboContents } from '../components/product/ComboContents';
+import { cartUnitCompareAt } from '../utils/pricing';
 import '../styles/components/order.css';
 
 export const CartPage = () => {
-  const { cart, isLoading, isUpdating, error, subtotal, totalQuantity, updateQuantity, removeItem, clearCart } =
-    useCart();
+  const {
+    cart,
+    isLoading,
+    isUpdating,
+    error,
+    subtotal,
+    savingsAmount,
+    totalQuantity,
+    updateQuantity,
+    removeItem,
+    clearCart,
+  } = useCart();
   const navigate = useNavigate();
   const confirm = useConfirm();
   const toast = useToast();
@@ -128,7 +141,14 @@ export const CartPage = () => {
                         ))}
                       </p>
                     )}
-                    <p className="cart-row__unit">Đơn giá {formatCurrency(item.unitPrice)}</p>
+                    {item.productType === 'COMBO' && (
+                      <ComboContents
+                        items={(item.comboItems ?? []).map((c) => ({ name: c.name, quantity: c.quantity }))}
+                      />
+                    )}
+                    <p className="cart-row__unit">
+                      Đơn giá <PriceTag price={item.unitPrice} compareAt={cartUnitCompareAt(item)} />
+                    </p>
                   </div>
 
                   <div className="cart-row__side">
@@ -167,6 +187,12 @@ export const CartPage = () => {
                 <span>Tạm tính ({totalQuantity} món)</span>
                 <span>{formatCurrency(subtotal)}</span>
               </div>
+              {savingsAmount > 0 && (
+                <div className="summary__row summary__row--free">
+                  <span>Bạn tiết kiệm được</span>
+                  <span>{formatCurrency(savingsAmount)}</span>
+                </div>
+              )}
               <div className="summary__row">
                 <span>Phí giao hàng</span>
                 <span>Tính ở bước thanh toán</span>
