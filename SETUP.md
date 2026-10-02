@@ -108,4 +108,15 @@ Cả 3 xanh → OK.
 5. ADMIN → **Thực đơn** → tab **Combo**: thêm combo từ các món lẻ; giá combo phải thấp hơn tổng giá lẻ.
 6. Món đang nằm trong combo không xoá được — sửa/xoá combo trước. Combo không có tồn riêng: nhập tồn cho từng món lẻ ở **Tình trạng món**.
 
+## Tin tức, Tuyển dụng, Phản hồi (từ nhánh feature/news-careers)
+
+1. **Sao lưu DB trước khi pull**: `mysqldump -h 127.0.0.1 -P 3307 -u root -p banhmyking > backup_truoc_V15.sql` (root không mật khẩu thì bỏ `-p`).
+2. `git pull`, chạy backend → log `now at version v15` (chỉ tạo 5 bảng mới, dữ liệu cũ giữ nguyên).
+3. `cd frontend && npm install && npm run dev` (thêm `react-markdown`, `rehype-sanitize`).
+4. ADMIN → **Tin tức**: soạn bài Markdown, xem trước, hẹn giờ bằng "Thời điểm đăng" (giờ Việt Nam), ghim bài nổi bật.
+5. ADMIN → **Tuyển dụng**: tạo tin (chọn cơ sở hoặc "Toàn chuỗi", hạn nộp); tab **Hồ sơ** xem/tải CV. MANAGER xem hồ sơ cơ sở mình ở **Hồ sơ ứng tuyển**.
+6. ADMIN → **Cấu hình trang web** → điền *Email liên hệ* để nhận email báo phản hồi mới; xử lý ở **Phản hồi** (MANAGER thấy phản hồi cơ sở mình).
+7. **CV là dữ liệu cá nhân**: lưu ở thư mục `private-uploads/cv/` (cấu hình `app.private-upload-dir`), đã nằm trong `.gitignore`, KHÔNG phục vụ qua `/uploads/**`. Khi triển khai phải sao lưu thư mục này cùng DB.
+8. Form công khai giới hạn 5 lần gửi/giờ/IP (hồ sơ + phản hồi chung, đếm trong bộ nhớ — khởi động lại backend là đếm lại). Chạy sau reverse proxy tin cậy thì đặt `app.trust-forwarded-for=true`.
+
 ## LỖI THÌ CHỊU. HỎI CHAT.
