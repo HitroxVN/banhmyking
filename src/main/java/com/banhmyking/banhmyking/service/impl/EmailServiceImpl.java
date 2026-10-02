@@ -1,5 +1,6 @@
 package com.banhmyking.banhmyking.service.impl;
 
+import com.banhmyking.banhmyking.dto.feedback.FeedbackNotice;
 import com.banhmyking.banhmyking.service.EmailService;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +55,55 @@ public class EmailServiceImpl implements EmailService {
                         frontendBaseUrl + "/reset-password?token=" + rawToken,
                         "Link có hiệu lực trong " + resetExpiryMinutes + " phút"),
                 "đặt lại mật khẩu");
+    }
+
+    @Override
+    public void sendApplicationConfirmation(String to, String fullName, String jobTitle, String storeName) {
+        String body = "Cảm ơn bạn đã ứng tuyển vị trí <strong>%s</strong> tại <strong>%s</strong>. "
+                .formatted(HtmlUtils.htmlEscape(jobTitle), HtmlUtils.htmlEscape(storeName))
+                + "Cửa hàng sẽ xem hồ sơ và liên hệ với bạn qua số điện thoại đã đăng ký trong thời gian sớm nhất.";
+        send(to, "Bánh Mỳ King đã nhận hồ sơ ứng tuyển của bạn", buildInfoHtml(fullName, body),
+                "xác nhận ứng tuyển");
+    }
+
+    @Override
+    public void sendFeedbackNotice(String to, FeedbackNotice notice) {
+        String rows = infoRow("Loại", notice.typeLabel())
+                + infoRow("Người gửi", notice.senderName())
+                + infoRow("Điện thoại", notice.phone())
+                + infoRow("Email", notice.email())
+                + infoRow("Cơ sở", notice.storeName() == null ? "Chung toàn chuỗi" : notice.storeName())
+                + infoRow("Đơn hàng", notice.orderCode());
+        String html = """
+                <div style="font-family:Arial,'Helvetica Neue',sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#2b1a0e">
+                  <h2 style="color:#b45309;margin:0 0 12px">Phản hồi mới: %s</h2>
+                  <table style="border-collapse:collapse;font-size:14px;margin-bottom:12px">%s</table>
+                  <p style="white-space:pre-wrap;border-left:3px solid #f59e0b;padding-left:12px">%s</p>
+                  <p><a href="%s" style="color:#b45309">Mở mục Phản hồi trong trang quản trị</a></p>
+                </div>
+                """.formatted(HtmlUtils.htmlEscape(notice.subject()), rows, HtmlUtils.htmlEscape(notice.content()),
+                frontendBaseUrl + "/admin/feedbacks");
+        send(to, "[Phản hồi mới] " + notice.subject(), html, "báo phản hồi mới");
+    }
+
+    private static String infoRow(String label, String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return "<tr><td style=\"padding:4px 12px 4px 0;color:#6b7280\">%s</td><td><strong>%s</strong></td></tr>"
+                .formatted(label, HtmlUtils.htmlEscape(value));
+    }
+
+    /** Email chỉ có lời nhắn (không nút bấm). body đã được escape phần dữ liệu người dùng. */
+    private String buildInfoHtml(String fullName, String body) {
+        return """
+                <div style="font-family:Arial,'Helvetica Neue',sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#2b1a0e">
+                  <h2 style="color:#b45309;margin:0 0 8px">BÁNH MỲ KING</h2>
+                  <p>Xin chào <strong>%s</strong>,</p>
+                  <p>%s</p>
+                  <p style="font-size:13px;color:#6b7280">Email này được gửi tự động, vui lòng không trả lời.</p>
+                </div>
+                """.formatted(HtmlUtils.htmlEscape(fullName == null ? "" : fullName), body);
     }
 
     /**
