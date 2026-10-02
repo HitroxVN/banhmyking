@@ -99,4 +99,13 @@ Cả 3 xanh → OK.
 5. ADMIN → **Tài khoản**: gán cơ sở cho từng STAFF/SHIPPER; tạo tài khoản Quản lý cơ sở (MANAGER).
 6. Thực đơn chung (món, giá) giờ ở ADMIN → **Thực đơn**; nhân viên chỉ báo hết món / nhập tồn ở **Tình trạng món**.
 
+## Giá khuyến mãi + Combo (từ nhánh feature/combo-sale)
+
+1. **Sao lưu DB trước khi pull**: `mysqldump -h 127.0.0.1 -P 3307 -u root -p banhmyking > backup_truoc_V14.sql`
+2. `git pull`, chạy backend → log `now at version v14` (chỉ thêm cột/bảng, món cũ thành "món lẻ", chưa có KM).
+3. `cd frontend && npm install && npm run dev`.
+4. ADMIN → **Thực đơn** → tab **Món lẻ**: đặt *Giá khuyến mãi* (+ *Bắt đầu*/*Kết thúc* nếu cần, giờ Việt Nam).
+5. ADMIN → **Thực đơn** → tab **Combo**: thêm combo từ các món lẻ; giá combo phải thấp hơn tổng giá lẻ.
+6. Món đang nằm trong combo không xoá được — sửa/xoá combo trước. Combo không có tồn riêng: nhập tồn cho từng món lẻ ở **Tình trạng món**.
+
 ## LỖI THÌ CHỊU. HỎI CHAT.
