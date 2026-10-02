@@ -108,6 +108,11 @@ class OrderPriceSnapshotTest {
     private InventoryService inventoryService;
 
     @Spy
+    private ProductPricing productPricing = new ProductPricing(
+            java.time.Clock.fixed(java.time.Instant.parse("2026-10-02T03:00:00Z"),
+                    com.banhmyking.banhmyking.config.TimeConfig.VIETNAM));
+
+    @Spy
     private StoreAccessGuard storeAccessGuard = new StoreAccessGuard();
 
     @InjectMocks
@@ -200,7 +205,7 @@ class OrderPriceSnapshotTest {
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(cart));
         when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(address));
         when(deliveryFeeCalculator.calculateFee(any(), any(), any(), any())).thenReturn(deliveryResult);
-        when(priceCalculator.calculate(eq(cart), any(), eq(BigDecimal.valueOf(15000)))).thenReturn(breakdown);
+        when(priceCalculator.calculate(eq(cart), any(), eq(BigDecimal.valueOf(15000)), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260912-SNAP1");
 
         // Mô phỏng OrderRepository.save lưu và giữ bản ghi Order

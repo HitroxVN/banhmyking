@@ -1,7 +1,11 @@
 package com.banhmyking.banhmyking.service;
 
 import com.banhmyking.banhmyking.dto.order.CreateOrderRequest;
+import com.banhmyking.banhmyking.dto.order.OrderItemComponentResponse;
 import com.banhmyking.banhmyking.dto.order.OrderResponse;
+import com.banhmyking.banhmyking.entity.ComboItem;
+import com.banhmyking.banhmyking.entity.ComboItemId;
+import com.banhmyking.banhmyking.enums.ProductType;
 import com.banhmyking.banhmyking.dto.order.PriceBreakdown;
 import com.banhmyking.banhmyking.entity.Address;
 import com.banhmyking.banhmyking.entity.Cart;
@@ -40,12 +44,18 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.banhmyking.banhmyking.config.TimeConfig;
+
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -109,6 +119,11 @@ class OrderServiceTest {
 
     @Mock
     private InventoryService inventoryService;
+
+    /** 10:00 02/10/2026 giờ Việt Nam. */
+    @Spy
+    private ProductPricing productPricing = new ProductPricing(
+            Clock.fixed(Instant.parse("2026-10-02T03:00:00Z"), TimeConfig.VIETNAM));
 
     @Spy
     private StoreAccessGuard storeAccessGuard = new StoreAccessGuard();
@@ -194,7 +209,7 @@ class OrderServiceTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
         when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
-        when(priceCalculator.calculate(eq(testCart), any(), any())).thenReturn(breakdown);
+        when(priceCalculator.calculate(eq(testCart), any(), any(), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260908-ABC12");
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
             Order o = inv.getArgument(0);
@@ -233,6 +248,36 @@ class OrderServiceTest {
         verify(orderRepository).save(any(Order.class));
         verify(paymentService).createPendingPayment(any(Order.class), eq(PaymentMethod.COD),
                 eq(BigDecimal.valueOf(95000)));
+    }
+
+    @Test
+    @DisplayName("Giá KM: dòng đơn chụp giá hiệu lực tại lúc tạo đơn và truyền đúng mốc chốt giá cho PriceCalculator")
+    void createFromCart_snapshotsEffectiveSalePrice() {
+        testProduct.setSalePrice(BigDecimal.valueOf(30000)); // giá gốc 35.000
+        CreateOrderRequest request = CreateOrderRequest.builder()
+                .addressId(200L)
+                .paymentMethod(PaymentMethod.COD)
+                .build();
+        PriceBreakdown breakdown = PriceBreakdown.builder()
+                .subtotal(BigDecimal.valueOf(70000))
+                .shippingFee(BigDecimal.valueOf(15000))
+                .discountAmount(BigDecimal.ZERO)
+                .total(BigDecimal.valueOf(85000))
+                .build();
+        LocalDateTime pricedAt = LocalDateTime.of(2026, 10, 2, 10, 0);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
+        when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
+        when(priceCalculator.calculate(eq(testCart), any(), any(), eq(pricedAt))).thenReturn(breakdown);
+        when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20261002-SALE1");
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        OrderResponse response = orderService.createFromCart(1L, request);
+
+        // (30.000 + 5.000 topping) × 2 = 70.000
+        assertThat(response.getItems().get(0).getUnitPrice()).isEqualByComparingTo("30000");
+        assertThat(response.getItems().get(0).getLineTotal()).isEqualByComparingTo("70000");
     }
 
     @Test
@@ -293,7 +338,7 @@ class OrderServiceTest {
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
-        when(priceCalculator.calculate(eq(testCart), any(), any())).thenReturn(breakdown);
+        when(priceCalculator.calculate(eq(testCart), any(), any(), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260908-XYZ99");
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -328,7 +373,7 @@ class OrderServiceTest {
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
         when(storeSelectionService.requireEligible(isNull(), eq(lat), eq(lng), any(), anyMap()))
                 .thenReturn(new StoreSelectionService.Candidate(testStore, new BigDecimal("3.25"), List.of(), List.of()));
-        when(priceCalculator.calculate(eq(testCart), any(), any())).thenReturn(breakdown);
+        when(priceCalculator.calculate(eq(testCart), any(), any(), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20261001-GEO01");
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -439,7 +484,7 @@ class OrderServiceTest {
         when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
         when(storeSelectionService.requireEligible(eq(7L), any(), any(), any(), anyMap()))
                 .thenReturn(new StoreSelectionService.Candidate(chosenStore, null, List.of(), List.of()));
-        when(priceCalculator.calculate(eq(testCart), any(), any())).thenReturn(breakdown);
+        when(priceCalculator.calculate(eq(testCart), any(), any(), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20261001-STORE7");
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -525,7 +570,7 @@ when(promotionService.validateForOrder(eq("SALE10"), eq(1L), any())).thenThrow(n
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
         when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
         when(promotionService.validateForOrder(eq("PROMO50"), eq(1L), any())).thenReturn(promo);
-        when(priceCalculator.calculate(eq(testCart), eq(promo), any())).thenReturn(breakdown);
+        when(priceCalculator.calculate(eq(testCart), eq(promo), any(), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260910-PROMO");
         when(promotionRepository.incrementUsedCountAtomic(50L)).thenReturn(1);
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
@@ -570,7 +615,7 @@ when(promotionService.validateForOrder(eq("SALE10"), eq(1L), any())).thenThrow(n
         when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
         when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
         when(promotionService.validateForOrder(eq("PROMO50"), eq(1L), any())).thenReturn(promo);
-        when(priceCalculator.calculate(eq(testCart), eq(promo), any())).thenReturn(breakdown);
+        when(priceCalculator.calculate(eq(testCart), eq(promo), any(), any())).thenReturn(breakdown);
         when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20260910-FAIL");
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
             Order o = inv.getArgument(0);
@@ -644,5 +689,137 @@ when(promotionService.validateForOrder(eq("SALE10"), eq(1L), any())).thenThrow(n
         assertThatThrownBy(() -> orderService.createFromCart(1L, request))
                 .isInstanceOf(BusinessException.class);
         verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    // ─── Giá KM + combo trong đơn (spec combo-sale §5) ───────────────────────
+
+    private Product coffee() {
+        Product coffee = new Product();
+        coffee.setId(11L);
+        coffee.setName("Cà phê sữa đá");
+        coffee.setPrice(BigDecimal.valueOf(20000));
+        coffee.setAvailable(true);
+        return coffee;
+    }
+
+    /** Combo 45.000đ = 1 Bánh mì Đặc Biệt (35.000) + 1 Cà phê (20.000) → giá gốc 55.000. */
+    private Product combo(Product coffee) {
+        Product combo = new Product();
+        combo.setId(12L);
+        combo.setName("Combo Sáng no nê");
+        combo.setProductType(ProductType.COMBO);
+        combo.setPrice(BigDecimal.valueOf(45000));
+        combo.setAvailable(true);
+        combo.setComboItems(List.of(comboItem(combo, testProduct, 1), comboItem(combo, coffee, 1)));
+        return combo;
+    }
+
+    private static ComboItem comboItem(Product combo, Product component, int quantity) {
+        ComboItem item = new ComboItem();
+        item.setId(new ComboItemId(combo.getId(), component.getId()));
+        item.setCombo(combo);
+        item.setComponent(component);
+        item.setQuantity(quantity);
+        return item;
+    }
+
+    private void replaceCartWith(Product product, int quantity) {
+        testCart.getItems().clear();
+        CartItem line = new CartItem();
+        line.setId(501L);
+        line.setCart(testCart);
+        line.setProduct(product);
+        line.setQuantity(quantity);
+        testCart.getItems().add(line);
+    }
+
+    private void stubSuccessfulCreate() {
+        PriceBreakdown breakdown = PriceBreakdown.builder()
+                .subtotal(BigDecimal.valueOf(90000))
+                .shippingFee(BigDecimal.valueOf(15000))
+                .discountAmount(BigDecimal.ZERO)
+                .total(BigDecimal.valueOf(105000))
+                .build();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
+        when(addressRepository.findByIdAndUserId(200L, 1L)).thenReturn(Optional.of(testAddress));
+        when(priceCalculator.calculate(eq(testCart), any(), any(), any())).thenReturn(breakdown);
+        when(orderCodeGenerator.generateUniqueCode(any(), anyInt())).thenReturn("BMK-20261002-COMBO");
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+    }
+
+    private static CreateOrderRequest codRequest() {
+        return CreateOrderRequest.builder().addressId(200L).paymentMethod(PaymentMethod.COD).build();
+    }
+
+    @Test
+    @DisplayName("Combo: dòng đơn chụp giá combo, giá gốc = tổng giá lẻ và thành phần; đơn có tiền tiết kiệm")
+    void createFromCart_comboSnapshotsOriginalPriceAndComponents() {
+        replaceCartWith(combo(coffee()), 2);
+        stubSuccessfulCreate();
+
+        OrderResponse response = orderService.createFromCart(1L, codRequest());
+
+        var item = response.getItems().get(0);
+        assertThat(item.getProductName()).isEqualTo("Combo Sáng no nê");
+        assertThat(item.getUnitPrice()).isEqualByComparingTo("45000");
+        assertThat(item.getOriginalUnitPrice()).isEqualByComparingTo("55000");
+        assertThat(item.getLineTotal()).isEqualByComparingTo("90000");
+        assertThat(item.getComponents())
+                .extracting(OrderItemComponentResponse::productName, OrderItemComponentResponse::quantity)
+                .containsExactlyInAnyOrder(tuple("Bánh mì Đặc Biệt", 1), tuple("Cà phê sữa đá", 1));
+        assertThat(response.getSavingsAmount()).isEqualByComparingTo("20000"); // (55.000 − 45.000) × 2
+    }
+
+    @Test
+    @DisplayName("Món lẻ đang KM: originalUnitPrice = giá gốc; không KM: originalUnitPrice = unitPrice")
+    void createFromCart_saleItemSnapshotsOriginalPrice() {
+        testProduct.setSalePrice(BigDecimal.valueOf(30000)); // giá gốc 35.000, dòng có topping 5.000 × 2
+        stubSuccessfulCreate();
+
+        OrderResponse response = orderService.createFromCart(1L, codRequest());
+
+        var item = response.getItems().get(0);
+        assertThat(item.getUnitPrice()).isEqualByComparingTo("30000");
+        assertThat(item.getOriginalUnitPrice()).isEqualByComparingTo("35000");
+        assertThat(item.getComponents()).isEmpty();
+        assertThat(response.getSavingsAmount()).isEqualByComparingTo("10000");
+    }
+
+    @Test
+    @DisplayName("Combo có thành phần đã ngừng bán toàn chuỗi → không tạo đơn")
+    void createFromCart_comboWithDisabledComponentRejected() {
+        Product coffee = coffee();
+        coffee.setAvailable(false);
+        replaceCartWith(combo(coffee), 1);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(cartRepository.findByUserIdWithDetails(1L)).thenReturn(Optional.of(testCart));
+
+        assertThatThrownBy(() -> orderService.createFromCart(1L, codRequest()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("hiện không khả dụng");
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Đơn cũ (originalUnitPrice NULL) hiển thị như không có ưu đãi")
+    void legacyOrderHasZeroSavings() {
+        Order legacy = new Order();
+        legacy.setOrderCode("BMK-OLD");
+        legacy.setUser(testUser);
+        com.banhmyking.banhmyking.entity.OrderItem old = new com.banhmyking.banhmyking.entity.OrderItem();
+        old.setProductName("Bánh mì cũ");
+        old.setUnitPrice(BigDecimal.valueOf(30000));
+        old.setQuantity(2);
+        old.setLineTotal(BigDecimal.valueOf(60000));
+        legacy.getItems().add(old);
+        testUser.setRole(com.banhmyking.banhmyking.enums.RoleName.CUSTOMER);
+        when(orderRepository.findByOrderCodeWithDetails("BMK-OLD")).thenReturn(Optional.of(legacy));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+
+        OrderResponse response = orderService.getOrderByCode(1L, "BMK-OLD");
+
+        assertThat(response.getItems().get(0).getOriginalUnitPrice()).isNull();
+        assertThat(response.getSavingsAmount()).isEqualByComparingTo("0");
     }
 }

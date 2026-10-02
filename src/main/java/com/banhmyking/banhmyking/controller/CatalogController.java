@@ -22,6 +22,7 @@ import com.banhmyking.banhmyking.dto.catalog.ProductResponse;
 import com.banhmyking.banhmyking.dto.common.ApiResponse;
 import com.banhmyking.banhmyking.dto.common.PageResponse;
 import com.banhmyking.banhmyking.enums.ProductSort;
+import com.banhmyking.banhmyking.enums.ProductType;
 import com.banhmyking.banhmyking.service.CatalogService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -87,13 +88,17 @@ public class CatalogController {
             @RequestParam(required = false) BigDecimal minPrice,
             @Parameter(description = "Giá cao nhất (bỏ trống = không lọc)")
             @RequestParam(required = false) BigDecimal maxPrice,
+            @Parameter(description = "Chỉ món lẻ đang trong thời gian khuyến mãi", example = "true")
+            @RequestParam(required = false) Boolean onSale,
+            @Parameter(description = "Lọc theo loại: SINGLE (món lẻ) hoặc COMBO")
+            @RequestParam(required = false) ProductType type,
             @Parameter(description = "Cách sắp xếp")
             @RequestParam(defaultValue = "FEATURED") ProductSort sort,
             @Parameter(description = "Trang (0-based)") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Số món mỗi trang (tối đa 50)") @RequestParam(defaultValue = "12") int size) {
         return ResponseEntity.ok(ApiResponse.ok("Lấy danh sách sản phẩm thành công",
                 catalogService.getProducts(categoryId, availableOnly, keyword, featured,
-                        minPrice, maxPrice, sort, page, size)));
+                        minPrice, maxPrice, onSale, type, sort, page, size)));
     }
 
     @GetMapping("/products/{productId}")

@@ -10,12 +10,13 @@ import com.banhmyking.banhmyking.entity.Product;
 import com.banhmyking.banhmyking.repository.CartRepository;
 import com.banhmyking.banhmyking.security.SecurityUtils;
 import com.banhmyking.banhmyking.service.DeliveryFeeCalculator;
-import com.banhmyking.banhmyking.service.PriceCalculator;
+import com.banhmyking.banhmyking.service.ProductPricing;
 import com.banhmyking.banhmyking.service.StoreSelectionService;
 import com.banhmyking.banhmyking.service.StoreSelectionService.Candidate;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +42,7 @@ public class DeliveryController {
     private final StoreSelectionService storeSelectionService;
     private final DeliveryFeeCalculator deliveryFeeCalculator;
     private final CartRepository cartRepository;
+    private final ProductPricing productPricing;
 
     @GetMapping("/quote")
     @Transactional(readOnly = true)
@@ -54,10 +56,11 @@ public class DeliveryController {
         Map<Product, Integer> items = new LinkedHashMap<>();
         BigDecimal subtotal = BigDecimal.ZERO;
         Cart cart = cartRepository.findByUserIdWithDetails(userId).orElse(null);
+        LocalDateTime pricedAt = productPricing.now();
         if (cart != null && cart.getItems() != null) {
             for (CartItem item : cart.getItems()) {
                 items.merge(item.getProduct(), item.getQuantity(), Integer::sum);
-                subtotal = subtotal.add(PriceCalculator.lineTotalOf(item));
+                subtotal = subtotal.add(productPricing.lineTotal(item, pricedAt));
             }
         }
         List<Candidate> candidates = storeSelectionService.evaluate(latitude, longitude, subtotal, items);

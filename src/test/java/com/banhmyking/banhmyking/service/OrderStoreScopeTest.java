@@ -60,7 +60,8 @@ class OrderStoreScopeTest {
     @Mock private PromotionUsageRepository promotionUsageRepository;
     @Mock private PromotionRepository promotionRepository;
     @Spy private StoreAccessGuard storeAccessGuard = new StoreAccessGuard();
-    @Spy private PriceCalculator priceCalculator = new PriceCalculator();
+    @Spy private PriceCalculator priceCalculator = new PriceCalculator(
+            new ProductPricing(java.time.Clock.system(com.banhmyking.banhmyking.config.TimeConfig.VIETNAM)));
     @InjectMocks private OrderServiceImpl orderService;
 
     private Store storeA;

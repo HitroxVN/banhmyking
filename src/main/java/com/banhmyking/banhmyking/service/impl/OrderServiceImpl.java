@@ -52,6 +52,10 @@ import com.banhmyking.banhmyking.repository.PromotionRepository;
 import com.banhmyking.banhmyking.dto.delivery.DeliveryFeeResult;
 import com.banhmyking.banhmyking.repository.PromotionUsageRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
+import com.banhmyking.banhmyking.dto.order.OrderItemComponentResponse;
+import com.banhmyking.banhmyking.entity.ComboItem;
+import com.banhmyking.banhmyking.entity.OrderItemComponent;
+import com.banhmyking.banhmyking.service.ComboExpander;
 import com.banhmyking.banhmyking.service.CartService;
 import com.banhmyking.banhmyking.service.DeliveryFeeCalculator;
 import com.banhmyking.banhmyking.service.OrderService;
@@ -88,6 +92,7 @@ public class OrderServiceImpl implements OrderService {
     private final com.banhmyking.banhmyking.service.PromotionService promotionService;
     private final PaymentRepository paymentRepository;
     private final PriceCalculator priceCalculator;
+    private final com.banhmyking.banhmyking.service.ProductPricing productPricing;
     private final DeliveryFeeCalculator deliveryFeeCalculator;
     private final com.banhmyking.banhmyking.service.StoreSelectionService storeSelectionService;
     private final PaymentService paymentService;
@@ -196,7 +201,8 @@ public class OrderServiceImpl implements OrderService {
             if (product == null || product.isDeleted()) {
                 throw new ResourceNotFoundException("Một món ăn trong giỏ hàng không còn tồn tại");
             }
-            if (!product.isAvailable()) {
+            // Combo còn cần mọi thành phần đang bán toàn chuỗi (spec combo-sale §4.3)
+            if (!ComboExpander.isChainAvailable(product)) {
                 throw new BusinessException(ErrorCode.BUSINESS_ERROR,
                         "Món ăn '" + product.getName() + "' hiện không khả dụng (hết hàng hoặc tạm ngưng bán)");
             }
@@ -246,11 +252,12 @@ public class OrderServiceImpl implements OrderService {
             deliveryLongitude = request.getLongitude();
         }
 
-        // #15: dùng chung công thức unitPrice/lineTotal với PriceCalculator — không tự tính lại
+        // Thời điểm chốt giá = lúc tạo đơn (spec combo-sale §3): một mốc cho tạm tính, mã giảm giá và snapshot.
+        LocalDateTime pricedAt = productPricing.now();
         BigDecimal cartSubtotal = BigDecimal.ZERO;
         if (cart.getItems() != null) {
             for (CartItem item : cart.getItems()) {
-                cartSubtotal = cartSubtotal.add(PriceCalculator.lineTotalOf(item));
+                cartSubtotal = cartSubtotal.add(productPricing.lineTotal(item, pricedAt));
             }
         }
         cartSubtotal = cartSubtotal.setScale(2, RoundingMode.HALF_UP);
@@ -267,7 +274,7 @@ public class OrderServiceImpl implements OrderService {
         // 4. Resolve Promotion (nếu có)
         Promotion promotion = null;
         if (request.getPromotionCode() != null && !request.getPromotionCode().trim().isEmpty()) {
-            BigDecimal promoSubtotal = priceCalculator.calculateSubtotal(cart);
+            BigDecimal promoSubtotal = priceCalculator.calculateSubtotal(cart, pricedAt);
             promotion = promotionService.validateForOrder(request.getPromotionCode(), userId, promoSubtotal);
         }
 
@@ -280,7 +287,7 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal shippingFee = (deliveryResult != null && deliveryResult.getShippingFee() != null)
                 ? deliveryResult.getShippingFee()
                 : PriceCalculator.DEFAULT_SHIPPING_FEE;
-        PriceBreakdown priceBreakdown = priceCalculator.calculate(cart, promotion, shippingFee);
+        PriceBreakdown priceBreakdown = priceCalculator.calculate(cart, promotion, shippingFee, pricedAt);
 
         // 6. Sinh mã đơn hàng qua OrderCodeGenerator có retry 2–3 lần (AC 1)
         String orderCode = orderCodeGenerator.generateUniqueCode(orderRepository::existsByOrderCode, 3);
@@ -312,8 +319,21 @@ public class OrderServiceImpl implements OrderService {
             orderItem.setOrder(order);
             orderItem.setProduct(product);
             orderItem.setProductName(product.getName());     // Snapshot tên
-            orderItem.setUnitPrice(product.getPrice());       // Snapshot giá gốc
+            BigDecimal unitPrice = productPricing.effectivePrice(product, pricedAt);
+            orderItem.setUnitPrice(unitPrice); // Snapshot giá hiệu lực (giá KM / giá combo)
+            // Giá gốc lúc đặt: món lẻ = price, combo = Σ giá lẻ thành phần; không thấp hơn giá bán → tiết kiệm ≥ 0
+            orderItem.setOriginalUnitPrice(productPricing.originalPrice(product).max(unitPrice));
             orderItem.setQuantity(cartItem.getQuantity());
+            if (product.isCombo()) {
+                for (ComboItem comboItem : product.getComboItems()) {
+                    OrderItemComponent component = new OrderItemComponent();
+                    component.setOrderItem(orderItem);
+                    component.setProduct(comboItem.getComponent());
+                    component.setProductName(comboItem.getComponent().getName()); // Snapshot tên thành phần
+                    component.setQuantity(comboItem.getQuantity());
+                    orderItem.getComponents().add(component);
+                }
+            }
 
             if (cartItem.getSelectedOptions() != null) {
                 for (CartItemOption cio : cartItem.getSelectedOptions()) {
@@ -328,7 +348,7 @@ public class OrderServiceImpl implements OrderService {
             }
 
             // lineTotal qua helper chung (null-safe extraPrice — trước đây cộng trực tiếp → NPE tiềm ẩn)
-            BigDecimal lineTotal = PriceCalculator.lineTotalOf(cartItem)
+            BigDecimal lineTotal = productPricing.lineTotal(cartItem, pricedAt)
                     .setScale(2, RoundingMode.HALF_UP);
             orderItem.setLineTotal(lineTotal); // Snapshot line_total
 
@@ -930,8 +950,17 @@ public class OrderServiceImpl implements OrderService {
 
     private OrderResponse toOrderResponse(Order order) {
         List<OrderItemResponse> itemResponses = new ArrayList<>();
+        BigDecimal savings = BigDecimal.ZERO;
         if (order.getItems() != null) {
             for (OrderItem item : order.getItems()) {
+                List<OrderItemComponentResponse> componentResponses = new ArrayList<>();
+                if (item.getComponents() != null) {
+                    for (OrderItemComponent component : item.getComponents()) {
+                        componentResponses.add(new OrderItemComponentResponse(
+                                component.getProductName(), component.getQuantity()));
+                    }
+                }
+                savings = savings.add(savingsOf(item));
                 List<OrderItemOptionResponse> optionResponses = new ArrayList<>();
                 if (item.getOptions() != null) {
                     for (OrderItemOption opt : item.getOptions()) {
@@ -948,9 +977,11 @@ public class OrderServiceImpl implements OrderService {
                         .productId(item.getProduct() != null ? item.getProduct().getId() : null)
                         .productName(item.getProductName())
                         .unitPrice(item.getUnitPrice())
+                        .originalUnitPrice(item.getOriginalUnitPrice())
                         .quantity(item.getQuantity())
                         .lineTotal(item.getLineTotal())
                         .options(optionResponses)
+                        .components(componentResponses)
                         .build());
             }
         }
@@ -976,6 +1007,7 @@ public class OrderServiceImpl implements OrderService {
                 .subtotal(order.getSubtotal())
                 .shippingFee(order.getShippingFee())
                 .discountAmount(order.getDiscountAmount())
+                .savingsAmount(savings.setScale(2, RoundingMode.HALF_UP))
                 .total(order.getTotal())
                 .promotionCode(order.getPromotionCode())
                 .paymentMethod(payment != null ? payment.getMethod() : PaymentMethod.COD)
@@ -992,6 +1024,15 @@ public class OrderServiceImpl implements OrderService {
                 .shipperPhone(order.getShipper() != null ? order.getShipper().getPhone() : null)
                 .items(itemResponses)
                 .build();
+    }
+
+    /** Tiết kiệm của dòng đơn = (giá gốc − giá bán) × số lượng; đơn cũ (originalUnitPrice NULL) = 0. */
+    private static BigDecimal savingsOf(OrderItem item) {
+        if (item.getOriginalUnitPrice() == null || item.getUnitPrice() == null || item.getQuantity() == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal perUnit = item.getOriginalUnitPrice().subtract(item.getUnitPrice());
+        return perUnit.signum() > 0 ? perUnit.multiply(BigDecimal.valueOf(item.getQuantity())) : BigDecimal.ZERO;
     }
 
     @Override

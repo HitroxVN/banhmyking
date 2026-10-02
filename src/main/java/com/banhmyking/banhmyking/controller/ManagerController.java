@@ -3,6 +3,7 @@ package com.banhmyking.banhmyking.controller;
 import com.banhmyking.banhmyking.dto.common.ApiResponse;
 import com.banhmyking.banhmyking.dto.dashboard.DailyRevenueResponse;
 import com.banhmyking.banhmyking.dto.dashboard.DashboardMetricsResponse;
+import com.banhmyking.banhmyking.dto.report.PriceSavingsResponse;
 import com.banhmyking.banhmyking.dto.report.TopProductResponse;
 import com.banhmyking.banhmyking.dto.store.AcceptingOrdersRequest;
 import com.banhmyking.banhmyking.dto.store.StoreResponse;
@@ -69,6 +70,16 @@ public class ManagerController {
             @RequestParam(defaultValue = "10") int limit, @AuthenticationPrincipal UserDetails principal) {
         return ResponseEntity.ok(ApiResponse.ok("Lấy món bán chạy thành công",
                 reportService.getTopProducts(fromDate, toDate, limit, ownStore(principal))));
+    }
+
+    @GetMapping("/reports/price-savings")
+    @Operation(summary = "Tiền ưu đãi từ giá KM và combo của cơ sở mình")
+    public ResponseEntity<ApiResponse<PriceSavingsResponse>> priceSavings(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @AuthenticationPrincipal UserDetails principal) {
+        return ResponseEntity.ok(ApiResponse.ok("Lấy tiền ưu đãi thành công",
+                reportService.getPriceSavings(fromDate, toDate, ownStore(principal))));
     }
 
     /** MANAGER → cơ sở của mình; ADMIN gọi API này nhận báo cáo toàn chuỗi (null). */

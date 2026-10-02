@@ -3,7 +3,6 @@ package com.banhmyking.banhmyking.service;
 import com.banhmyking.banhmyking.dto.order.PriceBreakdown;
 import com.banhmyking.banhmyking.entity.Cart;
 import com.banhmyking.banhmyking.entity.CartItem;
-import com.banhmyking.banhmyking.entity.CartItemOption;
 import com.banhmyking.banhmyking.entity.Promotion;
 import com.banhmyking.banhmyking.enums.DiscountType;
 import com.banhmyking.banhmyking.exception.BusinessException;
@@ -19,6 +18,12 @@ public class PriceCalculator {
 
     public static final BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.valueOf(15000);
 
+    private final ProductPricing productPricing;
+
+    public PriceCalculator(ProductPricing productPricing) {
+        this.productPricing = productPricing;
+    }
+
     /**
      * Tính toán subtotal, shippingFee, discountAmount và total cho giỏ hàng.
      */
@@ -26,40 +31,37 @@ public class PriceCalculator {
         return calculate(cart, promotion, DEFAULT_SHIPPING_FEE);
     }
 
+    public PriceBreakdown calculate(Cart cart, Promotion promotion, BigDecimal shippingFee) {
+        return calculate(cart, promotion, shippingFee, productPricing.now());
+    }
+
     public BigDecimal calculateSubtotal(Cart cart) {
+        return calculateSubtotal(cart, productPricing.now());
+    }
+
+    /**
+     * Tạm tính theo giá hiệu lực tại {@code pricedAt} (giá KM / giá combo) + topping. Mã giảm giá
+     * (đơn tối thiểu, PERCENTAGE) xét trên đúng số này — cộng dồn với giá KM (spec combo-sale B3).
+     */
+    public BigDecimal calculateSubtotal(Cart cart, LocalDateTime pricedAt) {
         BigDecimal subtotal = BigDecimal.ZERO;
         if (cart != null && cart.getItems() != null) {
             for (CartItem item : cart.getItems()) {
-                BigDecimal basePrice = item.getProduct() != null && item.getProduct().getPrice() != null
-                        ? item.getProduct().getPrice()
-                        : BigDecimal.ZERO;
-
-                BigDecimal optionsExtra = BigDecimal.ZERO;
-                if (item.getSelectedOptions() != null) {
-                    for (CartItemOption cio : item.getSelectedOptions()) {
-                        if (cio.getProductOption() != null && cio.getProductOption().getExtraPrice() != null) {
-                            optionsExtra = optionsExtra.add(cio.getProductOption().getExtraPrice());
-                        }
-                    }
-                }
-
-                BigDecimal unitPrice = basePrice.add(optionsExtra);
-                int qty = item.getQuantity() != null ? item.getQuantity() : 1;
-                BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(qty));
-                subtotal = subtotal.add(lineTotal);
+                subtotal = subtotal.add(productPricing.lineTotal(item, pricedAt));
             }
         }
         return subtotal.setScale(2, RoundingMode.HALF_UP);
     }
 
-    public PriceBreakdown calculate(Cart cart, Promotion promotion, BigDecimal shippingFee) {
+    /** Như {@link #calculate(Cart, Promotion, BigDecimal)} nhưng chốt giá tại {@code pricedAt} (lúc tạo đơn). */
+    public PriceBreakdown calculate(Cart cart, Promotion promotion, BigDecimal shippingFee, LocalDateTime pricedAt) {
         if (shippingFee == null) {
             shippingFee = DEFAULT_SHIPPING_FEE;
         }
         shippingFee = shippingFee.setScale(2, RoundingMode.HALF_UP);
 
-        // 1. Tính subtotal từ các món trong giỏ
-        BigDecimal subtotal = calculateSubtotal(cart);
+        // 1. Tính subtotal từ các món trong giỏ (giá hiệu lực tại pricedAt)
+        BigDecimal subtotal = calculateSubtotal(cart, pricedAt);
 
         // 2. Tính discount từ promotion (nếu có)
         BigDecimal discountAmount = BigDecimal.ZERO;
@@ -82,32 +84,6 @@ public class PriceCalculator {
                 .discountAmount(discountAmount)
                 .total(total)
                 .build();
-    }
-
-    /**
-     * Đơn giá 1 món = giá gốc + tổng phụ phí topping (null-safe toàn bộ).
-     * NGUỒN SỰ THẬT DUY NHẤT của công thức — Cart / Order snapshot / checkout dùng chung.
-     */
-    public static BigDecimal unitPriceOf(CartItem item) {
-        BigDecimal basePrice = item.getProduct() != null && item.getProduct().getPrice() != null
-                ? item.getProduct().getPrice()
-                : BigDecimal.ZERO;
-
-        BigDecimal optionsExtra = BigDecimal.ZERO;
-        if (item.getSelectedOptions() != null) {
-            for (CartItemOption cio : item.getSelectedOptions()) {
-                if (cio.getProductOption() != null && cio.getProductOption().getExtraPrice() != null) {
-                    optionsExtra = optionsExtra.add(cio.getProductOption().getExtraPrice());
-                }
-            }
-        }
-        return basePrice.add(optionsExtra);
-    }
-
-    /** Tổng tiền 1 dòng = unitPrice × quantity (quantity null → 1). */
-    public static BigDecimal lineTotalOf(CartItem item) {
-        int qty = item.getQuantity() != null ? item.getQuantity() : 1;
-        return unitPriceOf(item).multiply(BigDecimal.valueOf(qty));
     }
 
     private void validatePromotion(Promotion promotion, BigDecimal subtotal) {

@@ -1,11 +1,13 @@
 package com.banhmyking.banhmyking.service.impl;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,8 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 
+import com.banhmyking.banhmyking.dto.catalog.ComboItemRequest;
+import com.banhmyking.banhmyking.dto.catalog.ComboItemResponse;
 import com.banhmyking.banhmyking.dto.catalog.CategoryRequest;
 import com.banhmyking.banhmyking.dto.catalog.CategoryResponse;
 import com.banhmyking.banhmyking.dto.catalog.OptionGroupRequest;
@@ -25,16 +29,20 @@ import com.banhmyking.banhmyking.dto.catalog.ProductRequest;
 import com.banhmyking.banhmyking.dto.catalog.ProductResponse;
 import com.banhmyking.banhmyking.dto.common.PageResponse;
 import com.banhmyking.banhmyking.entity.Category;
+import com.banhmyking.banhmyking.entity.ComboItem;
+import com.banhmyking.banhmyking.entity.ComboItemId;
 import com.banhmyking.banhmyking.entity.OptionGroup;
 import com.banhmyking.banhmyking.entity.Product;
 import com.banhmyking.banhmyking.entity.ProductImage;
 import com.banhmyking.banhmyking.entity.ProductOption;
 import com.banhmyking.banhmyking.enums.ProductSort;
+import com.banhmyking.banhmyking.enums.ProductType;
 import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
 import com.banhmyking.banhmyking.repository.CartItemOptionRepository;
 import com.banhmyking.banhmyking.repository.CategoryRepository;
+import com.banhmyking.banhmyking.repository.ComboItemRepository;
 import com.banhmyking.banhmyking.repository.OptionGroupRepository;
 import com.banhmyking.banhmyking.repository.ProductImageRepository;
 import com.banhmyking.banhmyking.repository.ProductOptionRepository;
@@ -42,6 +50,8 @@ import com.banhmyking.banhmyking.repository.ProductRepository;
 import com.banhmyking.banhmyking.repository.ReviewRepository;
 import com.banhmyking.banhmyking.repository.specification.ProductSpecifications;
 import com.banhmyking.banhmyking.service.CatalogService;
+import com.banhmyking.banhmyking.service.ComboExpander;
+import com.banhmyking.banhmyking.service.ProductPricing;
 import com.banhmyking.banhmyking.service.FileStorageService;
 import com.banhmyking.banhmyking.util.PageableFactory;
 
@@ -59,6 +69,8 @@ public class CatalogServiceImpl implements CatalogService {
     private final ProductImageRepository productImageRepository;
     private final CartItemOptionRepository cartItemOptionRepository;
     private final ReviewRepository reviewRepository;
+    private final ProductPricing productPricing;
+    private final ComboItemRepository comboItemRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -99,9 +111,11 @@ public class CatalogServiceImpl implements CatalogService {
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> getProducts(Long categoryId, boolean availableOnly, String keyword,
                                                      Boolean featured, BigDecimal minPrice, BigDecimal maxPrice,
+                                                     Boolean onSale, ProductType type,
                                                      ProductSort sort, int page, int size) {
         Page<Product> result = productRepository.findAll(
-                ProductSpecifications.search(categoryId, availableOnly, keyword, featured, minPrice, maxPrice),
+                ProductSpecifications.search(categoryId, availableOnly, keyword, featured, minPrice, maxPrice,
+                        onSale, type, productPricing.now()),
                 PageableFactory.of(page, size, sort.toSort()));
 
         // Bọc lại PageImpl để enrich cả trang trong 1 lượt — map từng món riêng sẽ thành N+1
@@ -166,8 +180,9 @@ public class CatalogServiceImpl implements CatalogService {
     @Transactional
     public ProductResponse createProduct(ProductRequest request) {
         Product product = new Product();
+        product.setProductType(request.getProductType() != null ? request.getProductType() : ProductType.SINGLE);
         applyProduct(product, request);
-        return saveProductWithOptions(product, request);
+        return saveProductWithOptions(product, request, null);
     }
 
     @Override
@@ -176,8 +191,14 @@ public class CatalogServiceImpl implements CatalogService {
     public ProductResponse updateProduct(Long productId, ProductRequest request) {
         Product product = productRepository.findByIdAndDeletedFalse(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + productId));
+        if (request.getProductType() != null && request.getProductType() != product.getProductType()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Không thể đổi loại sản phẩm đã tạo (món lẻ ↔ combo)");
+        }
+        // Giá cũ phải chụp TRƯỚC applyProduct (nó ghi đè giá) — để biết giá combo có đổi không.
+        BigDecimal previousPrice = product.getPrice();
         applyProduct(product, request);
-        return saveProductWithOptions(product, request);
+        return saveProductWithOptions(product, request, previousPrice);
     }
 
     @Override
@@ -186,6 +207,15 @@ public class CatalogServiceImpl implements CatalogService {
     public void deleteProduct(Long productId) {
         Product product = productRepository.findByIdAndDeletedFalse(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy sản phẩm với ID: " + productId));
+        if (!product.isCombo()) {
+            // Tắt món thì combo tự "Tạm hết"; còn xoá thì chặn để combo không mất thành phần (spec §5).
+            List<String> combos = comboItemRepository.findActiveComboNamesContaining(productId);
+            if (!combos.isEmpty()) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                        "Món đang nằm trong combo: " + String.join(", ", combos)
+                                + " — hãy sửa hoặc xoá combo trước");
+            }
+        }
         product.setDeleted(true);
         product.setAvailable(false);
         productRepository.save(product);
@@ -218,13 +248,165 @@ public class CatalogServiceImpl implements CatalogService {
         product.setPrice(request.getPrice());
         product.setAvailable(request.isAvailable());
         product.setFeatured(request.isFeatured());
+        if (product.isCombo()) {
+            rejectSaleAndOptionsOnCombo(request);
+        } else {
+            if (request.getComboItems() != null && !request.getComboItems().isEmpty()) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Chỉ combo mới có món thành phần");
+            }
+            applySale(product, request);
+        }
     }
 
-    private ProductResponse saveProductWithOptions(Product product, ProductRequest request) {
+    /**
+     * Kiểm hết rồi mới ghi: combo sai luật thì không có row nào được lưu.
+     * {@code previousPrice} = giá trước khi sửa (null khi tạo).
+     */
+    private ProductResponse saveProductWithOptions(Product product, ProductRequest request,
+                                                   BigDecimal previousPrice) {
+        List<ComboLine> comboLines = product.isCombo() ? resolveComboLines(product, request, previousPrice) : null;
         Product savedProduct = productRepository.save(product);
+        if (comboLines != null) {
+            syncComboItems(savedProduct, comboLines);
+        }
         syncOptionsAndGroups(savedProduct, request);
         syncImages(savedProduct, request.getImages());
         return toProductResponse(savedProduct);
+    }
+
+    /** Spec §3: salePrice > 0 và < price; ends > starts khi có cả hai. Bỏ trống salePrice = hết KM. */
+    private void applySale(Product product, ProductRequest request) {
+        BigDecimal salePrice = request.getSalePrice();
+        if (salePrice == null) {
+            product.setSalePrice(null);
+            product.setSaleStartsAt(null);
+            product.setSaleEndsAt(null);
+            return;
+        }
+        if (salePrice.signum() <= 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Giá khuyến mãi phải lớn hơn 0");
+        }
+        if (salePrice.compareTo(request.getPrice()) >= 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Giá khuyến mãi phải nhỏ hơn giá gốc");
+        }
+        if (request.getSaleStartsAt() != null && request.getSaleEndsAt() != null
+                && !request.getSaleEndsAt().isAfter(request.getSaleStartsAt())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Thời điểm kết thúc khuyến mãi phải sau thời điểm bắt đầu");
+        }
+        product.setSalePrice(salePrice);
+        product.setSaleStartsAt(request.getSaleStartsAt());
+        product.setSaleEndsAt(request.getSaleEndsAt());
+    }
+
+    private void rejectSaleAndOptionsOnCombo(ProductRequest request) {
+        if (request.getSalePrice() != null || request.getSaleStartsAt() != null || request.getSaleEndsAt() != null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Combo không dùng giá khuyến mãi — hãy đặt thẳng giá combo");
+        }
+        boolean hasOptions = request.getOptions() != null && !request.getOptions().isEmpty();
+        boolean hasGroups = request.getOptionGroups() != null && !request.getOptionGroups().isEmpty();
+        if (hasOptions || hasGroups) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Combo không có topping hay nhóm lựa chọn");
+        }
+    }
+
+    /** Một dòng thành phần đã kiểm tra. */
+    private record ComboLine(Product component, int quantity) {
+    }
+
+    /**
+     * Luật combo (spec §3) kiểm TRƯỚC khi ghi. Sửa combo mà {@code comboItems == null} = giữ thành phần
+     * cũ và trả null để không đồng bộ lại; kiểm giá combo < tổng giá lẻ chỉ khi giá đổi (một lần
+     * bật/tắt không đổi giá không bị chặn dù thành phần đã tăng/giảm giá).
+     */
+    private List<ComboLine> resolveComboLines(Product combo, ProductRequest request, BigDecimal previousPrice) {
+        List<ComboItemRequest> requested = request.getComboItems();
+        if (requested == null && combo.getId() != null) {
+            boolean priceUnchanged = previousPrice != null && combo.getPrice() != null
+                    && previousPrice.compareTo(combo.getPrice()) == 0;
+            if (!priceUnchanged) {
+                assertComboCheaper(combo.getPrice(), productPricing.originalPrice(combo));
+            }
+            return null;
+        }
+        if (requested == null || requested.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Combo phải có ít nhất một món thành phần");
+        }
+        Map<Long, Integer> quantityById = new LinkedHashMap<>();
+        int portions = 0;
+        for (ComboItemRequest line : requested) {
+            if (line.getProductId() == null) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Thiếu món thành phần");
+            }
+            int quantity = line.getQuantity() == null ? 0 : line.getQuantity();
+            if (quantity < 1 || quantity > 20) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Số lượng mỗi món trong combo từ 1 đến 20");
+            }
+            if (quantityById.putIfAbsent(line.getProductId(), quantity) != null) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        "Món thành phần bị trùng trong combo — hãy gộp số lượng vào một dòng");
+            }
+            portions += quantity;
+        }
+        if (portions < 2) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Combo phải có tổng ít nhất 2 phần món");
+        }
+
+        Map<Long, Product> found = productRepository.findAllById(quantityById.keySet()).stream()
+                .collect(Collectors.toMap(Product::getId, product -> product));
+        List<ComboLine> lines = new ArrayList<>();
+        Map<Product, Integer> components = new LinkedHashMap<>();
+        for (Map.Entry<Long, Integer> entry : quantityById.entrySet()) {
+            Product component = found.get(entry.getKey());
+            if (component == null || component.isDeleted()) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        "Không tìm thấy món thành phần với ID: " + entry.getKey());
+            }
+            if (component.isCombo()) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        "Thành phần combo phải là món lẻ: " + component.getName());
+            }
+            lines.add(new ComboLine(component, entry.getValue()));
+            components.put(component, entry.getValue());
+        }
+        assertComboCheaper(combo.getPrice(), productPricing.listPriceTotal(components));
+        return lines;
+    }
+
+    private void assertComboCheaper(BigDecimal comboPrice, BigDecimal original) {
+        if (comboPrice == null || comboPrice.compareTo(original) >= 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    String.format("Giá combo phải thấp hơn tổng giá lẻ của các món (%,.0fđ)", original.doubleValue()));
+        }
+    }
+
+    /**
+     * Diff theo món: món còn trong payload giữ NGUYÊN row (chỉ sửa số lượng) — không xoá rồi chèn lại cùng
+     * khoá (combo_id, component_id), vì Hibernate flush INSERT trước DELETE sẽ đụng khoá chính.
+     */
+    private void syncComboItems(Product combo, List<ComboLine> lines) {
+        Map<Long, ComboItem> current = new LinkedHashMap<>();
+        for (ComboItem item : combo.getComboItems()) {
+            current.put(item.getComponent().getId(), item);
+        }
+        List<ComboItem> target = new ArrayList<>();
+        for (ComboLine line : lines) {
+            ComboItem item = current.remove(line.component().getId());
+            if (item == null) {
+                item = new ComboItem();
+                item.setId(new ComboItemId(combo.getId(), line.component().getId()));
+                item.setCombo(combo);
+                item.setComponent(line.component());
+            }
+            item.setQuantity(line.quantity());
+            target.add(item);
+        }
+        if (!current.isEmpty()) {
+            comboItemRepository.deleteAll(List.copyOf(current.values()));
+        }
+        comboItemRepository.saveAll(target);
+        combo.setComboItems(target);
     }
 
     /**
@@ -434,6 +616,7 @@ public class CatalogServiceImpl implements CatalogService {
 
     private ProductResponse toProductResponse(Product product, Double averageRating, Long totalReviews,
             List<String> images, List<ProductOption> options, List<OptionGroup> groups) {
+        LocalDateTime now = productPricing.now();
         return ProductResponse.builder()
                 .id(product.getId())
                 .categoryId(product.getCategory().getId())
@@ -443,8 +626,18 @@ public class CatalogServiceImpl implements CatalogService {
                 .imageUrl(product.getImageUrl())
                 .images(images)
                 .price(product.getPrice())
-                .available(product.isAvailable())
+                .available(ComboExpander.isChainAvailable(product))
+                .enabled(product.isAvailable())
                 .featured(product.isFeatured())
+                .productType(product.getProductType())
+                .salePrice(product.getSalePrice())
+                .saleStartsAt(product.getSaleStartsAt())
+                .saleEndsAt(product.getSaleEndsAt())
+                .effectivePrice(productPricing.effectivePrice(product, now))
+                .compareAtPrice(productPricing.compareAtPrice(product, now))
+                .discountPercent(productPricing.discountPercent(product, now))
+                .onSale(productPricing.isSaleActive(product, now))
+                .comboItems(ComboItemResponse.listOf(product))
                 .averageRating(averageRating != null ? averageRating : 0.0)
                 .totalReviews(totalReviews != null ? totalReviews : 0L)
                 .options(options.stream().map(this::toOptionResponse).toList())

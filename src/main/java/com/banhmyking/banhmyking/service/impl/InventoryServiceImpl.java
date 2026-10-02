@@ -8,7 +8,10 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -19,6 +22,7 @@ import com.banhmyking.banhmyking.dto.catalog.StockChangeRequest;
 import com.banhmyking.banhmyking.dto.catalog.StockMovementResponse;
 import com.banhmyking.banhmyking.dto.common.PageResponse;
 import com.banhmyking.banhmyking.dto.store.StoreStockResponse;
+import com.banhmyking.banhmyking.entity.ComboItem;
 import com.banhmyking.banhmyking.entity.InventoryMovement;
 import com.banhmyking.banhmyking.entity.Order;
 import com.banhmyking.banhmyking.entity.OrderItem;
@@ -34,6 +38,7 @@ import com.banhmyking.banhmyking.repository.InventoryMovementRepository;
 import com.banhmyking.banhmyking.repository.ProductRepository;
 import com.banhmyking.banhmyking.repository.StoreProductRepository;
 import com.banhmyking.banhmyking.repository.UserRepository;
+import com.banhmyking.banhmyking.service.ComboExpander;
 import com.banhmyking.banhmyking.service.InventoryService;
 import com.banhmyking.banhmyking.util.PageableFactory;
 
@@ -65,37 +70,43 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     /**
-     * Trừ tồn cho mọi dòng của đơn tại cơ sở của đơn. Thiếu hàng ở một dòng thì cộng trả các dòng
-     * đã trừ trước đó và trả về sản phẩm thiếu; đủ hết thì ghi movement và trả null.
+     * Trừ tồn theo NHU CẦU GỘP món lẻ (spec combo-sale §4.2): dòng combo × q → từng thành phần ×
+     * (số lượng × q), cộng dồn với dòng món lẻ cùng món. Thiếu ở một món thì cộng trả các món đã trừ
+     * và trả về món thiếu; đủ hết thì ghi sổ ORDER theo từng MÓN LẺ (để restoreForOrder hoàn đúng).
      */
     private Product decreaseAllOrNothing(Order order) {
         Long storeId = order.getStore().getId();
-        Set<Long> tracked = trackedProductIds(storeId, order.getItems());
-        List<OrderItem> decreased = new ArrayList<>();
+        Map<Product, Integer> lines = new LinkedHashMap<>();
         for (OrderItem item : order.getItems()) {
-            Product product = item.getProduct();
-            if (product == null || !tracked.contains(product.getId())) {
+            if (item.getProduct() != null && item.getQuantity() != null) {
+                lines.merge(item.getProduct(), item.getQuantity(), Integer::sum);
+            }
+        }
+        Map<Product, Integer> demand = ComboExpander.expand(lines);
+        Set<Long> tracked = trackedProductIds(storeId, demand.keySet());
+        Map<Product, Integer> decreased = new LinkedHashMap<>();
+        for (Map.Entry<Product, Integer> entry : demand.entrySet()) {
+            Product product = entry.getKey();
+            if (!tracked.contains(product.getId())) {
                 continue;
             }
             // Số row = 0 nghĩa là không đủ hàng (hoặc giao dịch khác vừa lấy mất hàng).
-            if (storeProductRepository.decrementStockAtomic(storeId, product.getId(), item.getQuantity()) == 0) {
-                for (OrderItem done : decreased) {
-                    storeProductRepository.incrementStockAtomic(storeId, done.getProduct().getId(), done.getQuantity());
-                }
+            if (storeProductRepository.decrementStockAtomic(storeId, product.getId(), entry.getValue()) == 0) {
+                decreased.forEach((done, quantity) ->
+                        storeProductRepository.incrementStockAtomic(storeId, done.getId(), quantity));
                 return product;
             }
-            decreased.add(item);
+            decreased.put(product, entry.getValue());
         }
-        for (OrderItem item : decreased) {
-            saveMovement(order.getStore(), item.getProduct(), -item.getQuantity(), InventoryReason.ORDER, order, null, null);
-        }
+        decreased.forEach((product, quantity) ->
+                saveMovement(order.getStore(), product, -quantity, InventoryReason.ORDER, order, null, null));
         return null;
     }
 
     /** Món được quản tồn tại cơ sở = có dòng store_products với stock_quantity khác NULL. */
-    private Set<Long> trackedProductIds(Long storeId, List<OrderItem> items) {
-        List<Long> productIds = items.stream()
-                .map(OrderItem::getProduct).filter(Objects::nonNull).map(Product::getId).distinct().toList();
+    private Set<Long> trackedProductIds(Long storeId, Collection<Product> products) {
+        List<Long> productIds = products.stream()
+                .map(Product::getId).filter(Objects::nonNull).distinct().toList();
         if (productIds.isEmpty()) {
             return Set.of();
         }
@@ -114,8 +125,7 @@ public class InventoryServiceImpl implements InventoryService {
         }
         // Hoàn về ĐÚNG cơ sở đã bị trừ — lấy store_id ghi trên sổ ORDER của đơn, không dùng order.store
         // (spec §3.6): nếu đơn từng đổi cơ sở sau khi trừ tồn, order.store đã là cơ sở mới.
-        // Gộp theo (cơ sở, sản phẩm): cùng món có thể nằm ở nhiều dòng (khác topping), mỗi dòng một sổ
-        // ORDER. Nếu hoàn từng dòng, dòng đầu ghi RESTORE xong thì dòng sau bị check "đã hoàn" bỏ qua.
+        // Sổ ORDER ghi theo món lẻ (kể cả đơn có combo) nên hoàn theo sổ là hoàn đúng thành phần.
         Map<StoreProductId, Integer> quantityByKey = new LinkedHashMap<>();
         Map<StoreProductId, InventoryMovement> sampleByKey = new LinkedHashMap<>();
         for (InventoryMovement decrease : inventoryMovementRepository.findByOrderIdAndReason(orderId, InventoryReason.ORDER)) {
@@ -141,23 +151,54 @@ public class InventoryServiceImpl implements InventoryService {
         }
     }
 
+    /**
+     * Món lẻ: hết món / tắt / thiếu tồn so với nhu cầu gộp. Combo (spec §4.1): (1) chính combo tắt, xoá
+     * hoặc bị báo hết tại cơ sở → tên combo; (2–3) thành phần không bán được hoặc thiếu tồn so với nhu
+     * cầu gộp của cả giỏ → "Tên combo (hết A, B)".
+     */
     @Override
     @Transactional(readOnly = true)
     public List<String> unavailableItems(Long storeId, Map<Product, Integer> quantities) {
         if (quantities.isEmpty()) {
             return List.of();
         }
-        Map<Long, StoreProduct> rows = storeProductRepository
-                .findByIdStoreIdAndIdProductIdIn(storeId, quantities.keySet().stream().map(Product::getId).toList())
-                .stream().collect(Collectors.toMap(sp -> sp.getId().getProductId(), sp -> sp));
+        Map<Long, Integer> demandById = new HashMap<>();
+        ComboExpander.expand(quantities).forEach((product, quantity) -> {
+            if (product.getId() != null) {
+                demandById.merge(product.getId(), quantity, Integer::sum);
+            }
+        });
+        Set<Long> ids = new LinkedHashSet<>(demandById.keySet());
+        quantities.keySet().stream().map(Product::getId).filter(Objects::nonNull).forEach(ids::add);
+        Map<Long, StoreProduct> rows = rowsOf(storeId, ids);
+
         List<String> names = new ArrayList<>();
         for (Map.Entry<Product, Integer> entry : quantities.entrySet()) {
             Product product = entry.getKey();
             StoreProduct row = rows.get(product.getId());
-            boolean soldOut = !product.isAvailable() || product.isDeleted() || (row != null && !row.isAvailable());
-            boolean shortStock = row != null && row.getStockQuantity() != null && row.getStockQuantity() < entry.getValue();
-            if (soldOut || shortStock) {
+            if (!product.isCombo()) {
+                int needed = product.getId() != null
+                        ? demandById.getOrDefault(product.getId(), entry.getValue())
+                        : entry.getValue();
+                if (isBlocked(product, row, needed)) {
+                    names.add(product.getName());
+                }
+                continue;
+            }
+            if (!product.isAvailable() || product.isDeleted() || (row != null && !row.isAvailable())) {
                 names.add(product.getName());
+                continue;
+            }
+            List<String> missing = product.getComboItems().stream()
+                    .map(ComboItem::getComponent)
+                    .filter(Objects::nonNull)
+                    .filter(component -> isBlocked(component, rows.get(component.getId()),
+                            demandById.getOrDefault(component.getId(), 0)))
+                    .map(Product::getName)
+                    .sorted()
+                    .toList();
+            if (!missing.isEmpty()) {
+                names.add(product.getName() + " (hết " + String.join(", ", missing) + ")");
             }
         }
         names.sort(String::compareTo);
@@ -167,11 +208,13 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(readOnly = true)
     public List<StoreStockResponse> listStoreStock(Long storeId) {
-        Map<Long, StoreProduct> rows = storeProductRepository.findByIdStoreId(storeId).stream()
-                .collect(Collectors.toMap(sp -> sp.getId().getProductId(), sp -> sp));
+        Map<Long, StoreProduct> rows = new HashMap<>();
+        for (StoreProduct row : storeProductRepository.findByIdStoreId(storeId)) {
+            rows.put(row.getId().getProductId(), row);
+        }
         return productRepository.findAll(Sort.by("name")).stream()
                 .filter(product -> !product.isDeleted())
-                .map(product -> toStockResponse(product, rows.get(product.getId())))
+                .map(product -> toStockResponse(product, rows.get(product.getId()), blockedBy(product, rows)))
                 .toList();
     }
 
@@ -182,13 +225,18 @@ public class InventoryServiceImpl implements InventoryService {
         StoreProduct row = storeProductRepository.findByIdStoreIdAndIdProductId(storeId, productId)
                 .orElseGet(() -> newRow(storeId, product));
         row.setAvailable(available);
-        return toStockResponse(product, storeProductRepository.save(row));
+        StoreProduct saved = storeProductRepository.save(row);
+        return toStockResponse(product, saved, comboBlockedBy(storeId, product));
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public StoreStockResponse adjustStock(Long storeId, Long productId, StockChangeRequest request, Long actorId) {
         Product product = requireProduct(productId);
+        if (product.isCombo()) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Combo không có tồn kho riêng — hãy nhập tồn cho từng món trong combo");
+        }
         int changeQty = request.getChangeQty();
         if (changeQty == 0) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Số lượng thay đổi phải khác 0");
@@ -220,7 +268,7 @@ public class InventoryServiceImpl implements InventoryService {
         }
         saveMovement(row.getStore(), product, changeQty,
                 changeQty > 0 ? InventoryReason.IMPORT : InventoryReason.ADJUST, null, request.getNote(), actorId);
-        return toStockResponse(product, row);
+        return toStockResponse(product, row, List.of());
     }
 
     @Override
@@ -245,18 +293,63 @@ public class InventoryServiceImpl implements InventoryService {
         return row;
     }
 
-    private StoreStockResponse toStockResponse(Product product, StoreProduct row) {
+    /** HashMap (không dùng Map.of) để get(null) an toàn với Product chưa có id. */
+    private Map<Long, StoreProduct> rowsOf(Long storeId, Collection<Long> productIds) {
+        Map<Long, StoreProduct> rows = new HashMap<>();
+        if (productIds.isEmpty()) {
+            return rows;
+        }
+        for (StoreProduct row : storeProductRepository.findByIdStoreIdAndIdProductIdIn(storeId, productIds)) {
+            rows.put(row.getId().getProductId(), row);
+        }
+        return rows;
+    }
+
+    /** Món lẻ không bán được tại cơ sở: tắt toàn chuỗi, đã xoá, bị báo hết, hoặc tồn < nhu cầu. */
+    private static boolean isBlocked(Product product, StoreProduct row, int demand) {
+        boolean soldOut = !product.isAvailable() || product.isDeleted() || (row != null && !row.isAvailable());
+        boolean shortStock = row != null && row.getStockQuantity() != null && row.getStockQuantity() < demand;
+        return soldOut || shortStock;
+    }
+
+    /** Thành phần đang làm MỘT combo không bán được tại cơ sở; món lẻ → rỗng. */
+    private List<String> blockedBy(Product product, Map<Long, StoreProduct> rows) {
+        if (!product.isCombo()) {
+            return List.of();
+        }
+        return product.getComboItems().stream()
+                .filter(item -> item.getComponent() != null)
+                .filter(item -> isBlocked(item.getComponent(), rows.get(item.getComponent().getId()),
+                        item.getQuantity()))
+                .map(item -> item.getComponent().getName())
+                .sorted()
+                .toList();
+    }
+
+    private List<String> comboBlockedBy(Long storeId, Product product) {
+        if (!product.isCombo()) {
+            return List.of();
+        }
+        List<Long> componentIds = product.getComboItems().stream()
+                .map(ComboItem::getComponent).filter(Objects::nonNull).map(Product::getId).toList();
+        return blockedBy(product, rowsOf(storeId, componentIds));
+    }
+
+    private StoreStockResponse toStockResponse(Product product, StoreProduct row, List<String> blockedBy) {
+        boolean combo = product.isCombo();
         return StoreStockResponse.builder()
                 .productId(product.getId())
                 .productName(product.getName())
                 .categoryName(product.getCategory() == null ? null : product.getCategory().getName())
                 .imageUrl(product.getImageUrl())
                 .price(product.getPrice())
+                .productType(product.getProductType())
                 .onChainMenu(product.isAvailable())
                 .available(row == null || row.isAvailable())
-                .stockQuantity(row == null ? null : row.getStockQuantity())
+                .stockQuantity(combo || row == null ? null : row.getStockQuantity())
                 .lowStockThreshold(row == null ? 5 : row.getLowStockThreshold())
-                .lowStock(row != null && row.isLowStock())
+                .lowStock(!combo && row != null && row.isLowStock())
+                .blockedBy(blockedBy)
                 .build();
     }
 

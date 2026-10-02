@@ -58,6 +58,9 @@ public class OrderResponse {
     @Schema(description = "Số tiền giảm giá", example = "10000.00")
     private BigDecimal discountAmount;
 
+    @Schema(description = "Tiền khách tiết kiệm nhờ giá KM và combo (tính từ snapshot các dòng)", example = "10000.00")
+    private BigDecimal savingsAmount;
+
     @Schema(description = "Tổng số tiền thanh toán (subtotal + shippingFee - discountAmount)", example = "81000.00")
     private BigDecimal total;
 

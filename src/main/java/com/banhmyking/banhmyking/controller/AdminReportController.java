@@ -1,6 +1,7 @@
 package com.banhmyking.banhmyking.controller;
 
 import com.banhmyking.banhmyking.dto.common.ApiResponse;
+import com.banhmyking.banhmyking.dto.report.PriceSavingsResponse;
 import com.banhmyking.banhmyking.dto.report.StoreRevenueResponse;
 import com.banhmyking.banhmyking.dto.report.TopProductResponse;
 import com.banhmyking.banhmyking.enums.ReportType;
@@ -54,6 +55,18 @@ public class AdminReportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
         return ResponseEntity.ok(ApiResponse.ok("Lấy doanh thu theo cơ sở thành công",
                 adminReportService.getRevenueByStore(fromDate, toDate)));
+    }
+
+    @GetMapping("/price-savings")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Tiền ưu đãi từ giá KM và combo",
+            description = "Σ (giá gốc − giá bán) × số lượng trên đơn đã giao. Không truyền ngày = 30 ngày gần nhất.")
+    public ResponseEntity<ApiResponse<PriceSavingsResponse>> priceSavings(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(required = false) Long storeId) {
+        return ResponseEntity.ok(ApiResponse.ok("Lấy tiền ưu đãi thành công",
+                adminReportService.getPriceSavings(fromDate, toDate, storeId)));
     }
 
     @GetMapping("/export")

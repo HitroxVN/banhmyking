@@ -18,4 +18,8 @@ public interface AdminReportService {
     /** Doanh thu từng cơ sở trong khoảng ngày (bao gồm cả ngày kết thúc). */
     List<com.banhmyking.banhmyking.dto.report.StoreRevenueResponse> getRevenueByStore(
             LocalDate fromDate, LocalDate toDate);
+
+    /** Tiền ưu đãi từ giá KM và combo trên đơn đã giao trong khoảng ngày. storeId null = toàn chuỗi. */
+    com.banhmyking.banhmyking.dto.report.PriceSavingsResponse getPriceSavings(
+            LocalDate fromDate, LocalDate toDate, Long storeId);
 }

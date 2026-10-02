@@ -1,6 +1,9 @@
 package com.banhmyking.banhmyking.service;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -15,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -31,22 +35,29 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
+import com.banhmyking.banhmyking.config.TimeConfig;
+import com.banhmyking.banhmyking.dto.catalog.ComboItemRequest;
+import com.banhmyking.banhmyking.dto.catalog.ComboItemResponse;
 import com.banhmyking.banhmyking.dto.catalog.OptionGroupRequest;
 import com.banhmyking.banhmyking.dto.catalog.ProductOptionRequest;
 import com.banhmyking.banhmyking.dto.catalog.ProductRequest;
 import com.banhmyking.banhmyking.dto.catalog.ProductResponse;
 import com.banhmyking.banhmyking.dto.common.PageResponse;
 import com.banhmyking.banhmyking.entity.Category;
+import com.banhmyking.banhmyking.entity.ComboItem;
+import com.banhmyking.banhmyking.entity.ComboItemId;
 import com.banhmyking.banhmyking.entity.OptionGroup;
 import com.banhmyking.banhmyking.entity.Product;
 import com.banhmyking.banhmyking.entity.ProductImage;
 import com.banhmyking.banhmyking.entity.ProductOption;
 import com.banhmyking.banhmyking.enums.ProductSort;
+import com.banhmyking.banhmyking.enums.ProductType;
 import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
 import com.banhmyking.banhmyking.repository.CartItemOptionRepository;
 import com.banhmyking.banhmyking.repository.CategoryRepository;
+import com.banhmyking.banhmyking.repository.ComboItemRepository;
 import com.banhmyking.banhmyking.repository.OptionGroupRepository;
 import com.banhmyking.banhmyking.repository.ProductImageRepository;
 import com.banhmyking.banhmyking.repository.ProductOptionRepository;
@@ -86,6 +97,14 @@ class CatalogServiceTest {
 
     @Mock
     private FileStorageService fileStorageService;
+
+    /** 10:00 02/10/2026 giờ Việt Nam. */
+    @Spy
+    private ProductPricing productPricing = new ProductPricing(
+            Clock.fixed(Instant.parse("2026-10-02T03:00:00Z"), TimeConfig.VIETNAM));
+
+    @Mock
+    private ComboItemRepository comboItemRepository;
 
     @InjectMocks
     private CatalogServiceImpl catalogService;
@@ -139,7 +158,7 @@ class CatalogServiceTest {
                 .thenReturn(List.of(image));
 
         PageResponse<ProductResponse> result =
-                catalogService.getProducts(null, true, null, null, null, null, ProductSort.FEATURED, 0, 12);
+                catalogService.getProducts(null, true, null, null, null, null, null, null, ProductSort.FEATURED, 0, 12);
 
         assertThat(result.content()).hasSize(1);
         assertThat(result.content().get(0).getName()).isEqualTo("Bánh mì Đặc Biệt");
@@ -157,7 +176,7 @@ class CatalogServiceTest {
         when(productRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 12), 0));
 
-        catalogService.getProducts(null, true, null, null, null, null, ProductSort.PRICE_DESC, 2, 999);
+        catalogService.getProducts(null, true, null, null, null, null, null, null, ProductSort.PRICE_DESC, 2, 999);
 
         ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
         verify(productRepository).findAll(any(Specification.class), captor.capture());
@@ -732,6 +751,383 @@ class CatalogServiceTest {
         verify(productOptionRepository).saveAll(optionCaptor.capture());
         assertThat(optionCaptor.getValue()).extracting(ProductOption::getName, ProductOption::getGroup)
                 .containsExactly(tuple("Thêm pate", null));
+    }
+
+    // ─── Giá KM + combo trên thực đơn (spec combo-sale §6.1) ─────────────────
+
+    private static Category comboCategory() {
+        Category category = new Category();
+        category.setId(5L);
+        category.setName("Mặn");
+        return category;
+    }
+
+    private static Product menuProduct(Long id, String name, String price) {
+        Product product = new Product();
+        product.setId(id);
+        product.setCategory(comboCategory());
+        product.setName(name);
+        product.setPrice(new BigDecimal(price));
+        product.setAvailable(true);
+        return product;
+    }
+
+    private static Product comboOf(Long id, String price, Product... components) {
+        Product combo = menuProduct(id, "Combo Sáng no nê", price);
+        combo.setProductType(ProductType.COMBO);
+        List<ComboItem> items = new ArrayList<>();
+        for (Product component : components) {
+            ComboItem item = new ComboItem();
+            item.setId(new ComboItemId(id, component.getId()));
+            item.setCombo(combo);
+            item.setComponent(component);
+            item.setQuantity(1);
+            items.add(item);
+        }
+        combo.setComboItems(items);
+        return combo;
+    }
+
+    @Test
+    void getProductsMapsSalePricingAndComboComponents() {
+        Product banhMi = menuProduct(10L, "Bánh mì", "30000");
+        banhMi.setSalePrice(new BigDecimal("25000"));
+        Product coffee = menuProduct(11L, "Cà phê", "20000");
+        Product combo = comboOf(12L, "40000", banhMi, coffee);
+        when(productRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(banhMi, combo), PageRequest.of(0, 12), 2));
+
+        PageResponse<ProductResponse> result =
+                catalogService.getProducts(null, true, null, null, null, null, null, null, ProductSort.FEATURED, 0, 12);
+
+        ProductResponse sale = result.content().get(0);
+        assertThat(sale.getProductType()).isEqualTo(ProductType.SINGLE);
+        assertThat(sale.isOnSale()).isTrue();
+        assertThat(sale.getPrice()).isEqualByComparingTo("30000");
+        assertThat(sale.getEffectivePrice()).isEqualByComparingTo("25000");
+        assertThat(sale.getCompareAtPrice()).isEqualByComparingTo("30000");
+        assertThat(sale.getDiscountPercent()).isEqualTo(16);
+        assertThat(sale.getComboItems()).isEmpty();
+
+        ProductResponse comboResponse = result.content().get(1);
+        assertThat(comboResponse.getProductType()).isEqualTo(ProductType.COMBO);
+        assertThat(comboResponse.isOnSale()).isFalse();
+        assertThat(comboResponse.getEffectivePrice()).isEqualByComparingTo("40000");
+        // giá gốc combo = giá GỐC thành phần: 30.000 + 20.000 (không dùng giá KM 25.000 của bánh mì)
+        assertThat(comboResponse.getCompareAtPrice()).isEqualByComparingTo("50000");
+        assertThat(comboResponse.getDiscountPercent()).isEqualTo(20);
+        assertThat(comboResponse.getComboItems())
+                .extracting(ComboItemResponse::getName, ComboItemResponse::getQuantity)
+                .containsExactly(tuple("Bánh mì", 1), tuple("Cà phê", 1));
+        assertThat(comboResponse.isAvailable()).isTrue();
+    }
+
+    @Test
+    void comboWithDisabledComponentIsUnavailableButStillEnabled() {
+        Product coffee = menuProduct(11L, "Cà phê", "20000");
+        coffee.setAvailable(false);
+        Product combo = comboOf(12L, "40000", menuProduct(10L, "Bánh mì", "30000"), coffee);
+        when(productRepository.findByIdAndDeletedFalse(12L)).thenReturn(Optional.of(combo));
+
+        ProductResponse response = catalogService.getProduct(12L);
+
+        assertThat(response.isAvailable()).isFalse();
+        assertThat(response.isEnabled()).isTrue();
+    }
+
+    @Test
+    void searchOnSaleAddsSaleWindowPredicates() {
+        CriteriaBuilder cb = mock(CriteriaBuilder.class);
+        @SuppressWarnings("unchecked")
+        Root<Product> root = mock(Root.class);
+        @SuppressWarnings("unchecked")
+        Path<Object> path = mock(Path.class);
+        when(root.get(anyString())).thenReturn(path);
+        LocalDateTime now = LocalDateTime.of(2026, 10, 2, 10, 0);
+
+        ProductSpecifications.search(null, true, null, null, null, null, true, null, now)
+                .toPredicate(root, null, cb);
+
+        verify(cb).equal(path, ProductType.SINGLE);
+        verify(cb).isNotNull(path);
+        verify(cb).lessThanOrEqualTo(any(), eq(now));
+        verify(cb).greaterThan(any(), eq(now));
+    }
+
+    @Test
+    void searchTypeFilterAddsEqualityOnly() {
+        CriteriaBuilder cb = mock(CriteriaBuilder.class);
+        @SuppressWarnings("unchecked")
+        Root<Product> root = mock(Root.class);
+        @SuppressWarnings("unchecked")
+        Path<Object> path = mock(Path.class);
+        when(root.get(anyString())).thenReturn(path);
+
+        ProductSpecifications.search(null, false, null, null, null, null, null, ProductType.COMBO,
+                LocalDateTime.of(2026, 10, 2, 10, 0)).toPredicate(root, null, cb);
+
+        verify(cb).equal(path, ProductType.COMBO);
+        verify(cb, never()).isNotNull(any());
+    }
+
+    // ─── Ràng buộc khi lưu (spec combo-sale §3) ─────────────────────────────
+
+    private static ProductRequest singleRequest(String price) {
+        ProductRequest request = new ProductRequest();
+        request.setCategoryId(5L);
+        request.setName("Bánh mì");
+        request.setPrice(new BigDecimal(price));
+        return request;
+    }
+
+    private static ComboItemRequest comboLine(Long productId, int quantity) {
+        ComboItemRequest line = new ComboItemRequest();
+        line.setProductId(productId);
+        line.setQuantity(quantity);
+        return line;
+    }
+
+    private static ProductRequest comboRequest(String price, ComboItemRequest... lines) {
+        ProductRequest request = singleRequest(price);
+        request.setName("Combo Sáng no nê");
+        request.setProductType(ProductType.COMBO);
+        request.setComboItems(new ArrayList<>(List.of(lines)));
+        return request;
+    }
+
+    private void stubCategory() {
+        when(categoryRepository.findByIdAndDeletedFalse(5L)).thenReturn(Optional.of(comboCategory()));
+    }
+
+    @Test
+    void createSingleRejectsSalePriceNotBelowPrice() {
+        stubCategory();
+        ProductRequest request = singleRequest("30000");
+        request.setSalePrice(new BigDecimal("30000"));
+
+        assertThatThrownBy(() -> catalogService.createProduct(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("nhỏ hơn giá gốc");
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    void createSingleRejectsNonPositiveSalePrice() {
+        stubCategory();
+        ProductRequest request = singleRequest("30000");
+        request.setSalePrice(BigDecimal.ZERO);
+
+        assertThatThrownBy(() -> catalogService.createProduct(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("lớn hơn 0");
+    }
+
+    @Test
+    void createSingleRejectsSaleEndNotAfterStart() {
+        stubCategory();
+        ProductRequest request = singleRequest("30000");
+        request.setSalePrice(new BigDecimal("25000"));
+        request.setSaleStartsAt(LocalDateTime.of(2026, 10, 5, 8, 0));
+        request.setSaleEndsAt(LocalDateTime.of(2026, 10, 5, 8, 0));
+
+        assertThatThrownBy(() -> catalogService.createProduct(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("kết thúc khuyến mãi phải sau");
+    }
+
+    @Test
+    void createSingleWithActiveSaleIsOnSale() {
+        stubCategory();
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> {
+            Product saved = inv.getArgument(0);
+            saved.setId(99L);
+            return saved;
+        });
+        ProductRequest request = singleRequest("30000");
+        request.setSalePrice(new BigDecimal("25000"));
+        request.setSaleStartsAt(LocalDateTime.of(2026, 10, 1, 0, 0));
+
+        ProductResponse response = catalogService.createProduct(request);
+
+        assertThat(response.isOnSale()).isTrue();
+        assertThat(response.getEffectivePrice()).isEqualByComparingTo("25000");
+        assertThat(response.getProductType()).isEqualTo(ProductType.SINGLE);
+    }
+
+    @Test
+    void updateWithoutSalePriceClearsSaleWindow() {
+        Product product = menuProduct(10L, "Bánh mì", "30000");
+        product.setSalePrice(new BigDecimal("25000"));
+        product.setSaleEndsAt(LocalDateTime.of(2026, 10, 31, 22, 0));
+        when(productRepository.findByIdAndDeletedFalse(10L)).thenReturn(Optional.of(product));
+        stubCategory();
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ProductResponse response = catalogService.updateProduct(10L, singleRequest("30000"));
+
+        assertThat(product.getSalePrice()).isNull();
+        assertThat(product.getSaleEndsAt()).isNull();
+        assertThat(response.isOnSale()).isFalse();
+    }
+
+    @Test
+    void createSingleRejectsComboItems() {
+        stubCategory();
+        ProductRequest request = singleRequest("30000");
+        request.setComboItems(new ArrayList<>(List.of(comboLine(11L, 2))));
+
+        assertThatThrownBy(() -> catalogService.createProduct(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Chỉ combo");
+    }
+
+    @Test
+    void createComboRejectsSalePrice() {
+        stubCategory();
+        ProductRequest request = comboRequest("45000", comboLine(10L, 1), comboLine(11L, 1));
+        request.setSalePrice(new BigDecimal("40000"));
+
+        assertThatThrownBy(() -> catalogService.createProduct(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Combo không dùng giá khuyến mãi");
+    }
+
+    @Test
+    void createComboRejectsToppings() {
+        stubCategory();
+        ProductRequest request = comboRequest("45000", comboLine(10L, 1), comboLine(11L, 1));
+        ProductOptionRequest topping = new ProductOptionRequest();
+        topping.setName("Thêm pate");
+        topping.setExtraPrice(new BigDecimal("5000"));
+        request.setOptions(new ArrayList<>(List.of(topping)));
+
+        assertThatThrownBy(() -> catalogService.createProduct(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Combo không có topping");
+    }
+
+    @Test
+    void createComboNeedsAtLeastTwoPortions() {
+        stubCategory();
+
+        assertThatThrownBy(() -> catalogService.createProduct(comboRequest("20000", comboLine(10L, 1))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("ít nhất 2 phần");
+    }
+
+    @Test
+    void createComboRejectsDuplicateComponent() {
+        stubCategory();
+
+        assertThatThrownBy(() -> catalogService.createProduct(
+                comboRequest("45000", comboLine(10L, 1), comboLine(10L, 1))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("bị trùng");
+    }
+
+    @Test
+    void createComboRejectsComboAsComponent() {
+        stubCategory();
+        Product nested = comboOf(20L, "40000", menuProduct(10L, "Bánh mì", "30000"));
+        when(productRepository.findAllById(any())).thenReturn(List.of(nested, menuProduct(11L, "Cà phê", "20000")));
+
+        assertThatThrownBy(() -> catalogService.createProduct(
+                comboRequest("45000", comboLine(20L, 1), comboLine(11L, 1))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("phải là món lẻ");
+    }
+
+    @Test
+    void createComboRejectsPriceNotBelowSumOfParts() {
+        stubCategory();
+        when(productRepository.findAllById(any())).thenReturn(
+                List.of(menuProduct(10L, "Bánh mì", "30000"), menuProduct(11L, "Cà phê", "20000")));
+
+        assertThatThrownBy(() -> catalogService.createProduct(
+                comboRequest("50000", comboLine(10L, 1), comboLine(11L, 1))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("thấp hơn tổng giá lẻ");
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    void createComboSavesComponentsAndReturnsCompareAt() {
+        stubCategory();
+        when(productRepository.findAllById(any())).thenReturn(
+                List.of(menuProduct(10L, "Bánh mì", "30000"), menuProduct(11L, "Cà phê", "20000")));
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> {
+            Product saved = inv.getArgument(0);
+            saved.setId(99L);
+            return saved;
+        });
+
+        ProductResponse response = catalogService.createProduct(
+                comboRequest("45000", comboLine(10L, 1), comboLine(11L, 2)));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<ComboItem>> captor = ArgumentCaptor.forClass(Iterable.class);
+        verify(comboItemRepository).saveAll(captor.capture());
+        assertThat(captor.getValue())
+                .extracting(item -> item.getId().getComboId(), item -> item.getId().getComponentId(),
+                        ComboItem::getQuantity)
+                .containsExactly(tuple(99L, 10L, 1), tuple(99L, 11L, 2));
+        assertThat(response.getProductType()).isEqualTo(ProductType.COMBO);
+        assertThat(response.getCompareAtPrice()).isEqualByComparingTo("70000");
+        assertThat(response.getComboItems()).hasSize(2);
+    }
+
+    @Test
+    void updateRejectsChangingProductType() {
+        when(productRepository.findByIdAndDeletedFalse(10L)).thenReturn(Optional.of(menuProduct(10L, "Bánh mì", "30000")));
+        ProductRequest request = singleRequest("30000");
+        request.setProductType(ProductType.COMBO);
+
+        assertThatThrownBy(() -> catalogService.updateProduct(10L, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Không thể đổi loại sản phẩm");
+    }
+
+    @Test
+    void deleteSingleUsedByActiveComboIsBlocked() {
+        when(productRepository.findByIdAndDeletedFalse(10L)).thenReturn(Optional.of(menuProduct(10L, "Bánh mì", "30000")));
+        when(comboItemRepository.findActiveComboNamesContaining(10L)).thenReturn(List.of("Combo Sáng no nê"));
+
+        assertThatThrownBy(() -> catalogService.deleteProduct(10L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Món đang nằm trong combo: Combo Sáng no nê");
+        verify(productRepository, never()).save(any());
+    }
+
+    /** R2: bật/tắt không đổi giá và không gửi comboItems thì không kiểm lại giá combo < tổng giá lẻ. */
+    @Test
+    void comboToggleWithSamePriceSucceedsEvenWhenNoLongerCheaperThanItems() {
+        // Thành phần đã tăng giá: 30.000 + 20.000 = 50.000 nhưng combo vẫn 45.000... đặt combo 60.000 > tổng
+        Product combo = comboOf(12L, "60000", menuProduct(10L, "Bánh mì", "30000"), menuProduct(11L, "Cà phê", "20000"));
+        when(productRepository.findByIdAndDeletedFalse(12L)).thenReturn(Optional.of(combo));
+        stubCategory();
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+        ProductRequest toggle = singleRequest("60000");
+        toggle.setName("Combo Sáng no nê");
+        toggle.setAvailable(false);
+
+        ProductResponse response = catalogService.updateProduct(12L, toggle);
+
+        assertThat(response.isEnabled()).isFalse();
+        verify(comboItemRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void comboUpdateWithChangedPriceAndNoItemsIsRecheckedAgainstCurrentItems() {
+        Product combo = comboOf(12L, "40000", menuProduct(10L, "Bánh mì", "30000"), menuProduct(11L, "Cà phê", "20000"));
+        when(productRepository.findByIdAndDeletedFalse(12L)).thenReturn(Optional.of(combo));
+        stubCategory();
+        ProductRequest request = singleRequest("50000");
+        request.setName("Combo Sáng no nê");
+
+        assertThatThrownBy(() -> catalogService.updateProduct(12L, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("thấp hơn tổng giá lẻ");
+        verify(productRepository, never()).save(any());
     }
 }
 
