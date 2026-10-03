@@ -24,6 +24,11 @@ export interface SiteSettings {
   /** Đường dẫn ảnh banner; rỗng = hiện icon bánh mì mặc định */
   heroImageUrl: string;
   footerDescription: string;
+  /** Toạ độ cửa hàng (chuỗi số, rỗng = chưa ghim) — gốc để server tính khoảng cách giao */
+  storeLatitude: string;
+  storeLongitude: string;
+  /** Bán kính giao hàng tối đa (km); rỗng = không giới hạn */
+  deliveryMaxRadiusKm: string;
 }
 
 /**
@@ -47,4 +52,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   heroImageUrl: '',
   footerDescription:
     'Bánh mì nướng theo từng đơn, kẹp nhân đầy đặn, đóng gói giữ giòn và giao nóng tới tay bạn.',
+  storeLatitude: '',
+  storeLongitude: '',
+  deliveryMaxRadiusKm: '10',
 };
