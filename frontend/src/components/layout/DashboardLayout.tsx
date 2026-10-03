@@ -4,10 +4,13 @@ import { LogOut, PauseCircle, PlayCircle } from 'lucide-react';
 import { storeApi } from '../../api/storeApi';
 import { useAuth } from '../../context/useAuth';
 import { useInboxCounts } from '../../hooks/useInboxCounts';
+import { useOrderAlerts } from '../../hooks/useOrderAlerts';
+import { usePendingOrderBell } from '../../hooks/usePendingOrderBell';
 import { useSiteSettings } from '../../context/useSiteSettings';
 import { useStoreScope } from '../../context/useStoreScope';
 import { Button, useConfirm, useToast } from '../ui';
 import { StoreScopeSelect } from '../store/StoreScopeSelect';
+import { AlertSoundToggle } from './AlertSoundToggle';
 import type { BrandConfig, NavItem } from './navItems';
 
 export interface DashboardLayoutProps {
@@ -32,6 +35,10 @@ export const DashboardLayout = ({ navItems, brand, showStore = false }: Dashboar
   const BrandIcon = brand.icon;
   // Chỉ menu có mục gắn huy hiệu (ADMIN, MANAGER) mới hỏi count-new — STAFF/SHIPPER không gọi API này
   const inboxCounts = useInboxCounts(navItems.some((item) => item.badge !== undefined));
+  const isKitchenRole = user?.role === 'STAFF' || user?.role === 'MANAGER' || user?.role === 'ADMIN';
+  // Khu bếp (có ô chọn cơ sở): chuông lặp tới khi nhận đơn; khu khác: kêu một tiếng khi có đơn mới
+  usePendingOrderBell({ enabled: showStore && isKitchenRole, storeId: scope.storeId });
+  useOrderAlerts({ role: user?.role, userId: user?.id, storeId: scope.storeId, ringOnNewOrder: !showStore });
 
   useEffect(() => {
     if (!showStore || scope.storeId == null) return;
@@ -73,6 +80,10 @@ export const DashboardLayout = ({ navItems, brand, showStore = false }: Dashboar
             <span className="dash__brand-name">{settings.siteName || brand.name}</span>
             <span className="dash__brand-sub">{brand.sub}</span>
           </span>
+        </div>
+
+        <div className="dash__sound-row">
+          <AlertSoundToggle />
         </div>
 
         {showStore && (

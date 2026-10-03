@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -25,6 +26,8 @@ import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.enums.FeedbackStatus;
 import com.banhmyking.banhmyking.enums.FeedbackType;
 import com.banhmyking.banhmyking.enums.RoleName;
+import com.banhmyking.banhmyking.event.InboxChangedEvent;
+import com.banhmyking.banhmyking.event.InboxType;
 import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
 import com.banhmyking.banhmyking.repository.FeedbackRepository;
@@ -62,6 +65,7 @@ class FeedbackServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private SiteSettingService siteSettingService;
     @Mock private EmailService emailService;
+    @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-02T03:00:00Z"), TimeConfig.VIETNAM);
     private FeedbackService service;
@@ -72,7 +76,8 @@ class FeedbackServiceTest {
     @BeforeEach
     void setUp() {
         service = new FeedbackService(feedbackRepository, orderRepository, storeRepository, userRepository,
-                new StoreAccessGuard(), new SubmissionRateLimiter(clock), siteSettingService, emailService, clock);
+                new StoreAccessGuard(), new SubmissionRateLimiter(clock), siteSettingService, emailService, clock,
+                eventPublisher);
         storeA = store(1L, "CS-A", true);
         storeB = store(2L, "CS-B", true);
         customer = user(5L, RoleName.CUSTOMER, null);
@@ -88,6 +93,7 @@ class FeedbackServiceTest {
 
         assertThat(service.submit(null, bot, IP)).isFalse();
         verifyNoInteractions(feedbackRepository, orderRepository, emailService, siteSettingService);
+        verify(eventPublisher, never()).publishEvent(any(InboxChangedEvent.class));
     }
 
     @Test
@@ -120,12 +126,18 @@ class FeedbackServiceTest {
 
         assertThat(service.submit(5L, request(1L, " BMK-MINE "), IP)).isTrue();
 
-        Feedback saved = captureSaved();
-        assertThat(saved.getStore()).isSameAs(storeB);
-        assertThat(saved.getRelatedOrder()).isSameAs(order);
-        assertThat(saved.getUser()).isSameAs(customer);
-        assertThat(saved.getClientIp()).isEqualTo(IP);
-        assertThat(saved.getStatus()).isEqualTo(FeedbackStatus.NEW);
+        ArgumentCaptor<com.banhmyking.banhmyking.entity.Feedback> saved =
+                ArgumentCaptor.forClass(com.banhmyking.banhmyking.entity.Feedback.class);
+        verify(feedbackRepository).save(saved.capture());
+        assertThat(saved.getValue().getStore()).isSameAs(storeB);
+        assertThat(saved.getValue().getRelatedOrder()).isSameAs(order);
+        assertThat(saved.getValue().getUser()).isSameAs(customer);
+        assertThat(saved.getValue().getClientIp()).isEqualTo(IP);
+        assertThat(saved.getValue().getStatus()).isEqualTo(FeedbackStatus.NEW);
+        ArgumentCaptor<InboxChangedEvent> event = ArgumentCaptor.forClass(InboxChangedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(event.capture());
+        org.assertj.core.api.Assertions.assertThat(event.getValue())
+                .isEqualTo(new InboxChangedEvent(InboxType.FEEDBACK, saved.getValue().getStore().getId()));
         verifyNoInteractions(storeRepository);
     }
 
@@ -283,6 +295,9 @@ class FeedbackServiceTest {
         assertThat(updated.resolutionNote()).isEqualTo("Đã gọi xin lỗi khách");
         assertThat(feedback.getHandledBy()).isSameAs(admin);
         assertThat(feedback.getHandledAt()).isEqualTo(NOW);
+        ArgumentCaptor<InboxChangedEvent> event = ArgumentCaptor.forClass(InboxChangedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(event.capture());
+        org.assertj.core.api.Assertions.assertThat(event.getValue().type()).isEqualTo(InboxType.FEEDBACK);
     }
 
     @Test

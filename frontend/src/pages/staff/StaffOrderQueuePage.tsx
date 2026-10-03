@@ -39,12 +39,12 @@ import { ORDER_STATUS_LABEL } from '../../utils/orderStatus';
 import { PAYMENT_METHOD_LABEL } from '../../utils/payment';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { orderComponentsText } from '../../utils/pricing';
-import { broadcastOrderChange, orderSyncChannel } from '../../utils/orderSyncChannel';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import { broadcastOrderChange } from '../../utils/orderSyncChannel';
 import '../../styles/components/staff-queue.css';
 
 type TabFilter = 'ALL' | 'NEW' | 'PREPARING' | 'READY' | 'DELIVERING' | 'HISTORY';
 
-const POLL_MS = 3000;
 /** Đơn chờ quá lâu thì tô đỏ để bếp ưu tiên xử lý */
 const URGENT_AFTER_MINUTES = 15;
 
@@ -97,25 +97,15 @@ export const StaffOrderQueuePage = () => {
   useEffect(() => {
     if (needsStore) return;
     void fetchOrders();
-
-    const intervalId = setInterval(() => void fetchOrders(), POLL_MS);
-
-    const handleSync = () => void fetchOrders();
-    orderSyncChannel?.addEventListener('message', handleSync);
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') void fetchOrders();
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', handleSync);
-
-    return () => {
-      clearInterval(intervalId);
-      orderSyncChannel?.removeEventListener('message', handleSync);
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', handleSync);
-    };
   }, [fetchOrders, needsStore]);
+
+  // Realtime: chỉ tải lại khi đơn thuộc cơ sở đang xem đổi (admin xem từng cơ sở một)
+  useLiveRefresh(() => fetchOrders(), {
+    enabled: !needsStore,
+    // previousStoreId: đơn vừa chuyển đi khỏi cơ sở này thì hàng đợi cũng phải tải lại
+    matchOrder: (signal) =>
+      storeId == null || signal.storeId === storeId || signal.previousStoreId === storeId,
+  });
 
   const reload = () => {
     setErrorMsg(null);

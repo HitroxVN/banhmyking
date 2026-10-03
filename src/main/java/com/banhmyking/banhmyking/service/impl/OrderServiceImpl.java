@@ -9,10 +9,13 @@ import com.banhmyking.banhmyking.dto.order.OrderItemOptionResponse;
 import com.banhmyking.banhmyking.dto.order.OrderItemResponse;
 import com.banhmyking.banhmyking.dto.order.OrderResponse;
 import com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse;
+import com.banhmyking.banhmyking.event.OrderChangeKind;
+import com.banhmyking.banhmyking.event.OrderChangedEvent;
 import com.banhmyking.banhmyking.dto.order.PriceBreakdown;
 import com.banhmyking.banhmyking.dto.order.RejectOrderRequest;
 import com.banhmyking.banhmyking.dto.order.UpdateOrderStatusRequest;
 import com.banhmyking.banhmyking.repository.specification.OrderSpecifications;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -101,6 +104,8 @@ public class OrderServiceImpl implements OrderService {
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final com.banhmyking.banhmyking.service.InventoryService inventoryService;
     private final com.banhmyking.banhmyking.security.StoreAccessGuard storeAccessGuard;
+    /** Phát OrderChangedEvent cho realtime — gửi đi sau khi commit (RealtimeEventListener) */
+    private final ApplicationEventPublisher eventPublisher;
 
     /** Số phút tối đa một đơn PENDING chưa thanh toán được phép treo trước khi bị tự huỷ. */
     @org.springframework.beans.factory.annotation.Value("${order.pending-timeout-minutes:30}")
@@ -149,9 +154,18 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    /** Ghi 1 dòng order_status_history — block lặp 4 lần, gom về đây. */
+    /** Ghi 1 dòng order_status_history — block lặp 4 lần, gom về đây. kind suy ra từ trạng thái. */
     private void recordHistory(Order order, OrderStatus fromStatus, OrderStatus toStatus,
                                User changedBy, String note) {
+        recordHistory(order, fromStatus, toStatus, changedBy, note, null, null, null);
+    }
+
+    /**
+     * Ghi 1 dòng lịch sử và phát OrderChangedEvent (spec realtime §2.2). Mọi đường đổi đơn đi qua đây
+     * nên realtime không phải chèn code vào từng nghiệp vụ.
+     */
+    private void recordHistory(Order order, OrderStatus fromStatus, OrderStatus toStatus, User changedBy,
+                               String note, OrderChangeKind kind, Long previousStoreId, Long previousShipperId) {
         OrderStatusHistory history = new OrderStatusHistory();
         history.setOrder(order);
         history.setFromStatus(fromStatus);
@@ -159,6 +173,8 @@ public class OrderServiceImpl implements OrderService {
         history.setChangedBy(changedBy);
         history.setNote(note);
         orderStatusHistoryRepository.save(history);
+        eventPublisher.publishEvent(OrderChangedEvent.of(order, fromStatus, toStatus, kind,
+                previousStoreId, previousShipperId));
     }
 
     @Override
@@ -359,7 +375,8 @@ public class OrderServiceImpl implements OrderService {
         order = orderRepository.save(order);
 
         // Mọi đơn đều có mốc khởi tạo trong lịch sử — không còn đơn "trần" thiếu dòng đầu.
-        recordHistory(order, OrderStatus.PENDING, OrderStatus.PENDING, user, "Đơn hàng được tạo");
+        recordHistory(order, OrderStatus.PENDING, OrderStatus.PENDING, user, "Đơn hàng được tạo",
+                OrderChangeKind.CREATED, null, null);
 
         // Khởi tạo Payment với trạng thái PENDING khi chốt đơn (AC 2)
         // paymentService là bean bắt buộc — bỏ null-check + nhánh tự tạo Payment (dead code).
@@ -484,6 +501,7 @@ public class OrderServiceImpl implements OrderService {
                     "Tài xế " + shipper.getFullName() + " hiện đang có đơn hàng chưa hoàn tất (" + activeOrdersCount + " đơn đang xử lý). Vui lòng chọn tài xế khác đang rảnh.");
         }
 
+        Long previousShipperId = order.getShipper() == null ? null : order.getShipper().getId();
         order.setShipper(shipper);
         Order updatedOrder = orderRepository.save(order);
 
@@ -492,7 +510,8 @@ public class OrderServiceImpl implements OrderService {
         if (request.getNote() != null && !request.getNote().trim().isEmpty()) {
             historyNote += " - Ghi chú: " + request.getNote().trim();
         }
-        recordHistory(updatedOrder, currentStatus, currentStatus, actor, historyNote);
+        recordHistory(updatedOrder, currentStatus, currentStatus, actor, historyNote,
+                OrderChangeKind.SHIPPER_ASSIGNED, null, previousShipperId);
 
         log.info("Order {} assigned to shipper {} by {} ({})",
                 orderCode, shipper.getFullName(), actor.getFullName(), actor.getRole());
@@ -594,18 +613,13 @@ public class OrderServiceImpl implements OrderService {
 
         String reason = (request != null && request.getReason() != null) ? request.getReason().trim() : "Không có lý do cụ thể";
 
-        // Ghi lịch sử từ chối trước khi gỡ gán
-        OrderStatusHistory history = new OrderStatusHistory();
-        history.setOrder(order);
-        history.setFromStatus(OrderStatus.READY_FOR_PICKUP);
-        history.setToStatus(OrderStatus.READY_FOR_PICKUP);
-        history.setChangedBy(actor);
-        history.setNote("Tài xế " + actor.getFullName() + " (" + actor.getPhone() + ") từ chối nhận đơn: " + reason);
-        orderStatusHistoryRepository.save(history);
-
-        // Gỡ gán shipper để Staff phân công lại cho người khác
+        // Gỡ gán shipper để Staff phân công lại cho người khác; báo cả shipper vừa bị gỡ (previousShipperId)
+        Long previousShipperId = order.getShipper().getId();
         order.setShipper(null);
         Order updatedOrder = orderRepository.save(order);
+        recordHistory(updatedOrder, OrderStatus.READY_FOR_PICKUP, OrderStatus.READY_FOR_PICKUP, actor,
+                "Tài xế " + actor.getFullName() + " (" + actor.getPhone() + ") từ chối nhận đơn: " + reason,
+                OrderChangeKind.SHIPPER_ASSIGNED, null, previousShipperId);
 
         log.info("Order {} rejected by shipper {} ({}). Reason: {}. Order is now unassigned.",
                 orderCode, actor.getFullName(), userId, reason);
@@ -774,6 +788,8 @@ public class OrderServiceImpl implements OrderService {
                     "Đơn chuyển khoản đang chờ thanh toán — không thể chuyển sang cơ sở làm thay đổi số tiền");
         }
 
+        Long previousStoreId = order.getStore() == null ? null : order.getStore().getId();
+        Long previousShipperId = order.getShipper() == null ? null : order.getShipper().getId();
         String fromName = order.getStore() == null ? "?" : order.getStore().getName();
         order.setStore(target.store());
         order.setDistanceKm(target.distanceKm());
@@ -796,7 +812,8 @@ public class OrderServiceImpl implements OrderService {
             note += " (đã gỡ tài xế " + assigned.getFullName() + " của cơ sở cũ)";
         }
         Order saved = orderRepository.save(order);
-        recordHistory(saved, OrderStatus.PENDING, OrderStatus.PENDING, actor, note);
+        recordHistory(saved, OrderStatus.PENDING, OrderStatus.PENDING, actor, note,
+                OrderChangeKind.STORE_TRANSFERRED, previousStoreId, previousShipperId);
         return toOrderResponse(saved);
     }
 
@@ -853,6 +870,8 @@ public class OrderServiceImpl implements OrderService {
         }
 
         // Gán shipper nếu chuyển sang DELIVERING — việc phân công là của STAFF/ADMIN
+        // Nhớ shipper cũ để báo cho họ biết đơn đã bị chuyển đi (realtime)
+        Long previousShipperId = order.getShipper() == null ? null : order.getShipper().getId();
         if (toStatus == OrderStatus.DELIVERING) {
             if (request.getShipperId() != null) {
                 if (actor.getRole() == RoleName.SHIPPER) {
@@ -902,7 +921,7 @@ public class OrderServiceImpl implements OrderService {
         Order updatedOrder = orderRepository.save(order);
 
         // AC 2: Tự động ghi 1 dòng vào order_status_history
-        recordHistory(updatedOrder, fromStatus, toStatus, actor, request.getNote());
+        recordHistory(updatedOrder, fromStatus, toStatus, actor, request.getNote(), null, null, previousShipperId);
 
         log.info("Order {} transitioned from {} to {} by user {} (role: {})",
                 orderCode, fromStatus, toStatus, userId, actor.getRole());

@@ -4,6 +4,9 @@ export type { ButtonProps, ButtonSize, ButtonVariant } from './Button';
 export { Input, Select, Textarea } from './Input';
 export type { InputProps, SelectProps, TextareaProps } from './Input';
 
+export { TimeField24 } from './TimeField24';
+export type { TimeField24Props } from './TimeField24';
+
 export { Badge } from './Badge';
 export type { BadgeProps, BadgeTone } from './Badge';
 

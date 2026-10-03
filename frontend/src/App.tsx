@@ -1,6 +1,7 @@
 import type { FC } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthProvider';
+import { RealtimeProvider } from './context/RealtimeProvider';
 import { StoreScopeProvider } from './context/StoreScopeProvider';
 import { useAuth } from './context/useAuth';
 import { CartProvider } from './context/CartProvider';
@@ -83,6 +84,7 @@ const ShipperAreaLayout = () => {
 export const App: FC = () => (
   <SiteSettingsProvider>
     <AuthProvider>
+    <RealtimeProvider>
     <StoreScopeProvider>
     <ToastProvider>
       <ConfirmProvider>
@@ -179,6 +181,7 @@ export const App: FC = () => (
       </ConfirmProvider>
     </ToastProvider>
     </StoreScopeProvider>
+    </RealtimeProvider>
     </AuthProvider>
   </SiteSettingsProvider>
 );

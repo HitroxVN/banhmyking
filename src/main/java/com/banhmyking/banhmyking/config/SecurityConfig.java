@@ -3,6 +3,7 @@ package com.banhmyking.banhmyking.config;
 import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.security.JwtAuthenticationFilter;
 import com.banhmyking.banhmyking.security.JwtProperties;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -64,6 +65,10 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // SSE trả dữ liệu dần qua async dispatch; bộ lọc JWT không chạy lại ở bước này nên
+                        // phải cho qua, nếu không luồng realtime lỗi AccessDenied khi kết thúc (spec realtime §4.3).
+                        // Không mở ERROR dispatch để giữ nguyên cách trả lỗi 401/403.
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .requestMatchers(
                                 "/api/v1/auth/register",
                                 "/api/v1/auth/login",

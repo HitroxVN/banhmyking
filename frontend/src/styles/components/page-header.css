@@ -90,3 +90,14 @@
 @media (max-width: 720px) {
   .page-head__title { font-size: var(--text-xl); }
 }
+
+/* Trạng thái luồng realtime: vàng = đang nối lại, xám = ngoại tuyến (polling dự phòng) */
+.page-head__pulse.page-head__pulse--reconnecting .page-head__pulse-dot {
+  background: var(--warning);
+  animation: none;
+}
+
+.page-head__pulse.page-head__pulse--offline .page-head__pulse-dot {
+  background: var(--stone-400);
+  animation: none;
+}

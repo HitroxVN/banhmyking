@@ -22,6 +22,7 @@ import { useAuth } from '../../context/useAuth';
 import { useCart } from '../../context/useCart';
 import { useSiteSettings } from '../../context/useSiteSettings';
 import { useConfirm } from '../ui';
+import { useOrderStatusToasts } from '../../hooks/useOrderStatusToasts';
 import { formatCurrency } from '../../utils/formatters';
 import { MiniBanhMi } from '../illustrations/BanhMiArt';
 
@@ -36,6 +37,7 @@ export const CustomerLayout = () => {
   const confirm = useConfirm();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  useOrderStatusToasts();
 
   const [searchParams] = useSearchParams();
   const urlKeyword = searchParams.get('keyword') ?? '';

@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 import { RefreshCw } from 'lucide-react';
+import { useRealtimeStatus } from '../../context/useRealtime';
+import type { RealtimeStatus } from '../../realtime/types';
 import '../../styles/components/page-header.css';
 
 export interface PageHeaderProps {
@@ -12,6 +14,23 @@ export interface PageHeaderProps {
   /** Nút/khu vực hành động thêm ở góc phải */
   actions?: ReactNode;
 }
+
+const LIVE_LABEL: Record<RealtimeStatus, string> = {
+  live: 'Trực tiếp',
+  reconnecting: 'Đang nối lại…',
+  offline: 'Ngoại tuyến · tự làm mới 30 giây',
+};
+
+/** Trạng thái thật của luồng realtime (spec realtime §5.6) — thay cho nhãn "Realtime Sync" trang trí */
+const LiveIndicator = () => {
+  const status = useRealtimeStatus();
+  return (
+    <span className={`page-head__pulse page-head__pulse--${status}`} role="status" title="Kết nối cập nhật tức thì">
+      <span className="page-head__pulse-dot" aria-hidden="true" />
+      {LIVE_LABEL[status]}
+    </span>
+  );
+};
 
 /**
  * Tiêu đề trang trong khu vận hành.
@@ -32,12 +51,7 @@ export const PageHeader = ({
     </div>
 
     <div className="page-head__actions">
-      {onRefresh && (
-        <span className="page-head__pulse" title="Đồng bộ thời gian thực với máy chủ">
-          <span className="page-head__pulse-dot" aria-hidden="true" />
-          Realtime Sync
-        </span>
-      )}
+      {onRefresh && <LiveIndicator />}
 
       {actions}
 

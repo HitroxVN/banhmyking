@@ -4,7 +4,7 @@ import { Receipt, SearchX } from 'lucide-react';
 import { orderApi } from '../api/orderApi';
 import { Button, ChipGroup, EmptyState, Pagination, Skeleton, StatusBadge } from '../components/ui';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
-import { usePolling } from '../hooks/usePolling';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import type { OrderResponse, OrderStatus } from '../types/order';
 import { PriceTag } from '../components/product/PriceTag';
 import { EmptyPlate } from '../components/illustrations/FoodDoodles';
@@ -12,9 +12,6 @@ import '../styles/components/pricing.css';
 import '../styles/components/orders.css';
 
 const PAGE_SIZE = 10;
-/** Danh sách nhiều đơn — làm mới thưa hơn trang chi tiết */
-const LIST_POLL_MS = 15000;
-
 type FilterKey = 'ALL' | 'PENDING' | 'KITCHEN' | 'DELIVERING' | 'DELIVERED' | 'CLOSED';
 
 const FILTERS: { key: FilterKey; label: string }[] = [
@@ -76,14 +73,14 @@ export const OrdersPage = () => {
     };
   }, [reloadKey, filter, page]);
 
-  // Tự làm mới khi staff/shipper đổi trạng thái. Kết quả của bộ lọc/trang cũ (người dùng vừa bấm đổi
-  // giữa chừng) bị bỏ qua để không ghi đè danh sách đang xem.
+  // Tự làm mới khi staff/shipper đổi trạng thái (realtime, dự phòng 30s). Kết quả của bộ lọc/trang cũ
+  // (người dùng vừa bấm đổi giữa chừng) bị bỏ qua để không ghi đè danh sách đang xem.
   const queryKey = `${filter}|${page}`;
   const queryKeyRef = useRef(queryKey);
   useEffect(() => {
     queryKeyRef.current = queryKey;
   }, [queryKey]);
-  usePolling(
+  useLiveRefresh(
     async () => {
       const requestedKey = queryKey;
       try {
@@ -95,7 +92,7 @@ export const OrdersPage = () => {
         // Lỗi tải ngầm: giữ danh sách đang hiện, lượt sau thử lại
       }
     },
-    { intervalMs: LIST_POLL_MS, enabled: !isLoading && !error }
+    { enabled: !isLoading && !error }
   );
 
   const changeFilter = (next: FilterKey) => {

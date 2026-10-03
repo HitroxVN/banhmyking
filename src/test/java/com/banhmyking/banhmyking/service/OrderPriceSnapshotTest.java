@@ -57,6 +57,9 @@ import static org.mockito.Mockito.when;
 class OrderPriceSnapshotTest {
 
     @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
+    @Mock
     private OrderRepository orderRepository;
 
     @Mock

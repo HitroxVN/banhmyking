@@ -1,5 +1,10 @@
 package com.banhmyking.banhmyking.service;
 
+import com.banhmyking.banhmyking.event.OrderChangeKind;
+import com.banhmyking.banhmyking.event.OrderChangedEvent;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.banhmyking.banhmyking.dto.payment.PaymentResponse;
 import com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest;
 import com.banhmyking.banhmyking.dto.payment.SepayWebhookRequest;
@@ -42,6 +47,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
+
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Mock
     private PaymentRepository paymentRepository;
@@ -490,6 +498,10 @@ class PaymentServiceTest {
         assertThat(res.getMethod()).isEqualTo(PaymentMethod.BANK_TRANSFER);
         assertThat(res.getGatewayTxnId()).isEqualTo("FT26258012345678");
         assertThat(testOrder.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        ArgumentCaptor<OrderChangedEvent> event = ArgumentCaptor.forClass(OrderChangedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(event.capture());
+        assertEquals(OrderStatus.CONFIRMED, event.getValue().toStatus());
+        assertEquals(OrderChangeKind.STATUS_CHANGED, event.getValue().kind());
     }
 
     @Test

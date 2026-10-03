@@ -119,4 +119,18 @@ Cả 3 xanh → OK.
 7. **CV là dữ liệu cá nhân**: lưu ở thư mục `private-uploads/cv/` (cấu hình `app.private-upload-dir`), đã nằm trong `.gitignore`, KHÔNG phục vụ qua `/uploads/**`. Khi triển khai phải sao lưu thư mục này cùng DB.
 8. Form công khai giới hạn 5 lần gửi/giờ/IP (hồ sơ + phản hồi chung, đếm trong bộ nhớ — khởi động lại backend là đếm lại). Chạy sau reverse proxy tin cậy thì đặt `app.trust-forwarded-for=true`.
 
+## Thông báo realtime (từ nhánh feature/realtime-don-hang)
+
+1. Không có migration, không thêm dependency backend — `git pull` rồi chạy backend như thường.
+2. Frontend thêm `vitest`: `cd frontend && npm install`; chạy test bằng `npm run test`.
+3. Luồng đẩy tin: `GET /api/v1/realtime/stream` (SSE, cần Bearer token; tối đa 5 kết nối/người).
+4. Kiểm tra tay — khách mở `/orders/{mã}`, staff mở `/staff/orders` (ẩn danh): khách đặt đơn mới → staff nghe "ting", đơn hiện ngay.
+5. Staff chuyển đơn sang "Đang làm" → trang theo dõi của khách nhảy trạng thái ngay.
+6. Khách ở trang chủ, staff đổi trạng thái → khách thấy toast "Bếp đang làm bánh của bạn".
+7. Staff phân công shipper → cửa sổ shipper kêu và hiện đơn.
+8. Staff chuyển sang tab khác, đặt đơn mới → tiêu đề tab thành "(1) Đơn mới — …"; quay lại tab thì trở lại bình thường.
+9. Tắt backend → ô trạng thái "Đang nối lại…"; bật lại → "Trực tiếp" và dữ liệu khớp ngay.
+10. Gửi phản hồi ở trang Liên hệ → huy hiệu "Phản hồi" của admin tăng ngay.
+11. Đăng xuất → Network không còn request `realtime/stream` treo; mở 6 tab cùng tài khoản → tab đầu "Đang nối lại…" (giới hạn 5).
+
 ## LỖI THÌ CHỊU. HỎI CHAT.

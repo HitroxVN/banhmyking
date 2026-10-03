@@ -1,5 +1,9 @@
 package com.banhmyking.banhmyking.service;
 
+import com.banhmyking.banhmyking.event.OrderChangeKind;
+import com.banhmyking.banhmyking.event.OrderChangedEvent;
+import static org.mockito.Mockito.times;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -51,6 +55,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class OrderStoreScopeTest {
 
+    @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
     @Mock private OrderRepository orderRepository;
     @Mock private UserRepository userRepository;
     @Mock private PaymentRepository paymentRepository;
@@ -155,6 +160,11 @@ class OrderStoreScopeTest {
         assertThat(response.getStoreId()).isEqualTo(2L);
         assertThat(orderA.getShippingFee()).isEqualByComparingTo("20000");
         assertThat(orderA.getTotal()).isEqualByComparingTo("80000");
+        ArgumentCaptor<OrderChangedEvent> event = ArgumentCaptor.forClass(OrderChangedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(event.capture());
+        assertEquals(OrderChangeKind.STORE_TRANSFERRED, event.getValue().kind());
+        org.junit.jupiter.api.Assertions.assertNotNull(event.getValue().previousStoreId());
+        org.junit.jupiter.api.Assertions.assertNotEquals(event.getValue().storeId(), event.getValue().previousStoreId());
     }
 
     @Test

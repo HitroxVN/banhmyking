@@ -31,12 +31,11 @@ import { isFinalStatus, type OrderResponse } from '../../types/order';
 import { PAYMENT_METHOD_LABEL } from '../../utils/payment';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { orderComponentsText } from '../../utils/pricing';
-import { broadcastOrderChange, orderSyncChannel, playNotificationSound } from '../../utils/orderSyncChannel';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import { broadcastOrderChange, playNotificationSound } from '../../utils/orderSyncChannel';
 import '../../styles/components/shipper-orders.css';
 
 type TabType = 'DELIVERING' | 'READY_FOR_PICKUP' | 'ALL' | 'DELIVERED' | 'FAILED';
-
-const POLL_MS = 3000;
 
 const FAILURE_REASONS = [
   'Khách không nhấc máy sau 3 lần gọi',
@@ -129,25 +128,10 @@ export const ShipperOrdersPage = () => {
 
   useEffect(() => {
     void fetchOrders();
-
-    const intervalId = setInterval(() => void fetchOrders(true), POLL_MS);
-
-    const handleSync = () => void fetchOrders(true);
-    orderSyncChannel?.addEventListener('message', handleSync);
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') void fetchOrders(true);
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', handleSync);
-
-    return () => {
-      clearInterval(intervalId);
-      orderSyncChannel?.removeEventListener('message', handleSync);
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', handleSync);
-    };
   }, [fetchOrders]);
+
+  // Hub chỉ gửi đơn của chính shipper này; logic so danh sách + chuông "đơn mới" có sẵn trong fetchOrders
+  useLiveRefresh(() => fetchOrders(true));
 
   const reload = () => {
     setIsRefreshing(true);

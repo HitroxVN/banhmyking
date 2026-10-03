@@ -3,6 +3,7 @@ package com.banhmyking.banhmyking.service.impl;
 import com.banhmyking.banhmyking.dto.payment.PaymentResponse;
 import com.banhmyking.banhmyking.dto.payment.ProcessPaymentRequest;
 import com.banhmyking.banhmyking.entity.Order;
+import com.banhmyking.banhmyking.event.OrderChangedEvent;
 import com.banhmyking.banhmyking.entity.OrderStatusHistory;
 import com.banhmyking.banhmyking.entity.Payment;
 import com.banhmyking.banhmyking.entity.User;
@@ -23,6 +24,7 @@ import com.banhmyking.banhmyking.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +47,8 @@ public class PaymentServiceImpl implements PaymentService {
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final InventoryService inventoryService;
     private final com.banhmyking.banhmyking.security.StoreAccessGuard storeAccessGuard;
+    /** Phát OrderChangedEvent khi tiền về đổi trạng thái đơn (realtime) */
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final Pattern PATTERN_HYPHEN = Pattern.compile("BMK-\\d{8}-[A-Za-z0-9]+", Pattern.CASE_INSENSITIVE);
     private static final Pattern PATTERN_FLEXIBLE = Pattern
@@ -436,6 +440,7 @@ public class PaymentServiceImpl implements PaymentService {
         history.setChangedBy(null);
         history.setNote(note);
         orderStatusHistoryRepository.save(history);
+        eventPublisher.publishEvent(OrderChangedEvent.of(order, fromStatus, toStatus, null, null, null));
     }
 
     private static boolean constantTimeEquals(String a, String b) {

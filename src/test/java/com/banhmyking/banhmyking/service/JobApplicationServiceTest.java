@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -26,6 +27,8 @@ import com.banhmyking.banhmyking.enums.ApplicationStatus;
 import com.banhmyking.banhmyking.enums.EmploymentType;
 import com.banhmyking.banhmyking.enums.JobStatus;
 import com.banhmyking.banhmyking.enums.RoleName;
+import com.banhmyking.banhmyking.event.InboxChangedEvent;
+import com.banhmyking.banhmyking.event.InboxType;
 import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.ResourceNotFoundException;
@@ -67,6 +70,7 @@ class JobApplicationServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private CvStorageService cvStorageService;
     @Mock private EmailService emailService;
+    @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-02T03:00:00Z"), TimeConfig.VIETNAM);
     private JobApplicationService service;
@@ -78,7 +82,7 @@ class JobApplicationServiceTest {
     void setUp() {
         service = new JobApplicationService(new JobPostingService(jobPostingRepository, storeRepository, clock),
                 jobApplicationRepository, userRepository, new StoreAccessGuard(), cvStorageService,
-                new SubmissionRateLimiter(clock), emailService, clock);
+                new SubmissionRateLimiter(clock), emailService, clock, eventPublisher);
         storeA = store(1L, "CS-A");
         storeB = store(2L, "CS-B");
         job = new JobPosting();
@@ -99,6 +103,7 @@ class JobApplicationServiceTest {
 
         assertThat(saved).isFalse();
         verifyNoInteractions(jobPostingRepository, jobApplicationRepository, cvStorageService, emailService);
+        verify(eventPublisher, never()).publishEvent(any(InboxChangedEvent.class));
     }
 
     @Test
@@ -170,9 +175,10 @@ class JobApplicationServiceTest {
                 "an@banhmy.vn", "Em làm được ca tối", null), cv, IP);
 
         assertThat(saved).isTrue();
-        ArgumentCaptor<JobApplication> captor = ArgumentCaptor.forClass(JobApplication.class);
-        verify(jobApplicationRepository).save(captor.capture());
-        JobApplication app = captor.getValue();
+        ArgumentCaptor<com.banhmyking.banhmyking.entity.JobApplication> saved_captor =
+                ArgumentCaptor.forClass(com.banhmyking.banhmyking.entity.JobApplication.class);
+        verify(jobApplicationRepository).save(saved_captor.capture());
+        JobApplication app = saved_captor.getValue();
         assertThat(app.getFullName()).isEqualTo("Nguyễn Văn An");
         assertThat(app.getPhone()).isEqualTo("0901234567");
         assertThat(app.getStore()).isSameAs(storeA);
@@ -181,6 +187,10 @@ class JobApplicationServiceTest {
         assertThat(app.getCvContentType()).isEqualTo("application/pdf");
         assertThat(app.getClientIp()).isEqualTo(IP);
         assertThat(app.getStatus()).isEqualTo(ApplicationStatus.NEW);
+        ArgumentCaptor<InboxChangedEvent> event = ArgumentCaptor.forClass(InboxChangedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(event.capture());
+        org.assertj.core.api.Assertions.assertThat(event.getValue())
+                .isEqualTo(new InboxChangedEvent(InboxType.JOB_APPLICATION, saved_captor.getValue().getStore().getId()));
         verify(emailService).sendApplicationConfirmation("an@banhmy.vn", "Nguyễn Văn An", "Phụ bếp ca tối",
                 "Cơ sở CS-A");
     }
