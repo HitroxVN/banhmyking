@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Banknote, MapPin, QrCode, Receipt, Sandwich, ShieldCheck, ShoppingBag, Ticket, Timer, Truck } from 'lucide-react';
+import { Banknote, MapPin, QrCode, Receipt, ShieldCheck, Ticket, Timer, Truck } from 'lucide-react';
 import { useCart } from '../context/useCart';
 import { useAuth } from '../context/useAuth';
 import { addressApi } from '../api/addressApi';
@@ -14,6 +14,8 @@ import { describePromotionValue } from '../utils/promotion';
 import { PriceTag } from '../components/product/PriceTag';
 import { ComboContents } from '../components/product/ComboContents';
 import { cartUnitCompareAt } from '../utils/pricing';
+import { MiniBanhMi } from '../components/illustrations/BanhMiArt';
+import { EmptyPlate } from '../components/illustrations/FoodDoodles';
 import type { AddressResponse } from '../types/address';
 import type { CreateOrderRequest, PaymentMethod } from '../types/order';
 import type { PromotionResponse, PublicPromotionResponse } from '../types/promotion';
@@ -356,12 +358,14 @@ export const CheckoutPage = () => {
         <div className="page-bar">
           <h1 className="page-bar__title">Thanh toán</h1>
         </div>
-        <EmptyState
-          icon={<ShoppingBag size={30} />}
-          title="Chưa có món nào để thanh toán"
-          description="Giỏ hàng của bạn đang trống. Chọn món trong thực đơn trước nhé."
-          action={<Button onClick={() => navigate('/menu')}>Xem thực đơn</Button>}
-        />
+        <div className="order-empty">
+          <EmptyState
+            icon={<EmptyPlate size={140} />}
+            title="Chưa có món nào để thanh toán"
+            description="Giỏ hàng của bạn đang trống. Chọn món trong thực đơn trước nhé."
+            action={<Button onClick={() => navigate('/menu')}>Xem thực đơn</Button>}
+          />
+        </div>
       </>
     );
   }
@@ -624,7 +628,7 @@ export const CheckoutPage = () => {
           </section>
         </div>
 
-        <aside className="card">
+        <aside className="card receipt">
           <div className="card__head">
             <h2 className="card__title">
               <Receipt size={19} />
@@ -640,8 +644,8 @@ export const CheckoutPage = () => {
                     {item.productImageUrl ? (
                       <img className="ck__item-img" src={item.productImageUrl} alt={item.productName} />
                     ) : (
-                      <span className="pcard__placeholder" aria-hidden="true">
-                        <Sandwich size={18} />
+                      <span className="ck__item-placeholder" aria-hidden="true">
+                        <MiniBanhMi size={34} />
                       </span>
                     )}
                   </span>

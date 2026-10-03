@@ -102,8 +102,13 @@ export const NewsDetailPage = () => {
 
       <article className="card news-article">
         <div className="card__body">
-          {news.coverImageUrl && <img className="news-article__cover" src={news.coverImageUrl} alt="" />}
-          <h1 className="page-bar__title">{news.title}</h1>
+          {news.coverImageUrl && (
+            <figure className="news-article__frame">
+              <img className="news-article__cover" src={news.coverImageUrl} alt="" />
+            </figure>
+          )}
+          <p className="news-article__kicker">Tin từ xe bánh mì</p>
+          <h1 className="page-bar__title news-article__title">{news.title}</h1>
           <p className="news-article__date">Đăng lúc {formatDateTime(news.publishedAt)}</p>
           <MarkdownView source={news.content} />
         </div>
@@ -111,7 +116,7 @@ export const NewsDetailPage = () => {
 
       {news.related.length > 0 && (
         <section className="news-related">
-          <h2>Bài liên quan</h2>
+          <h2 className="news-related__title">Bài liên quan</h2>
           <div className="news-grid">
             {news.related.map((item) => (
               <NewsCard key={item.id} news={item} />

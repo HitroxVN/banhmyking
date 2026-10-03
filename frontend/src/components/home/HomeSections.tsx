@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bike, Flame, Sandwich, ShieldCheck, Star, Timer } from 'lucide-react';
+import { BanhMiArt } from '../illustrations/BanhMiArt';
+import { ChiliDoodle, CucumberDoodle, LeafDoodle } from '../illustrations/FoodDoodles';
 import { catalogApi } from '../../api/catalogApi';
 import { useSiteSettings } from '../../context/useSiteSettings';
 import { Button, Skeleton } from '../ui';
@@ -32,9 +34,6 @@ export const HeroSection = () => {
 
   return (
     <section className="menu__hero">
-      {/* Vệt sáng ấm mờ sau nội dung — tạo chiều sâu mà không cần ảnh nền */}
-      <span className="menu__hero-glow" aria-hidden="true" />
-
       <div className="menu__hero-copy">
         {settings.heroBadge && (
           <span className="menu__hero-badge">
@@ -59,54 +58,45 @@ export const HeroSection = () => {
           </Button>
         </div>
 
-        <div className="menu__hero-facts">
-          <span className="menu__hero-fact">
-            <span className="menu__hero-fact-icon">
-              <Timer size={18} />
-            </span>
-            <span className="menu__hero-fact-text">
-              <strong>30 phút</strong>
-              <span>Giao trong nội thành</span>
-            </span>
-          </span>
-          <span className="menu__hero-fact">
-            <span className="menu__hero-fact-icon">
-              <Bike size={18} />
-            </span>
-            <span className="menu__hero-fact-text">
-              <strong>Miễn phí</strong>
-              <span>Đơn từ 200.000đ</span>
-            </span>
-          </span>
-          <span className="menu__hero-fact">
-            <span className="menu__hero-fact-icon">
-              <ShieldCheck size={18} />
-            </span>
-            <span className="menu__hero-fact-text">
-              <strong>Tươi mới</strong>
-              <span>Nướng theo đơn</span>
-            </span>
-          </span>
-        </div>
+        {/* Ba cam kết như ba tấm vé xé — đọc lướt trong một nhịp */}
+        <ul className="menu__hero-facts">
+          <li className="menu__hero-fact">
+            <Timer size={18} />
+            <strong>30 phút</strong>
+            <span>Giao nội thành</span>
+          </li>
+          <li className="menu__hero-fact">
+            <Bike size={18} />
+            <strong>Miễn phí</strong>
+            <span>Đơn từ 200.000đ</span>
+          </li>
+          <li className="menu__hero-fact">
+            <Flame size={18} />
+            <strong>Nóng giòn</strong>
+            <span>Nướng theo đơn</span>
+          </li>
+        </ul>
       </div>
 
       <div className="menu__hero-art" aria-hidden="true">
+        {/* Đĩa gạch bông phía sau ổ bánh */}
+        <span className="menu__hero-plate" />
         {settings.heroImageUrl ? (
-          <span className="menu__hero-art-inner menu__hero-art-inner--photo">
+          <span className="menu__hero-photo">
             <img src={settings.heroImageUrl} alt="" />
           </span>
         ) : (
-          <span className="menu__hero-art-inner">
-            <Sandwich size={104} strokeWidth={1.2} />
-          </span>
+          <BanhMiArt className="menu__hero-banhmi" />
         )}
-        <span className="menu__hero-chip menu__hero-chip--a">
-          <Flame size={15} />
-          Vỏ giòn
-        </span>
+
+        <LeafDoodle className="menu__hero-doodle menu__hero-doodle--leaf" size={44} />
+        <ChiliDoodle className="menu__hero-doodle menu__hero-doodle--chili" size={34} />
+        <CucumberDoodle className="menu__hero-doodle menu__hero-doodle--cuc" size={40} />
+
+        <span className="menu__hero-chip menu__hero-chip--a">Nóng hổi!</span>
         <span className="menu__hero-chip menu__hero-chip--b">
           <Sandwich size={15} />
-          Nhân đầy
+          Nhân đầy ụ
         </span>
       </div>
     </section>

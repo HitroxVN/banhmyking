@@ -3,6 +3,7 @@ import { Mail, Phone, Sandwich } from 'lucide-react';
 import { useSiteSettings } from '../context/useSiteSettings';
 import { FeaturedStrip, HeroSection, PromiseGrid } from '../components/home/HomeSections';
 import { LatestNewsSection } from '../components/home/LatestNewsSection';
+import { DishRoulette } from '../components/home/DishRoulette';
 import '../styles/components/landing.css';
 
 /**
@@ -18,11 +19,13 @@ export const LandingPage = () => {
     <div>
       <HeroSection />
       <FeaturedStrip />
+      <DishRoulette />
       <LatestNewsSection />
       <PromiseGrid />
 
       <section className="land-cta">
         <div className="land-cta__copy">
+          <p className="land-cta__kicker">Bụng kêu ọt ọt?</p>
           <h2 className="land-cta__title">Đói bụng rồi?</h2>
           <p className="land-cta__desc">
             Chọn món, thêm topping tuỳ thích và đặt trong vài bước. Không cần tài khoản để xem thực đơn.

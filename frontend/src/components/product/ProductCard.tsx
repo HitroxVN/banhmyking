@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Flame, Plus, Sandwich, Star } from 'lucide-react';
+import { Flame, Plus, Star } from 'lucide-react';
 import type { ProductItem } from '../../types/staff';
 import { PriceTag } from './PriceTag';
 import { ComboContents } from './ComboContents';
 import { priceNow } from '../../utils/pricing';
+import { BanhMiArt } from '../illustrations/BanhMiArt';
 import '../../styles/components/product-card.css';
 
 export interface ProductCardProps {
   product: ProductItem;
-  /** Bấm nút + (món không có topping) → thêm thẳng vào giỏ với số lượng 1 */
-  onQuickAdd: (product: ProductItem) => void;
+  /** Bấm nút + (món không có topping) → thêm thẳng vào giỏ với số lượng 1; `source` là nút vừa bấm */
+  onQuickAdd: (product: ProductItem, source?: Element | null) => void;
   isQuickAdding?: boolean;
 }
 
@@ -39,7 +40,7 @@ export const ProductCard = ({ product, onQuickAdd, isQuickAdding = false }: Prod
           />
         ) : (
           <span className="pcard__placeholder" aria-hidden="true">
-            <Sandwich size={42} />
+            <BanhMiArt />
           </span>
         )}
 
@@ -94,7 +95,7 @@ export const ProductCard = ({ product, onQuickAdd, isQuickAdding = false }: Prod
             <button
               type="button"
               className="pcard__add"
-              onClick={() => onQuickAdd(product)}
+              onClick={(event) => onQuickAdd(product, event.currentTarget)}
               disabled={disabled || isQuickAdding}
               title="Thêm vào giỏ"
               aria-label={`Thêm ${product.name} vào giỏ`}

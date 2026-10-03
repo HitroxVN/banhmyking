@@ -1,28 +1,30 @@
-/* OrdersPage — danh sách đơn của khách */
+/* OrdersPage — danh sách đơn của khách.
+   Mỗi đơn là một tấm vé giấy: thân vé bên trái, cuống vé bên phải ngăn bởi đường xé nét đứt. */
 .orders__list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  margin: var(--space-4) 0 var(--space-5);
+  gap: var(--space-4);
+  margin: var(--space-4) 0 var(--space-6);
 }
 
 .ord-card {
+  position: relative;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  transition: border-color .15s, box-shadow .15s;
+  border: var(--line);
+  border-radius: 16px;
+  background: var(--cream);
+  box-shadow: var(--shadow-pop);
+  transition: transform .18s var(--ease-bounce), box-shadow .18s;
 }
 
 .ord-card:hover {
-  border-color: var(--primary-300);
-  box-shadow: var(--shadow-md);
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow-pop-lg);
 }
 
 .ord-card__main {
@@ -38,24 +40,25 @@
   margin-bottom: 6px;
 }
 
+/* Mã đơn: chữ biển hiệu */
 .ord-card__code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--stone-900);
-  letter-spacing: .02em;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  color: var(--ink);
+  letter-spacing: .03em;
 }
 
 .ord-card__meta {
   margin: 0 0 4px;
   font-size: var(--text-xs);
+  font-weight: 600;
   color: var(--stone-500);
 }
 
 .ord-card__items {
   margin: 0;
   font-size: var(--text-sm);
-  color: var(--stone-600);
+  color: var(--ink-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -63,23 +66,63 @@
   -webkit-box-orient: vertical;
 }
 
+/* Cuống vé: ngăn bằng đường nét đứt */
 .ord-card__side {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
+  padding-left: var(--space-5);
+  border-left: 2px dashed var(--stone-400);
 }
 
 .ord-card__total {
-  font-size: var(--text-lg);
-  font-weight: 800;
-  color: var(--primary-700);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  color: var(--chili-600);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
+.ord-card__saving {
+  padding: 1px 9px;
+  border: 1.5px dashed var(--herb-600);
+  border-radius: var(--radius-full);
+  background: var(--herb-50);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--herb-700);
+  white-space: nowrap;
+}
+
+/* Không có đơn: đĩa trống to, bỏ khung tròn mặc định của icon để không cắt hình */
+.cshop .orders-empty .ui-empty__icon {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: 0;
+  animation: none;
+}
+
+.cshop .orders-empty .ui-empty {
+  margin-top: var(--space-4);
+  border: 2px dashed var(--stone-300);
+  border-radius: 24px;
+  background: var(--cream);
+}
+
 @media (max-width: 560px) {
+  .ord-card {
+    padding: var(--space-4);
+  }
   .ord-card__side {
     width: 100%;
     justify-content: space-between;
+    padding: var(--space-3) 0 0;
+    border-left: 0;
+    border-top: 2px dashed var(--stone-400);
   }
 }

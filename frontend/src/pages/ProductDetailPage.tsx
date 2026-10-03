@@ -11,6 +11,8 @@ import { rememberProduct } from '../utils/recentProducts';
 import { formatCurrency } from '../utils/formatters';
 import { PriceTag } from '../components/product/PriceTag';
 import { formatSaleEnd, priceNow } from '../utils/pricing';
+import { flyToCart } from '../utils/flyToCart';
+import { BanhMiArt } from '../components/illustrations/BanhMiArt';
 import type { OptionGroup, ProductItem, ProductOption } from '../types/staff';
 import '../styles/components/product-detail.css';
 import '../styles/components/pricing.css';
@@ -158,7 +160,8 @@ export const ProductDetailPage = () => {
     return false;
   };
 
-  const addToCart = async (thenGoToCart: boolean) => {
+  /** `source` là nút vừa bấm — điểm xuất phát cho ổ bánh bay vào giỏ */
+  const addToCart = async (thenGoToCart: boolean, source?: Element | null) => {
     if (!product || !canBuy || !requireLogin()) return;
 
     // Chặn tại chỗ để khách biết thiếu gì, thay vì để backend trả lỗi chung chung.
@@ -177,6 +180,7 @@ export const ProductDetailPage = () => {
         navigate('/cart');
         return;
       }
+      flyToCart(source);
       toast.success(`Đã thêm ${quantity} × ${product.name} vào giỏ`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Thêm món vào giỏ thất bại');
@@ -233,8 +237,8 @@ export const ProductDetailPage = () => {
             {activeUrl && !imgFailed ? (
               <img className="pdetail__img" src={activeUrl} alt={product.name} onError={() => setImgFailed(true)} />
             ) : (
-              <span className="pcard__placeholder" aria-hidden="true">
-                <Sandwich size={56} />
+              <span className="pdetail__placeholder" aria-hidden="true">
+                <BanhMiArt />
               </span>
             )}
           </div>
@@ -371,7 +375,7 @@ export const ProductDetailPage = () => {
               icon={<ShoppingCart size={18} />}
               loading={isAdding}
               disabled={!canBuy}
-              onClick={() => addToCart(false)}
+              onClick={(event) => addToCart(false, event.currentTarget)}
             >
               {canBuy ? `Thêm vào giỏ — ${formatCurrency(total)}` : 'Món đang hết'}
             </Button>

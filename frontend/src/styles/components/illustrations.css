@@ -1,0 +1,41 @@
+/* Hình minh họa SVG vẽ tay — bánh mì hero, đĩa trống, rau / ớt trang trí */
+.ill-banhmi {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* Hơi nóng bốc lên rồi tan */
+.ill-banhmi__steam path {
+  animation: ill-steam 2.6s ease-in-out infinite;
+}
+.ill-banhmi__steam path:nth-child(2) { animation-delay: .5s; }
+.ill-banhmi__steam path:nth-child(3) { animation-delay: 1s; }
+
+@keyframes ill-steam {
+  0% { transform: translateY(6px); opacity: 0; }
+  40% { opacity: 1; }
+  100% { transform: translateY(-10px); opacity: 0; }
+}
+
+.ill-plate {
+  display: block;
+  overflow: visible;
+}
+
+.ill-plate__q {
+  animation: ill-bob 2.4s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+.ill-plate__fork {
+  animation: ui-wobble 3s ease-in-out infinite;
+  transform-origin: 126px 62px;
+}
+
+@keyframes ill-bob {
+  0%, 100% { transform: translateY(0) rotate(-8deg); }
+  50% { transform: translateY(-6px) rotate(6deg); }
+}

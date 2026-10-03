@@ -10,38 +10,17 @@
 
 body {
   font-family: var(--font-body);
-  background-color: var(--primary-50);
+  /* Giấy gói bánh: màu kem + vân giấy rất nhẹ, thay cho hai quầng sáng gradient cũ */
+  background-color: var(--paper);
+  background-image: var(--pattern-grain);
   color: var(--stone-900);
   min-height: 100vh;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   position: relative;
   overflow-x: hidden;
-}
-
-/* Hai quầng sáng ấm cố định làm nền cho mọi trang */
-body::before {
-  content: '';
-  position: fixed;
-  top: -150px;
-  left: -150px;
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(245, 158, 11, 0.22) 0%, rgba(254, 243, 199, 0) 70%);
-  z-index: 0;
-  pointer-events: none;
-}
-
-body::after {
-  content: '';
-  position: fixed;
-  bottom: -200px;
-  right: -200px;
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(217, 119, 6, 0.18) 0%, rgba(254, 243, 199, 0) 70%);
-  z-index: 0;
-  pointer-events: none;
+  /* Font tiêu đề chỉ có một độ đậm — cấm trình duyệt tự "tô đậm giả" làm nhòe nét */
+  font-synthesis-weight: none;
 }
 
 /* Form control kế thừa font của app thay vì font mặc định của browser */

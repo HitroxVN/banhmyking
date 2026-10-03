@@ -89,20 +89,25 @@ export const PromotionsPage = () => {
               <div className="wallet__list">
                 {available.map((promo) => (
                   <article className="wallet-card" key={promo.code}>
-                    <div className="wallet-card__head">
-                      <span className="wallet-card__code">{promo.code}</span>
-                      <span className="wallet-card__value">{describePromotionValue(promo)}</span>
+                    <span className="wallet-card__stub" aria-hidden="true">
+                      <Ticket size={24} />
+                    </span>
+                    <div className="wallet-card__body">
+                      <div className="wallet-card__head">
+                        <span className="wallet-card__code">{promo.code}</span>
+                        <span className="wallet-card__value">{describePromotionValue(promo)}</span>
+                      </div>
+                      {promo.description && <p className="wallet-card__desc">{promo.description}</p>}
+                      <p className="wallet-card__meta">
+                        {promo.minOrderAmount
+                          ? `Đơn từ ${formatCurrency(promo.minOrderAmount)}`
+                          : 'Không yêu cầu đơn tối thiểu'}
+                        {promo.endsAt && ` · HSD ${formatDate(promo.endsAt)}`}
+                      </p>
+                      <Button size="sm" onClick={() => navigate('/cart')}>
+                        Dùng ngay
+                      </Button>
                     </div>
-                    {promo.description && <p className="wallet-card__desc">{promo.description}</p>}
-                    <p className="wallet-card__meta">
-                      {promo.minOrderAmount
-                        ? `Đơn từ ${formatCurrency(promo.minOrderAmount)}`
-                        : 'Không yêu cầu đơn tối thiểu'}
-                      {promo.endsAt && ` · HSD ${formatDate(promo.endsAt)}`}
-                    </p>
-                    <Button size="sm" onClick={() => navigate('/cart')}>
-                      Dùng ngay
-                    </Button>
                   </article>
                 ))}
               </div>
@@ -120,19 +125,24 @@ export const PromotionsPage = () => {
               <div className="wallet__list">
                 {used.map((promo) => (
                   <article className="wallet-card wallet-card--used" key={promo.code}>
-                    <div className="wallet-card__head">
-                      <span className="wallet-card__code">{promo.code}</span>
-                      <span className="wallet-card__value">{describePromotionValue(promo)}</span>
+                    <span className="wallet-card__stub" aria-hidden="true">
+                      <Ticket size={24} />
+                    </span>
+                    <div className="wallet-card__body">
+                      <div className="wallet-card__head">
+                        <span className="wallet-card__code">{promo.code}</span>
+                        <span className="wallet-card__value">{describePromotionValue(promo)}</span>
+                      </div>
+                      <p className="wallet-card__meta">
+                        {promo.discountApplied != null && `Đã giảm ${formatCurrency(promo.discountApplied)}`}
+                        {promo.usedAt && ` · ${formatDate(promo.usedAt)}`}
+                      </p>
+                      {promo.orderCode && (
+                        <Link className="wallet-card__order" to={`/orders/${promo.orderCode}`}>
+                          Xem đơn {promo.orderCode}
+                        </Link>
+                      )}
                     </div>
-                    <p className="wallet-card__meta">
-                      {promo.discountApplied != null && `Đã giảm ${formatCurrency(promo.discountApplied)}`}
-                      {promo.usedAt && ` · ${formatDate(promo.usedAt)}`}
-                    </p>
-                    {promo.orderCode && (
-                      <Link className="wallet-card__order" to={`/orders/${promo.orderCode}`}>
-                        Xem đơn {promo.orderCode}
-                      </Link>
-                    )}
                   </article>
                 ))}
               </div>

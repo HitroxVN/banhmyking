@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PackageSearch, Receipt, SearchX } from 'lucide-react';
+import { Receipt, SearchX } from 'lucide-react';
 import { orderApi } from '../api/orderApi';
 import { Button, ChipGroup, EmptyState, Pagination, Skeleton, StatusBadge } from '../components/ui';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
 import { usePolling } from '../hooks/usePolling';
 import type { OrderResponse, OrderStatus } from '../types/order';
 import { PriceTag } from '../components/product/PriceTag';
+import { EmptyPlate } from '../components/illustrations/FoodDoodles';
 import '../styles/components/pricing.css';
 import '../styles/components/orders.css';
 
@@ -137,24 +138,26 @@ export const OrdersPage = () => {
       )}
 
       {!isLoading && !error && orders.length === 0 && (
-        <EmptyState
-          icon={<PackageSearch size={30} />}
-          title={filter === 'ALL' ? 'Bạn chưa có đơn hàng nào' : 'Không có đơn ở trạng thái này'}
-          description={
-            filter === 'ALL'
-              ? 'Chọn vài món trong thực đơn, đơn đầu tiên của bạn sẽ xuất hiện ở đây.'
-              : 'Thử chọn trạng thái khác để xem các đơn còn lại.'
-          }
-          action={
-            filter === 'ALL' ? (
-              <Button onClick={() => navigate('/menu')}>Xem thực đơn</Button>
-            ) : (
-              <Button variant="secondary" onClick={() => changeFilter('ALL')}>
-                Xem tất cả
-              </Button>
-            )
-          }
-        />
+        <div className="orders-empty">
+          <EmptyState
+            icon={<EmptyPlate size={130} />}
+            title={filter === 'ALL' ? 'Bạn chưa có đơn hàng nào' : 'Không có đơn ở trạng thái này'}
+            description={
+              filter === 'ALL'
+                ? 'Chọn vài món trong thực đơn, đơn đầu tiên của bạn sẽ xuất hiện ở đây.'
+                : 'Thử chọn trạng thái khác để xem các đơn còn lại.'
+            }
+            action={
+              filter === 'ALL' ? (
+                <Button onClick={() => navigate('/menu')}>Xem thực đơn</Button>
+              ) : (
+                <Button variant="secondary" onClick={() => changeFilter('ALL')}>
+                  Xem tất cả
+                </Button>
+              )
+            }
+          />
+        </div>
       )}
 
       {!isLoading && !error && orders.length > 0 && (

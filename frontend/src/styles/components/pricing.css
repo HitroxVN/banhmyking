@@ -52,8 +52,16 @@
 .pcard__flag.pcard__flag--sale {
   left: auto;
   right: 10px;
-  background: var(--danger);
+  background: var(--chili-600);
   color: #fff;
+  /* Nghiêng ngược chiều nhãn "Nổi bật" bên trái cho tự nhiên như dán tay */
+  transform: rotate(6deg);
+}
+
+@media (max-width: 560px) {
+  .pcard__flag.pcard__flag--sale {
+    right: 8px;
+  }
 }
 
 .menu__sale-chip {

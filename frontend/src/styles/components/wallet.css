@@ -1,57 +1,136 @@
-/* PromotionsPage — ví mã giảm giá của khách */
+/* PromotionsPage — ví mã giảm giá của khách.
+   Mỗi mã là phiếu giảm giá xé được: cuống vàng bên trái, đường đục lỗ nét đứt, hai khấc tròn. */
 .wallet__section {
-  margin-top: var(--space-6);
+  margin-top: var(--space-8);
 }
 
 .wallet__section-title {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin: 0 0 var(--space-3);
-  font-size: var(--text-lg);
-  color: var(--stone-900);
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 400;
+  color: var(--ink);
 }
 
+/* Số đếm: nhãn dán tròn nhỏ */
 .wallet__count {
-  padding: 2px 10px;
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border: 2px solid var(--ink);
   border-radius: var(--radius-full);
-  background: var(--stone-100);
-  color: var(--stone-600);
+  background: var(--primary-300);
+  color: var(--ink);
+  font-family: var(--font-body);
   font-size: var(--text-xs);
-  font-weight: 700;
+  font-weight: 800;
+  transform: rotate(-6deg);
 }
 
 .wallet__list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: var(--space-5);
+  padding: 0 6px 6px 0; /* chừa chỗ cho bóng cứng */
 }
 
 .wallet__hint {
   margin: 0;
   padding: var(--space-4) var(--space-5);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-lg);
+  border: 2px dashed var(--stone-300);
+  border-radius: 16px;
+  background: var(--cream);
   color: var(--stone-500);
   font-size: var(--text-sm);
+  font-weight: 600;
 }
 
+/* Phiếu: cột cuống + cột thân */
 .wallet-card {
+  --wallet-stub: 64px;
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--wallet-stub) minmax(0, 1fr);
+  border: var(--line);
+  border-radius: 16px;
+  background: var(--cream);
+  box-shadow: var(--shadow-pop);
+  transition: transform .18s var(--ease-bounce), box-shadow .18s;
+}
+
+.wallet-card:hover {
+  transform: translate(-2px, -2px) rotate(-.5deg);
+  box-shadow: var(--shadow-pop-lg);
+}
+
+/* Hai khấc tròn trên/dưới ngay đường đục lỗ — nửa hình tròn cùng màu nền trang */
+.wallet-card::before,
+.wallet-card::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--wallet-stub) - 11px);
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper);
+  z-index: 1;
+}
+
+.wallet-card::before {
+  top: -13px;
+  clip-path: inset(50% -2px -2px -2px);
+}
+
+.wallet-card::after {
+  bottom: -13px;
+  clip-path: inset(-2px -2px 50% -2px);
+}
+
+/* Cuống phiếu: khối vàng, ngăn với thân bằng đường đục lỗ */
+.wallet-card__stub {
+  display: grid;
+  place-items: center;
+  border-right: 2px dashed var(--ink);
+  border-radius: 14px 0 0 14px;
+  background-color: var(--primary-300);
+  background-image: var(--pattern-tile);
+  background-size: 36px;
+  color: var(--ink);
+}
+
+.wallet-card__stub svg {
+  transform: rotate(-20deg);
+}
+
+.wallet-card__body {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--primary-500);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  min-width: 0;
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5);
 }
 
-/* Mã đã dùng: hạ tông xuống để không tranh mắt với mã còn dùng được */
+/* Mã đã dùng: hạ tông, cuống xám, không nhấc lên khi rê chuột */
 .wallet-card--used {
-  border-left-color: var(--stone-300);
   background: var(--stone-50);
+  box-shadow: var(--shadow-pop-sm);
+}
+
+.wallet-card--used:hover {
+  transform: none;
+  box-shadow: var(--shadow-pop-sm);
+}
+
+.wallet-card--used .wallet-card__stub {
+  background-color: var(--stone-200);
+  background-image: none;
+  color: var(--stone-500);
 }
 
 .wallet-card__head {
@@ -62,45 +141,63 @@
   gap: var(--space-2);
 }
 
+/* Mã: chữ biển hiệu trong khung nét đứt như mã in trên phiếu */
 .wallet-card__code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: var(--text-sm);
-  font-weight: 700;
-  letter-spacing: .04em;
-  color: var(--stone-900);
+  padding: 1px 10px;
+  border: 2px dashed var(--chili-600);
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  letter-spacing: .05em;
+  color: var(--chili-700);
+  overflow-wrap: anywhere;
 }
 
+/* Mức giảm: nhãn dán đỏ ớt xoay nghiêng */
 .wallet-card__value {
   padding: 2px 10px;
+  border: 2px solid var(--ink);
   border-radius: var(--radius-full);
-  background: var(--primary-100);
-  color: var(--primary-800);
+  background: var(--chili-600);
+  color: #fff;
   font-size: var(--text-xs);
-  font-weight: 700;
+  font-weight: 800;
+  box-shadow: var(--shadow-pop-sm);
+  transform: rotate(3deg);
+}
+
+.wallet-card--used .wallet-card__code {
+  border-color: var(--stone-400);
+  color: var(--stone-500);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
 }
 
 .wallet-card--used .wallet-card__value {
-  background: var(--stone-100);
-  color: var(--stone-500);
+  background: var(--stone-200);
+  color: var(--stone-600);
+  box-shadow: none;
+  transform: none;
 }
 
 .wallet-card__desc {
   margin: 0;
   font-size: var(--text-sm);
-  color: var(--stone-600);
+  color: var(--ink-soft);
 }
 
 .wallet-card__meta {
   margin: 0;
   font-size: var(--text-xs);
+  font-weight: 600;
   color: var(--stone-500);
 }
 
 .wallet-card__order {
   align-self: flex-start;
   font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--primary-700);
+  font-weight: 700;
+  color: var(--chili-600);
   text-decoration: none;
 }
 
@@ -110,4 +207,10 @@
 
 .wallet-card .ui-btn {
   align-self: flex-start;
+  margin-top: var(--space-1);
+}
+
+@media (max-width: 400px) {
+  .wallet-card { --wallet-stub: 48px; }
+  .wallet-card__body { padding-left: var(--space-4); }
 }

@@ -194,3 +194,118 @@
 .pmodal .rvw {
   grid-column: 1 / -1;
 }
+
+/* ---------------------------------------------------------------------------
+   Khu khách: khối đánh giá như bảng ghim giấy nhắn cạnh xe bánh mì
+   --------------------------------------------------------------------------- */
+.cshop .rstar__item--on svg {
+  fill: var(--primary-400);
+}
+
+.cshop .rstar--input .rstar__item--btn:focus-visible {
+  outline-color: var(--chili-600);
+}
+
+.cshop .rvw {
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: 2px dashed var(--stone-300);
+}
+
+.cshop .rvw__title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 400;
+  color: var(--ink);
+}
+
+/* Điểm trung bình: nhãn dán vàng nghiêng */
+.cshop .rvw__score {
+  padding: 4px 12px;
+  border: var(--line);
+  border-radius: var(--radius-full);
+  background: var(--primary-200);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop-sm);
+  transform: rotate(-1.5deg);
+}
+
+.cshop .rvw__score strong {
+  font-family: var(--font-display);
+  font-weight: 400;
+  color: var(--chili-600);
+}
+
+.cshop .rvw__count {
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.cshop .rvw__empty {
+  padding: var(--space-4);
+  border: 2px dashed var(--stone-300);
+  border-radius: 14px;
+  background: var(--cream);
+  text-align: center;
+  font-weight: 600;
+}
+
+/* Lưới giấy nhắn: mỗi nhận xét một tờ, nghiêng xen kẽ */
+.cshop .rvw__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
+  padding: 4px 6px 6px 2px;
+}
+
+.cshop .rvw__item {
+  gap: 6px;
+  padding: var(--space-4);
+  border: var(--line);
+  border-radius: 14px;
+  background: var(--cream);
+  box-shadow: var(--shadow-pop-sm);
+  transform: rotate(-.6deg);
+}
+
+.cshop .rvw__item:nth-child(even) {
+  background: var(--primary-50);
+  transform: rotate(.6deg);
+}
+
+.cshop .rvw__name {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.cshop .rvw__comment {
+  color: var(--ink-soft);
+}
+
+.cshop .rvw__date {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 2px dashed var(--stone-200);
+  font-weight: 600;
+  color: var(--stone-500);
+}
+
+.cshop .rvw > .ui-btn {
+  align-self: flex-start;
+}
+
+/* Form gửi đánh giá — dòng món như phiếu nhỏ */
+.cshop .rvw-form__item {
+  border: 2px dashed var(--stone-300);
+  background: var(--primary-50);
+}
+
+.cshop .rvw-form__img {
+  border: 2px solid var(--ink);
+}
+
+.cshop .rvw-form__name,
+.cshop .rvw-form__label {
+  color: var(--ink);
+  font-weight: 700;
+}

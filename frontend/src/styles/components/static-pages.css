@@ -1,23 +1,99 @@
-/* Các trang nội dung tĩnh: giới thiệu / liên hệ / FAQ / điều khoản / bảo mật */
+/* Các trang nội dung tĩnh: giới thiệu / liên hệ / FAQ / điều khoản / bảo mật.
+   Chỉ dùng trong khu khách: đầu trang như bảng hiệu (chữ viết tay + tiêu đề biển hiệu
+   + hình vẽ tay), thân bài là tờ giấy kem viền mực. Không gradient. */
 @import './card.css';
+
+/* ---------------------------------------------------------------- Đầu trang */
+.static__hero {
+  position: relative;
+  align-items: flex-end;
+  flex-wrap: nowrap;
+  gap: var(--space-6);
+  padding-bottom: var(--space-4);
+  border-bottom: 2px dashed var(--stone-300);
+}
+
+.static__hero-copy {
+  min-width: 0;
+}
+
+/* Dòng chữ viết tay đỏ ớt, nghiêng nhẹ phía trên tiêu đề */
+.static__kicker {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-script);
+  font-size: 1.35rem;
+  line-height: 1.2;
+  color: var(--chili-600);
+  transform: rotate(-2deg);
+  transform-origin: left;
+}
 
 .static__sub {
   margin: var(--space-2) 0 0;
   max-width: 62ch;
   font-size: var(--text-sm);
-  color: var(--stone-500);
+  color: var(--ink-soft);
 }
 
+.static__hero-art {
+  flex-shrink: 0;
+}
+
+/* Trang Giới thiệu: ổ bánh vẽ tay trên đĩa gạch bông */
+.static__banhmi {
+  width: 220px;
+  padding: 10px 12px 4px;
+  border: var(--line);
+  border-radius: 20px;
+  background-color: var(--primary-300);
+  background-image: var(--pattern-tile);
+  box-shadow: var(--shadow-pop);
+  transform: rotate(2deg);
+}
+
+/* Các trang khác: cụm rau / ớt / dưa leo rải lộn xộn */
+.static__doodles {
+  position: relative;
+  display: block;
+  width: 120px;
+  height: 84px;
+}
+
+.static__doodle {
+  position: absolute;
+  animation: ui-wobble 4s ease-in-out infinite;
+}
+
+.static__doodle--leaf { top: 0; left: 6px; }
+.static__doodle--chili { top: 6px; right: 6px; animation-delay: .6s; }
+.static__doodle--cuke { bottom: 0; left: 44px; animation-delay: 1.2s; }
+
+/* ---------------------------------------------------------------- Thân bài */
 .static__prose {
-  padding: var(--space-6);
+  padding: clamp(18px, 4vw, 36px);
   max-width: 78ch;
 }
 
 .static__prose h2 {
-  margin: var(--space-6) 0 var(--space-2);
-  font-size: var(--text-lg);
-  font-weight: 700;
-  color: var(--stone-900);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-8) 0 var(--space-2);
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 400;
+  color: var(--ink);
+}
+
+/* Chấm ớt nhỏ trước mỗi tiêu đề mục (khối phản hồi đã có icon riêng) */
+.static__prose h2:not(.cf-card__title)::before {
+  content: '';
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-full);
+  background: var(--chili-600);
 }
 
 .static__prose h2:first-child {
@@ -28,49 +104,141 @@
   margin: var(--space-5) 0 var(--space-1);
   font-size: var(--text-base);
   font-weight: 700;
-  color: var(--stone-800);
+  color: var(--ink);
 }
 
 .static__prose p {
   margin: 0 0 var(--space-3);
-  font-size: var(--text-sm);
-  line-height: 1.7;
-  color: var(--stone-600);
+  font-size: var(--text-base);
+  line-height: 1.75;
+  color: var(--ink-soft);
 }
 
 .static__prose a {
-  color: var(--primary-700);
-  font-weight: 600;
+  color: var(--chili-600);
+  font-weight: 700;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
 }
 
 .static__list {
-  margin: 0 0 var(--space-3);
-  padding-left: var(--space-5);
-  font-size: var(--text-sm);
+  margin: 0 0 var(--space-4);
+  padding-left: 0;
+  list-style: none;
+  font-size: var(--text-base);
   line-height: 1.7;
-  color: var(--stone-600);
+  color: var(--ink-soft);
+}
+
+.static__list li {
+  position: relative;
+  padding-left: 26px;
+}
+
+/* Gạch đầu dòng là lát dưa leo nhỏ */
+.static__list li::before {
+  content: '';
+  position: absolute;
+  top: .5em;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--herb-700);
+  border-radius: var(--radius-full);
+  background: var(--herb-100);
 }
 
 .static__list li + li {
-  margin-top: var(--space-1);
+  margin-top: var(--space-2);
 }
 
-/* FAQ: mỗi câu hỏi là một mục nhỏ, dấu phân cách bằng đường kẻ mảnh */
-.static__qa h3 {
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border);
+/* ----------------------------------------------------- FAQ: hộp xổ to, viền mực */
+.static__qa {
+  display: grid;
+  gap: var(--space-3);
 }
 
-.static__qa h3:first-child {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
+.static__faq {
+  border: var(--line);
+  border-radius: 14px;
+  background: var(--cream);
+  box-shadow: var(--shadow-pop-sm);
+  transition: box-shadow .15s, transform .15s;
 }
 
+.static__faq[open] {
+  background: var(--primary-50);
+  box-shadow: var(--shadow-pop);
+  transform: translate(-1px, -1px);
+}
+
+.static__faq-q {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 12px;
+}
+
+.static__faq-q::-webkit-details-marker {
+  display: none;
+}
+
+.static__faq-q:focus-visible {
+  outline: 3px solid var(--chili-600);
+  outline-offset: 3px;
+}
+
+.static__faq-q:hover h3 {
+  color: var(--chili-600);
+}
+
+.static__prose .static__faq-q h3 {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: 1.4;
+}
+
+/* Nút +/− tròn kiểu núm vặn — xoay khi mở */
+.static__faq-q::after {
+  content: '+';
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-full);
+  background: var(--primary-300);
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  transition: transform .2s var(--ease-bounce), background .15s;
+}
+
+.static__faq[open] > .static__faq-q::after {
+  content: '−';
+  background: var(--chili-600);
+  color: #fff;
+  transform: rotate(180deg);
+}
+
+.static__faq > p {
+  margin: 0;
+  padding: 12px 16px 16px;
+  border-top: 2px dashed var(--stone-300);
+}
+
+/* ------------------------------------------------- Liên hệ: thẻ nhãn dán */
 .static__contact {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--space-3);
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 
 .static__contact-item {
@@ -78,27 +246,41 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--stone-50);
+  border: var(--line);
+  border-radius: 14px;
+  background: var(--cream);
+  box-shadow: var(--shadow-pop-sm);
   color: inherit;
   text-decoration: none;
+  transition: transform .15s var(--ease-bounce), box-shadow .15s, background .15s;
+}
+
+.static__contact-item:nth-child(2n) {
+  background: var(--primary-50);
 }
 
 a.static__contact-item:hover {
-  border-color: var(--primary-300);
-  background: var(--primary-50);
+  background: var(--primary-100);
+  transform: translate(-2px, -2px) rotate(-.6deg);
+  box-shadow: var(--shadow-pop);
+}
+
+a.static__contact-item:focus-visible {
+  outline: 3px solid var(--chili-600);
+  outline-offset: 3px;
 }
 
 .static__contact-icon {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--ink);
   border-radius: var(--radius-full);
-  background: var(--primary-100);
-  color: var(--primary-700);
+  background: var(--chili-600);
+  color: #fff;
+  transform: rotate(-6deg);
 }
 
 .static__contact-text {
@@ -109,12 +291,27 @@ a.static__contact-item:hover {
 }
 
 .static__contact-text strong {
-  font-size: var(--text-sm);
-  color: var(--stone-900);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--stone-500);
 }
 
 .static__contact-text span {
-  font-size: var(--text-sm);
-  color: var(--stone-600);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--ink);
   overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------- Màn hẹp */
+@media (max-width: 640px) {
+  .static__hero {
+    flex-wrap: wrap;
+  }
+
+  .static__hero-art {
+    display: none;
+  }
 }

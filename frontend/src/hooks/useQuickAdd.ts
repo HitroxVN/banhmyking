@@ -4,6 +4,7 @@ import { useToast } from '../components/ui';
 import { useAuth } from '../context/useAuth';
 import { useCart } from '../context/useCart';
 import type { ProductItem } from '../types/staff';
+import { flyToCart } from '../utils/flyToCart';
 
 /**
  * Thêm nhanh một món vào giỏ từ thẻ sản phẩm.
@@ -20,7 +21,8 @@ export const useQuickAdd = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const quickAdd = async (product: ProductItem) => {
+  /** `source` là nút vừa bấm — làm điểm xuất phát cho ổ bánh bay vào giỏ */
+  const quickAdd = async (product: ProductItem, source?: Element | null) => {
     if (!isAuthenticated) {
       toast.info('Đăng nhập để thêm món vào giỏ');
       navigate('/login', { state: { from: location } });
@@ -30,6 +32,7 @@ export const useQuickAdd = () => {
     setQuickAddingId(product.id);
     try {
       await addItem(product.id, 1);
+      flyToCart(source);
       toast.success(`Đã thêm ${product.name} vào giỏ`);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Thêm món vào giỏ thất bại');

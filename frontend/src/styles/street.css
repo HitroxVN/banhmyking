@@ -1,0 +1,282 @@
+/* ==========================================================================
+   Street — phong cách "xe bánh mì Sài Gòn" cho các component dùng chung,
+   CHỈ áp trong khu khách (.cshop), trang xác thực (.auth-page-wrapper) và
+   trang đứng riêng như 404 (.street). Khu vận hành (admin / staff / shipper)
+   giữ nguyên kiểu gọn gàng cũ.
+
+   Dấu hiệu nhận diện: viền mực 2px, bóng cứng lệch (không mờ), nút lún xuống
+   khi bấm, nhãn dán xoay nghiêng, tiêu đề chữ biển hiệu. Không gradient mượt.
+   ========================================================================== */
+
+:is(.cshop, .auth-page-wrapper, .street) {
+  --font-display: var(--font-sign);
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ Button */
+:is(.cshop, .auth-page-wrapper, .street) .ui-btn {
+  border: var(--line);
+  border-radius: var(--radius-full);
+  font-weight: 700;
+  box-shadow: var(--shadow-pop-sm);
+  transition: transform .12s, box-shadow .12s, background .15s, color .15s;
+}
+
+:is(.cshop, .auth-page-wrapper, .street) .ui-btn:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+/* Bấm xuống: nút lún vào chỗ bóng như nhấn một nút thật */
+:is(.cshop, .auth-page-wrapper, .street) .ui-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 var(--ink);
+}
+
+:is(.cshop, .auth-page-wrapper, .street) .ui-btn--lg {
+  height: 52px;
+  font-size: var(--text-base);
+}
+
+:is(.cshop, .auth-page-wrapper, .street) .ui-btn--primary {
+  background: var(--chili-600);
+  color: #fff;
+}
+:is(.cshop, .auth-page-wrapper, .street) .ui-btn--primary:hover:not(:disabled) {
+  background: var(--chili-500);
+}
+
+:is(.cshop, .auth-page-wrapper, .street) .ui-btn--secondary {
+  background: var(--cream);
+  color: var(--ink);
+  border-color: var(--ink);
+}
+:is(.cshop, .auth-page-wrapper, .street) .ui-btn--secondary:hover:not(:disabled) {
+  background: var(--primary-200);
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+/* Ghost không có viền / bóng — dùng cho hành động phụ nhẹ nhàng */
+:is(.cshop, .auth-page-wrapper, .street) .ui-btn--ghost {
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--ink-soft);
+}
+:is(.cshop, .auth-page-wrapper, .street) .ui-btn--ghost:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: var(--primary-100);
+  color: var(--ink);
+}
+:is(.cshop, .auth-page-wrapper, .street) .ui-btn--ghost:active:not(:disabled) {
+  transform: none;
+}
+
+:is(.cshop, .auth-page-wrapper, .street) .ui-btn--danger {
+  background: var(--danger);
+}
+:is(.cshop, .auth-page-wrapper, .street) .ui-btn--success {
+  background: var(--herb-600);
+}
+:is(.cshop, .auth-page-wrapper, .street) .ui-btn--success:hover:not(:disabled) {
+  background: var(--herb-500);
+}
+
+:is(.cshop, .auth-page-wrapper, .street) .ui-btn:disabled {
+  box-shadow: none;
+}
+
+/* ------------------------------------------------------------------- Chips */
+:is(.cshop, .street) .ui-chip {
+  border: var(--line);
+  background: var(--cream);
+  color: var(--ink);
+  font-weight: 700;
+  transition: transform .12s, box-shadow .12s, background .15s;
+}
+
+:is(.cshop, .street) .ui-chip:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--primary-100);
+}
+
+/* Chip đang chọn: như nhãn dán vàng ép lên giấy */
+:is(.cshop, .street) .ui-chip--active,
+:is(.cshop, .street) .ui-chip--active:hover {
+  background: var(--primary-300);
+  border-color: var(--ink);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop-sm);
+  transform: translate(-1px, -1px) rotate(-1.5deg);
+}
+
+/* Dãy chip cần chừa chỗ cho bóng và độ nghiêng, không thì bị cắt */
+:is(.cshop, .street) .ui-chips {
+  padding: 4px 4px var(--space-2);
+}
+
+/* ------------------------------------------------------------- Input field */
+:is(.cshop, .auth-page-wrapper, .street) .ui-field__input {
+  border: var(--line);
+  border-color: var(--stone-400);
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: var(--radius-md);
+}
+
+:is(.cshop, .auth-page-wrapper, .street) .ui-field__input:focus {
+  border-color: var(--ink);
+  box-shadow: var(--shadow-pop-sm);
+}
+
+:is(.cshop, .auth-page-wrapper, .street) .ui-field__input--invalid {
+  border-color: var(--danger);
+}
+
+:is(.cshop, .auth-page-wrapper, .street) .ui-field__label {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* -------------------------------------------------------------------- Card */
+.cshop .card {
+  border: var(--line);
+  border-radius: 18px;
+  background: var(--cream);
+  box-shadow: var(--shadow-pop);
+}
+
+.cshop .card + .card {
+  margin-top: var(--space-5);
+}
+
+.cshop .card__head {
+  border-bottom: 2px dashed var(--stone-300);
+}
+
+.cshop .card__foot {
+  border-top: 2px dashed var(--stone-300);
+}
+
+.cshop .card__title {
+  color: var(--ink);
+}
+
+.cshop .card__title svg {
+  color: var(--chili-600);
+}
+
+/* ------------------------------------------------------- Tiêu đề đầu trang */
+.cshop .page-bar__title,
+.cshop .page-head__title {
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  line-height: 1.15;
+  color: var(--ink);
+}
+
+/* Gạch chân lượn như nét bút lông dưới tiêu đề trang */
+.cshop .page-bar__title::after,
+.cshop .page-head__title::after {
+  content: '';
+  display: block;
+  width: 96px;
+  height: 10px;
+  margin-top: 6px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='10' viewBox='0 0 96 10'%3E%3Cpath d='M2 6 Q14 1 26 6 T50 6 T74 6 T94 5' fill='none' stroke='%23B83A24' stroke-width='3.5' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat;
+}
+
+.cshop .page-head {
+  border-bottom: 2px dashed var(--stone-300);
+}
+
+.cshop .page-bar__crumb a {
+  color: var(--chili-600);
+}
+
+/* ----------------------------------------------------------------- Stepper */
+.cshop .ui-stepper {
+  border: var(--line);
+  background: var(--cream);
+}
+
+.cshop .ui-stepper__btn {
+  border: 2px solid var(--ink);
+  background: var(--primary-200);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.cshop .ui-stepper__btn:hover:not(:disabled) {
+  background: var(--primary-300);
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------- Empty state */
+.cshop .ui-empty__icon {
+  width: 84px;
+  height: 84px;
+  border: var(--line);
+  background: var(--cream);
+  color: var(--chili-600);
+  box-shadow: var(--shadow-pop-sm);
+  /* Vành đĩa nét đứt bên trong */
+  outline: 2px dashed var(--stone-300);
+  outline-offset: -12px;
+  animation: ui-wobble 3.2s ease-in-out infinite;
+}
+
+.cshop .ui-empty__title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  color: var(--ink);
+}
+
+/* -------------------------------------------------------------- Tabs/pager */
+.cshop .ui-tabs__tab--active {
+  color: var(--chili-600);
+}
+
+.cshop .ui-tabs__tab--active::after {
+  background: var(--chili-600);
+}
+
+.cshop .ui-pager__btn {
+  border: 2px solid var(--ink);
+  background: var(--cream);
+  color: var(--ink);
+}
+
+.cshop .ui-pager__btn--active {
+  background: var(--primary-300);
+  border-color: var(--ink);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop-sm);
+}
+
+/* ------------------------------------------------------------ Giá & nhãn */
+.cshop .sale-flag {
+  border: 2px solid var(--ink);
+  background: var(--chili-600);
+  transform: rotate(-4deg);
+}
+
+.cshop .combo-flag {
+  border: 2px solid var(--ink);
+  background: var(--herb-100);
+  color: var(--herb-700);
+}
+
+.cshop .price-tag__was {
+  color: var(--stone-500);
+  text-decoration-color: var(--chili-500);
+  text-decoration-thickness: 2px;
+}
+
+/* -------------------------------------------- Tiêu đề chữ viết tay (tiện ích) */
+.script-accent {
+  font-family: var(--font-script);
+  font-weight: 400;
+  color: var(--chili-600);
+}
