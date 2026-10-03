@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PackageCheck, Search } from 'lucide-react';
+import { AlertTriangle, PackageCheck, Search } from 'lucide-react';
 import { storeInventoryApi } from '../../api/storeInventoryApi';
 import { Badge, Button, EmptyState, Input, PageHeader, Skeleton, useToast } from '../../components/ui';
+import { EmptyPlate } from '../../components/illustrations/FoodDoodles';
 import { StockAdjustModal } from '../../components/staff/StockAdjustModal';
 import { useStoreScope } from '../../context/useStoreScope';
 import { formatCurrency } from '../../utils/formatters';
@@ -95,7 +96,7 @@ export const StoreStockPage = () => {
         title="Tình trạng món"
         subtitle={`${storeName ?? 'Cơ sở'} — bật/tắt hết món và quản lý tồn kho tại cơ sở. Món, giá do quản trị viên sửa ở thực đơn chung.`}
       />
-      <div className="smenu__actions">
+      <div className="smenu__actions smenu__bar">
         <Input
           type="search"
           icon={<Search size={16} />}
@@ -106,6 +107,16 @@ export const StoreStockPage = () => {
       </div>
       {isLoading ? (
         <Skeleton variant="card" />
+      ) : visible.length === 0 ? (
+        <section className="card">
+          <div className="card__body smenu__empty">
+            <EmptyState
+              icon={<EmptyPlate size={120} />}
+              title="Không có món nào"
+              description={keyword.trim() ? 'Không tìm thấy món khớp từ khoá — thử tên khác.' : 'Cơ sở chưa có món nào để theo dõi.'}
+            />
+          </div>
+        </section>
       ) : (
         <div className="smenu__grid">
           {visible.map((item) => (
@@ -115,9 +126,11 @@ export const StoreStockPage = () => {
                 item.available && item.onChainMenu && (item.blockedBy ?? []).length === 0 ? '' : ' smenu__card--out'
               }`}
             >
-              <div className="card__body">
-                <h3 className="smenu__name">{item.productName}</h3>
-                <span className="smenu__price">{formatCurrency(item.price)}</span>
+              <div className="smenu__body">
+                <div className="smenu__head">
+                  <h3 className="smenu__name">{item.productName}</h3>
+                  <span className="smenu__price">{formatCurrency(item.price)}</span>
+                </div>
                 {!item.onChainMenu && <Badge tone="neutral">Đã ngừng bán toàn chuỗi</Badge>}
                 {item.productType === 'COMBO' ? (
                   // Combo không có tồn riêng (spec §4.1): chỉ bật/tắt; thiếu thành phần thì báo lý do
@@ -125,6 +138,7 @@ export const StoreStockPage = () => {
                     <Badge tone="info">Combo</Badge>
                     {(item.blockedBy ?? []).length > 0 && (
                       <span className="smenu__stock smenu__stock--low">
+                        <AlertTriangle size={15} aria-hidden="true" />
                         Tạm hết do: {(item.blockedBy ?? []).join(', ')}
                       </span>
                     )}
@@ -132,6 +146,7 @@ export const StoreStockPage = () => {
                 ) : (
                   <div className="smenu__stock-row">
                     <span className={`smenu__stock${item.lowStock ? ' smenu__stock--low' : ''}`}>
+                      {item.lowStock && <AlertTriangle size={15} aria-hidden="true" />}
                       {item.stockQuantity == null ? 'Chưa quản tồn' : `Tồn kho: ${item.stockQuantity}`}
                     </span>
                     <Button size="sm" variant="ghost" onClick={() => setStockItem(item)}>
@@ -141,6 +156,7 @@ export const StoreStockPage = () => {
                 )}
                 <Button
                   variant={item.available ? 'secondary' : 'danger'}
+                  className={`smenu__toggle smenu__toggle--${item.available ? 'on' : 'off'}`}
                   disabled={!item.onChainMenu}
                   loading={busyId === item.productId}
                   onClick={() => void toggle(item)}

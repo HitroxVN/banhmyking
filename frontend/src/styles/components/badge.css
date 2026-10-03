@@ -37,11 +37,11 @@
   flex-shrink: 0;
 }
 
-.ui-status--pending    { color: var(--status-pending);    background: #FFFBEB; }
-.ui-status--confirmed  { color: var(--status-confirmed);  background: #EFF6FF; }
-.ui-status--preparing  { color: var(--status-preparing);  background: #F5F3FF; }
-.ui-status--ready      { color: var(--status-ready);      background: #ECFDF5; }
-.ui-status--delivering { color: var(--status-delivering); background: #ECFEFF; }
-.ui-status--delivered  { color: var(--status-delivered);  background: #F0FDF4; }
-.ui-status--cancelled  { color: var(--status-cancelled);  background: #FEF2F2; }
-.ui-status--failed     { color: var(--status-failed);     background: #FEF2F2; }
+.ui-status--pending { color: var(--status-pending-text); background: var(--status-pending-bg); }
+.ui-status--confirmed { color: var(--status-confirmed-text); background: var(--status-confirmed-bg); }
+.ui-status--preparing { color: var(--status-preparing-text); background: var(--status-preparing-bg); }
+.ui-status--ready { color: var(--status-ready-text); background: var(--status-ready-bg); }
+.ui-status--delivering { color: var(--status-delivering-text); background: var(--status-delivering-bg); }
+.ui-status--delivered { color: var(--status-delivered-text); background: var(--status-delivered-bg); }
+.ui-status--cancelled { color: var(--status-cancelled-text); background: var(--status-cancelled-bg); }
+.ui-status--failed { color: var(--status-failed-text); background: var(--status-failed-bg); }

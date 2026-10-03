@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { UsersRound } from 'lucide-react';
 import { managerApi } from '../../api/managerApi';
 import { Badge, EmptyState, PageHeader, Skeleton } from '../../components/ui';
+import { EmptyPlate } from '../../components/illustrations/FoodDoodles';
 import type { UserInfoResponse } from '../../types/auth';
 import '../../styles/components/table.css';
+import '../../styles/components/admin-orders.css';
 
 const ROLE_LABEL: Record<string, string> = { STAFF: 'Nhân viên', SHIPPER: 'Tài xế', MANAGER: 'Quản lý' };
 
@@ -37,7 +38,11 @@ export const ManagerStaffPage = () => {
       {isLoading ? (
         <Skeleton variant="row" />
       ) : error || people.length === 0 ? (
-        <EmptyState icon={<UsersRound size={30} />} title="Chưa có nhân sự" description={error ?? 'Cơ sở chưa có nhân viên.'} />
+        <section className="card">
+          <div className="card__body">
+            <EmptyState icon={<EmptyPlate size={120} className="adm-plate" />} title="Chưa có nhân sự" description={error ?? 'Cơ sở chưa có nhân viên.'} />
+          </div>
+        </section>
       ) : (
         <section className="card">
           <div className="table-wrap">
@@ -53,11 +58,13 @@ export const ManagerStaffPage = () => {
               <tbody>
                 {people.map((p) => (
                   <tr key={p.id}>
-                    <td>{p.fullName}</td>
+                    <td>
+                      <span className="ui-table__primary">{p.fullName}</span>
+                    </td>
                     <td>
                       <Badge tone="info">{ROLE_LABEL[p.role] ?? p.role}</Badge>
                     </td>
-                    <td>{p.phone ?? '—'}</td>
+                    <td className="adm-num">{p.phone ?? '—'}</td>
                     <td>{p.email}</td>
                   </tr>
                 ))}

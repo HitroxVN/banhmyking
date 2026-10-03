@@ -1,4 +1,5 @@
-/* AdminDashboard — thẻ KPI, biểu đồ SVG, phân bố trạng thái, cơ cấu người dùng */
+/* AdminDashboard — thẻ KPI, biểu đồ SVG, phân bố trạng thái, cơ cấu người dùng.
+   Màu biểu đồ: đường doanh thu đỏ ớt, cột số đơn vàng vỏ bánh; trạng thái dùng --status-* */
 @import './card.css';
 
 .adash {
@@ -14,15 +15,31 @@
 }
 
 .kpi {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  padding: var(--space-4) var(--space-5) var(--space-4) calc(var(--space-5) + 4px);
+  background: var(--cream);
+  border: 2px solid var(--stone-300);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 3px 3px 0 var(--stone-300);
+  overflow: hidden;
 }
+
+/* Dải màu mép trái như gáy sổ ghi chép — mỗi thẻ một màu để mắt phân biệt nhanh */
+.kpi::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  background: var(--chili-600);
+}
+.kpi:nth-child(4n + 2)::before { background: var(--primary-400); }
+.kpi:nth-child(4n + 3)::before { background: var(--herb-600); }
+.kpi:nth-child(4n + 4)::before { background: var(--ink-soft); }
 
 .kpi__top {
   display: flex;
@@ -33,8 +50,8 @@
 
 .kpi__label {
   font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--stone-500);
+  font-weight: 700;
+  color: var(--ink-soft);
 }
 
 .kpi__icon {
@@ -42,16 +59,18 @@
   place-items: center;
   width: 38px;
   height: 38px;
+  border: 2px solid var(--ink);
   border-radius: var(--radius-md);
-  background: var(--primary-50);
-  color: var(--primary-700);
+  background: var(--primary-200);
+  color: var(--ink);
   flex: none;
 }
 
 .kpi__value {
-  font-size: var(--text-2xl);
+  font-size: 26px;
   font-weight: 800;
-  color: var(--stone-900);
+  line-height: 1.15;
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
@@ -65,7 +84,7 @@
   margin-left: var(--space-2);
   font-size: var(--text-sm);
   font-weight: 700;
-  color: var(--success);
+  color: var(--herb-700);
 }
 
 .kpi__foot {
@@ -106,8 +125,8 @@
 
 .chart__title {
   margin: 0;
-  font-size: var(--text-base);
-  color: var(--stone-900);
+  font-size: var(--text-lg);
+  color: var(--ink);
 }
 
 .chart__sub {
@@ -127,8 +146,8 @@
 }
 
 .chart__grid {
-  stroke: var(--border);
-  stroke-dasharray: 4 4;
+  stroke: var(--stone-200);
+  stroke-dasharray: 4 5;
 }
 
 .chart__axis {
@@ -137,31 +156,37 @@
 }
 
 .chart__bar {
-  fill: var(--primary-200);
+  fill: var(--primary-300);
   transition: fill .15s;
 }
 
 .chart__bar--on {
-  fill: var(--primary-400);
+  fill: var(--primary-500);
+}
+
+/* Vùng dưới đường doanh thu: tô phẳng rất nhạt — không gradient */
+.chart__area {
+  fill: var(--chili-600);
+  fill-opacity: .07;
 }
 
 .chart__line {
   fill: none;
-  stroke: var(--primary-600);
-  stroke-width: 3;
+  stroke: var(--chili-600);
+  stroke-width: 2.5;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .chart__dot {
-  fill: var(--surface);
-  stroke: var(--primary-600);
+  fill: var(--cream);
+  stroke: var(--chili-600);
   stroke-width: 2.5;
   transition: r .12s;
 }
 
 .chart__guide {
-  stroke: var(--primary-500);
+  stroke: var(--ink-soft);
   stroke-width: 1.5;
   stroke-dasharray: 3 3;
 }
@@ -171,29 +196,20 @@
   cursor: pointer;
 }
 
-.chart__grad-top {
-  stop-color: var(--primary-400);
-  stop-opacity: .35;
-}
-
-.chart__grad-bottom {
-  stop-color: var(--primary-400);
-  stop-opacity: 0;
-}
-
 .chart__tooltip {
   position: absolute;
   transform: translate(-50%, -100%);
   display: grid;
   gap: 2px;
   padding: var(--space-2) var(--space-3);
+  border: 2px solid var(--ink);
   border-radius: var(--radius-md);
-  background: var(--stone-900);
-  color: #fff;
+  background: var(--ink);
+  color: var(--cream);
   font-size: var(--text-xs);
   white-space: nowrap;
   pointer-events: none;
-  box-shadow: var(--shadow-md);
+  box-shadow: 3px 3px 0 var(--primary-300);
   z-index: 2;
 }
 
@@ -226,14 +242,14 @@
   width: 18px;
   height: 3px;
   border-radius: var(--radius-full);
-  background: var(--primary-600);
+  background: var(--chili-600);
 }
 
 .legend__bar {
   width: 14px;
   height: 12px;
   border-radius: 3px;
-  background: var(--primary-200);
+  background: var(--primary-300);
 }
 
 /* ── Phân bố trạng thái đơn ──────────────────────────────────────────────── */
@@ -251,8 +267,9 @@
   gap: var(--space-4);
   margin: var(--space-4) 0;
   padding: var(--space-3) var(--space-4);
+  border: 2px dashed var(--herb-300);
   border-radius: var(--radius-md);
-  background: var(--success-bg);
+  background: var(--herb-50);
 }
 
 .brk__rate-label {
@@ -270,17 +287,24 @@
 .brk__rate-value {
   font-size: var(--text-2xl);
   font-weight: 800;
-  color: var(--success);
+  color: var(--herb-700);
   font-variant-numeric: tabular-nums;
 }
 
 .brk__bar {
   display: flex;
-  height: 10px;
+  /* Khe 2px màu nền giữa các đoạn để hai màu liền kề không nhòe vào nhau */
+  gap: 2px;
+  height: 14px;
+  padding: 2px;
+  border: 2px solid var(--ink);
   border-radius: var(--radius-full);
   overflow: hidden;
-  background: var(--stone-100);
+  background: var(--cream);
 }
+
+.brk__seg:first-child { border-radius: 999px 0 0 999px; }
+.brk__seg:last-child { border-radius: 0 999px 999px 0; }
 
 .brk__seg {
   height: 100%;
@@ -309,8 +333,8 @@
 }
 
 .brk__dot {
-  width: 9px;
-  height: 9px;
+  width: 11px;
+  height: 11px;
   border-radius: var(--radius-full);
   flex: none;
 }
@@ -340,15 +364,15 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--border);
+  border: 2px solid var(--stone-200);
   border-radius: var(--radius-md);
-  background: var(--surface);
+  background: var(--paper);
 }
 
 .role-tile__icon {
   display: grid;
   place-items: center;
-  color: var(--primary-700);
+  color: var(--chili-600);
   flex: none;
 }
 
@@ -372,7 +396,7 @@
   gap: var(--space-5);
   margin-top: var(--space-4);
   padding-top: var(--space-4);
-  border-top: 1px solid var(--border);
+  border-top: 2px dashed var(--stone-200);
   font-size: var(--text-sm);
   color: var(--stone-600);
 }

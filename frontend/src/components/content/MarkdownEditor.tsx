@@ -4,6 +4,7 @@ import { Bold, Heading2, Heading3, ImagePlus, Italic, Link as LinkIcon, List } f
 import { Tabs, useToast } from '../ui';
 import { MarkdownView } from './MarkdownView';
 import '../../styles/components/content.css';
+import '../../styles/components/admin-orders.css';
 
 const MAX_IMAGE_MB = 5;
 

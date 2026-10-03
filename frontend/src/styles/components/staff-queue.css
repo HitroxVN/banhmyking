@@ -1,7 +1,10 @@
-/* StaffOrderQueuePage — hàng đợi & điều phối đơn cho bếp */
+/* StaffOrderQueuePage — hàng đợi bếp kiểu "phiếu order kẹp trên thanh inox".
+   Phiếu: giấy kem, viền mực, mép trên răng cưa như xé từ cuống; màu trạng thái lấy --status-*.
+   Đơn quá giờ: viền + dải đầu đỏ ớt, lắc nhẹ MỘT lần khi vừa chuyển sang gấp. */
 @import './card.css';
 @import './badge.css';
 
+/* ── Ô thống kê: gáy màu bên trái như .kpi ─────────────────────────────── */
 .squeue__stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -9,12 +12,33 @@
   margin-bottom: var(--space-4);
 }
 
+.squeue__stats > .card + .card { margin-top: 0; } /* .card + .card đẩy ô trong lưới */
+
 .squeue__stat {
+  --spine: var(--status-pending);
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-3) calc(var(--space-4) + 6px);
+  overflow: hidden;
 }
+
+.squeue__stat::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  background: var(--spine);
+}
+
+/* Thứ tự ô = thứ tự luồng đơn: mới → bếp làm → chờ tài xế → đang giao → đã giao */
+.squeue__stat:nth-child(2) { --spine: var(--status-preparing); }
+.squeue__stat:nth-child(3) { --spine: var(--status-ready); }
+.squeue__stat:nth-child(4) { --spine: var(--status-delivering); }
+.squeue__stat:nth-child(5) { --spine: var(--status-delivered); }
 
 .squeue__stat-icon {
   display: grid;
@@ -22,25 +46,29 @@
   flex: none;
   width: 38px;
   height: 38px;
-  border-radius: 50%;
-  background: var(--primary-50);
-  color: var(--primary-600);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-md);
+  background: var(--primary-200);
+  color: var(--ink);
 }
 
 .squeue__stat strong {
   display: block;
   font-size: var(--text-2xl);
+  font-weight: 800;
   line-height: 1.1;
-  color: var(--stone-900);
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
 .squeue__stat em {
   font-style: normal;
   font-size: var(--text-xs);
-  color: var(--stone-500);
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 
+/* ── Thanh lọc ─────────────────────────────────────────────────────────── */
 .squeue__controls {
   display: flex;
   align-items: center;
@@ -54,28 +82,122 @@
   width: 260px;
 }
 
+/* ── Thanh inox treo phiếu ─────────────────────────────────────────────── */
+.squeue__board {
+  margin-top: var(--space-4);
+}
+
+.squeue__rail {
+  position: relative;
+  height: 18px;
+  margin-bottom: var(--space-5);
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--stone-300);
+  box-shadow: 0 3px 0 var(--stone-400);
+}
+
+/* Vệt sáng phẳng trên mặt inox */
+.squeue__rail::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 10px;
+  right: 10px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--stone-100);
+}
+
+/* Hàng kẹp phiếu thò xuống dưới thanh — ô SVG lặp, không gradient */
+.squeue__rail::after {
+  content: '';
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: 100%;
+  height: 12px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='12' viewBox='0 0 96 12'%3E%3Crect x='2' y='0' width='14' height='10' rx='2' fill='%23A99C8C' stroke='%232B1D14' stroke-width='2'/%3E%3Cpath d='M6 4h6' stroke='%232B1D14' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x left top;
+}
+
 .squeue__list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-6);
 }
 
+/* ── Phiếu order ───────────────────────────────────────────────────────── */
 .squeue__card {
-  border-left: 4px solid transparent;
+  --tone: var(--status-pending);
+  position: relative;
 }
 
-.squeue__card--urgent {
-  border-left-color: var(--danger);
+/* Chừa chỗ cho mép răng cưa — thắng cả quy tắc .card + .card */
+.squeue__list > .squeue__card { margin-top: 10px; }
+
+.squeue__card[data-status='CONFIRMED'] { --tone: var(--status-confirmed); }
+.squeue__card[data-status='PREPARING'] { --tone: var(--status-preparing); }
+.squeue__card[data-status='READY_FOR_PICKUP'] { --tone: var(--status-ready); }
+.squeue__card[data-status='DELIVERING'] { --tone: var(--status-delivering); }
+.squeue__card[data-status='DELIVERED'] { --tone: var(--status-delivered); }
+.squeue__card[data-status='CANCELLED'] { --tone: var(--status-cancelled); }
+.squeue__card[data-status='FAILED'] { --tone: var(--status-failed); }
+
+.dash .card.squeue__card,
+.card.squeue__card {
+  border: 2px solid var(--ink);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: var(--cream);
+  box-shadow: 3px 3px 0 var(--stone-300);
 }
 
+/* Mép trên răng cưa: nền kem + nét mực, nằm đè lên đỉnh phiếu */
+.squeue__card::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: -10px;
+  height: 12px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='12' viewBox='0 0 16 12'%3E%3Cpath d='M0 12V9L8 2l8 7v3z' fill='%23FFFDF7'/%3E%3Cpath d='M0 9L8 2l8 7' fill='none' stroke='%232B1D14' stroke-width='2' stroke-linejoin='miter'/%3E%3C/svg%3E") repeat-x left top;
+}
+
+.dash .card.squeue__card--urgent,
+.card.squeue__card--urgent {
+  border-color: var(--chili-600);
+  box-shadow: 3px 3px 0 var(--chili-200);
+  animation: squeue-shake .45s ease-in-out 1;
+}
+
+.squeue__card--urgent::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='12' viewBox='0 0 16 12'%3E%3Cpath d='M0 12V9L8 2l8 7v3z' fill='%23FFFDF7'/%3E%3Cpath d='M0 9L8 2l8 7' fill='none' stroke='%23B83A24' stroke-width='2' stroke-linejoin='miter'/%3E%3C/svg%3E");
+}
+
+/* Lắc ngang ngắn, chạy đúng một lần (giảm chuyển động thì tokens.css tắt) */
+@keyframes squeue-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+
+/* Đầu phiếu: dải màu trạng thái phía trên, gạch đứt ngăn với thân */
 .squeue__head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--border);
+  padding: calc(var(--space-3) + 6px) var(--space-5) var(--space-3);
+  border-bottom: 2px dashed var(--stone-300);
+  box-shadow: inset 0 6px 0 var(--tone);
+}
+
+.squeue__card--urgent .squeue__head {
+  background: var(--chili-50);
+  box-shadow: inset 0 6px 0 var(--chili-600);
 }
 
 .squeue__ident {
@@ -86,9 +208,11 @@
 }
 
 .squeue__code {
-  font-weight: 800;
-  font-size: var(--text-base);
-  color: var(--stone-900);
+  font-family: var(--font-sign);
+  font-size: 1.35rem;
+  line-height: 1.15;
+  letter-spacing: .01em;
+  color: var(--ink);
 }
 
 .squeue__timer {
@@ -97,12 +221,16 @@
   gap: 5px;
   font-size: var(--text-xs);
   font-weight: 700;
-  color: var(--stone-500);
+  color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
 }
 
 .squeue__timer--urgent {
-  color: var(--danger);
+  padding: 2px 8px;
+  border: 1.5px solid var(--chili-600);
+  border-radius: var(--radius-full);
+  background: var(--cream);
+  color: var(--chili-700);
 }
 
 .squeue__meta {
@@ -111,9 +239,10 @@
   gap: var(--space-3);
   flex-wrap: wrap;
   font-size: var(--text-xs);
-  color: var(--stone-500);
+  color: var(--stone-600);
 }
 
+/* ── Thân phiếu ────────────────────────────────────────────────────────── */
 .squeue__body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
@@ -131,55 +260,74 @@
   line-height: 1.6;
 }
 
+.squeue__row strong { color: var(--ink); }
+
 .squeue__row svg {
   flex: none;
-  margin-top: 2px;
-  color: var(--stone-400);
+  margin-top: 3px;
+  color: var(--stone-500);
 }
 
 .squeue__row--note {
   padding: var(--space-2) var(--space-3);
+  border: 2px dashed var(--primary-400);
   border-radius: var(--radius-sm);
-  background: var(--warning-bg);
-  color: var(--warning);
+  background: var(--primary-50);
+  color: var(--primary-900);
 }
 
-.squeue__row--cancel {
-  color: var(--danger);
+.squeue__row--note svg { color: var(--primary-700); }
+
+.squeue__row--cancel,
+.squeue__row--cancel svg {
+  color: var(--chili-700);
 }
 
+/* Cột món kiểu hoá đơn: mỗi dòng ngăn bằng gạch đứt */
 .squeue__items {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  padding-left: var(--space-5);
+  border-left: 2px dashed var(--stone-300);
 }
 
 .squeue__item {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px dashed var(--stone-300);
   font-size: var(--text-sm);
 }
 
+.squeue__item:first-child { padding-top: 0; }
+
+/* Số lượng trong ô vuông đậm — bếp liếc là thấy */
 .squeue__item-qty {
   flex: none;
-  min-width: 32px;
+  min-width: 38px;
+  padding: 2px 6px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--primary-200);
+  color: var(--ink);
   font-weight: 800;
-  color: var(--primary-700);
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
 .squeue__item-body {
   flex: 1;
   min-width: 0;
-  color: var(--stone-800);
+  color: var(--ink);
+  line-height: 1.5;
 }
 
 .squeue__item-body em {
   display: block;
   font-style: normal;
   font-size: var(--text-xs);
-  color: var(--stone-500);
+  color: var(--stone-600);
 }
 
 .squeue__item-price {
@@ -190,8 +338,6 @@
 
 .squeue__cost {
   margin: var(--space-2) 0 0;
-  padding-top: var(--space-2);
-  border-top: 1px dashed var(--border);
   font-size: var(--text-sm);
 }
 
@@ -212,31 +358,36 @@
   font-variant-numeric: tabular-nums;
 }
 
-.squeue__cost-total {
+.squeue__cost > .squeue__cost-total {
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 2px solid var(--ink);
   font-weight: 800;
-  color: var(--stone-900);
+  color: var(--ink);
 }
 
 .squeue__cost-total dd {
-  color: var(--primary-700);
+  color: var(--chili-600);
   font-size: var(--text-base);
 }
 
+/* ── Chân phiếu ────────────────────────────────────────────────────────── */
 .squeue__foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
   flex-wrap: wrap;
-  padding: var(--space-3) var(--space-5) var(--space-4);
-  border-top: 1px solid var(--border);
-  background: var(--stone-50);
+  padding: var(--space-3) var(--space-5);
+  border-top: 2px dashed var(--stone-300);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: var(--paper);
 }
 
 .squeue__prompt {
   margin: 0;
   font-size: var(--text-sm);
-  color: var(--stone-600);
+  color: var(--ink-soft);
 }
 
 .squeue__actions {
@@ -246,7 +397,31 @@
   flex-wrap: wrap;
 }
 
+/* ── Danh sách trống: đĩa trống thay cho icon tròn ─────────────────────── */
+.squeue__empty .ui-empty__icon,
+.dash .squeue__empty .ui-empty__icon {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: none;
+}
+
 @media (max-width: 860px) {
   .squeue__body { grid-template-columns: 1fr; }
+  .squeue__items {
+    padding: var(--space-4) 0 0;
+    border-left: 0;
+    border-top: 2px dashed var(--stone-300);
+  }
   .squeue__search { width: 100%; }
+}
+
+@media (max-width: 480px) {
+  .squeue__head,
+  .squeue__body,
+  .squeue__foot { padding-left: var(--space-4); padding-right: var(--space-4); }
+  .squeue__actions { width: 100%; }
+  .squeue__actions .ui-btn { flex: 1 1 auto; }
 }

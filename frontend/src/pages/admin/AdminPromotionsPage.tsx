@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pencil, Plus, Ticket, Trash2, XCircle } from 'lucide-react';
+import { Pencil, Plus, Trash2, XCircle } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -13,6 +13,7 @@ import {
   useConfirm,
   useToast,
 } from '../../components/ui';
+import { EmptyPlate } from '../../components/illustrations/FoodDoodles';
 import { promotionApi } from '../../api/promotionApi';
 import type { DiscountType, PromotionPayload, PromotionResponse } from '../../types/promotion';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
@@ -340,7 +341,7 @@ export const AdminPromotionsPage = () => {
         ) : promotions.length === 0 ? (
           <div className="card__body">
             <EmptyState
-              icon={<Ticket size={30} />}
+              icon={<EmptyPlate size={120} className="adm-plate" />}
               title="Chưa có mã giảm giá nào"
               description="Tạo mã đầu tiên để khách áp được ở bước thanh toán."
             />
@@ -365,7 +366,7 @@ export const AdminPromotionsPage = () => {
                   return (
                     <tr key={promotion.id}>
                       <td>
-                        <span className="ui-table__primary">{promotion.code}</span>
+                        <span className="ui-table__primary apromo__code">{promotion.code}</span>
                         <span className="ui-table__meta ui-table__clip">{promotion.description}</span>
                       </td>
                       <td>

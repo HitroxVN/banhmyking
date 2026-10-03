@@ -1,7 +1,10 @@
-/* AdminOrdersPage — thanh lọc + bảng đơn hàng toàn hệ thống */
+/* AdminOrdersPage — thanh lọc + bảng đơn hàng toàn hệ thống.
+   Cuối file là phần DÙNG CHUNG cho các trang quản trị (đĩa trống, thanh lọc hộp thư,
+   nhãn "Mới", trình soạn Markdown) — trang nào cần thì import file này. */
 @import './card.css';
 @import './table.css';
 
+/* Thanh lọc: một hàng gọn trong thẻ, nút "Xoá lọc" dạt phải */
 .aorders__filters {
   display: flex;
   flex-wrap: wrap;
@@ -14,8 +17,13 @@
   flex: 0 1 190px;
 }
 
+.aorders__filters > .ui-btn:last-child {
+  margin-left: auto;
+}
+
 .aorders__payer {
   display: grid;
+  justify-items: start;
   gap: 4px;
 }
 
@@ -27,4 +35,224 @@
   display: flex;
   justify-content: flex-end;
   padding: var(--space-4) var(--space-5);
+  border-top: 2px dashed var(--stone-200);
+}
+
+/* Mã đơn, ngày giờ: số thẳng cột */
+.dash .aorders__table .ui-table__primary,
+.dash .aorders__table .ui-table__meta {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .aorders__filters {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .aorders__filters .ui-field {
+    flex: 1 1 100%;
+  }
+
+  .aorders__filters > .ui-btn:last-child {
+    margin-left: 0;
+  }
+}
+
+/* ==========================================================================
+   Dùng chung khu quản trị
+   ========================================================================== */
+
+/* ---- Đĩa trống: EmptyPlate thay icon tròn, đứng yên (không lắc nĩa) ---- */
+.dash .ui-empty__icon:has(.adm-plate) {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: none;
+}
+
+.adm-plate .ill-plate__q,
+.adm-plate .ill-plate__fork {
+  animation: none;
+}
+
+/* Cột ngày giờ / số điện thoại: số thẳng cột, không xuống dòng */
+.adm-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Biểu tượng "có CV" */
+.dash .adm-cv {
+  color: var(--chili-600);
+}
+
+/* ---- Thẻ đang tải lại: giữ dòng cũ, làm mờ ---- */
+.dash .card.adm-fetching {
+  opacity: .55;
+  transition: opacity .15s;
+}
+
+/* Phân trang nằm đáy thẻ: vạch đứt ngăn với bảng */
+.dash .card > .ui-pager {
+  padding: var(--space-3) var(--space-4);
+  border-top: 2px dashed var(--stone-200);
+}
+
+/* ---- Thanh lọc hộp thư / tin / tuyển dụng (lớp từ content.css) ---- */
+.dash .inbox-filters {
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--cream);
+  border: 2px solid var(--stone-300);
+  border-radius: var(--radius-lg);
+  box-shadow: 3px 3px 0 var(--stone-300);
+}
+
+.dash .inbox-filters .ui-field {
+  flex: 0 1 220px;
+  min-width: 180px;
+}
+
+.dash .inbox-filters .ui-chips {
+  align-self: center;
+  padding-bottom: 2px;
+}
+
+.dash .inbox-filters > .ui-btn:last-child {
+  margin-left: auto;
+}
+
+/* ---- Hộp thư: dòng chọn được, dòng mới, ngăn chi tiết ---- */
+.dash .inbox__row:focus-visible {
+  outline: 3px solid var(--chili-600);
+  outline-offset: -3px;
+}
+
+.dash .inbox__row--active td,
+.dash .ui-table tbody tr.inbox__row--active:hover td {
+  background: var(--primary-100);
+}
+
+.dash .inbox__row--active .ui-table__primary {
+  color: var(--chili-700);
+}
+
+/* Mục mới chưa xử lý: gáy đỏ ớt mép trái */
+.dash .inbox__row--new td:first-child {
+  box-shadow: inset 4px 0 0 var(--chili-600);
+}
+
+/* Nhãn dán "Mới" nhỏ, nằm thẳng */
+.adm-new {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius-sm);
+  background: var(--chili-600);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 17px;
+  letter-spacing: .02em;
+  vertical-align: 1px;
+}
+
+.dash .inbox__detail {
+  border-color: var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.dash .inbox__detail dl {
+  padding-bottom: var(--space-3);
+  border-bottom: 2px dashed var(--stone-200);
+}
+
+.dash .inbox__detail dt {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.dash .inbox__detail a {
+  color: var(--chili-600);
+  font-weight: 600;
+}
+
+.dash .inbox__message {
+  background: var(--paper);
+  border: 2px dashed var(--stone-300);
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+.dash .order-peek {
+  border: 2px dashed var(--stone-300);
+  background: var(--primary-50);
+  color: var(--stone-700);
+  font-variant-numeric: tabular-nums;
+}
+
+.dash .order-peek strong {
+  color: var(--ink);
+}
+
+@media (max-width: 560px) {
+  .dash .inbox-filters .ui-field {
+    flex: 1 1 100%;
+  }
+
+  .dash .inbox-filters > .ui-btn:last-child {
+    margin-left: 0;
+  }
+}
+
+/* ---- Trình soạn Markdown (chỉ dùng ở trang quản trị; nằm trong popup nên không gắn .dash) ---- */
+.md-editor .md-editor__toolbar {
+  gap: 6px;
+  padding-bottom: var(--space-2);
+  border-bottom: 2px dashed var(--stone-200);
+}
+
+.md-editor .md-editor__btn {
+  width: 36px;
+  height: 36px;
+  border: 2px solid var(--stone-300);
+  border-radius: var(--radius-sm);
+  background: var(--cream);
+  color: var(--ink-soft);
+}
+
+.md-editor .md-editor__btn:hover:not(:disabled) {
+  border-color: var(--ink);
+  background: var(--primary-100);
+  color: var(--ink);
+}
+
+.md-editor .md-editor__btn:focus-visible {
+  outline: 3px solid var(--chili-600);
+  outline-offset: 2px;
+}
+
+.md-editor .md-editor__preview {
+  border: 2px dashed var(--stone-300);
+  background: var(--paper);
+}
+
+.md-editor .md-editor__hint {
+  color: var(--ink-soft);
+}
+
+/* ---- AdminStoresPage: giờ, bán kính, số nhân sự thẳng cột ---- */
+.astores__num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.astores__pin {
+  display: block;
+  margin-top: 4px;
 }

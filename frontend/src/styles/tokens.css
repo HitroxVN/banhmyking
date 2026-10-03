@@ -80,15 +80,26 @@
   --border: #E8DCC6;
   --bg-subtle: #F8F4EC;
 
-  /* Trạng thái đơn hàng */
-  --status-pending: #D97706;
-  --status-confirmed: #2563EB;
-  --status-preparing: #7C3AED;
-  --status-ready: #059669;
-  --status-delivering: #0891B2;
-  --status-delivered: #15803D;
-  --status-cancelled: #DC2626;
-  --status-failed: #B91C1C;
+  /* Trạng thái đơn hàng — màu vạch/chấm trên biểu đồ. Bộ 8 màu theo đúng thứ tự luồng đơn đã chạy
+     validate_palette (skill dataviz) trên nền kem: qua mọi ngưỡng bắt buộc; luôn đi kèm nhãn chữ. */
+  --status-pending: #D18F00;
+  --status-confirmed: #2A78D6;
+  --status-preparing: #EB6834;
+  --status-ready: #1BAF7A;
+  --status-delivering: #4A3AA7;
+  --status-delivered: #008300;
+  --status-cancelled: #E34948;
+  --status-failed: #7D4FB8;
+
+  /* Chữ + nền nhãn trạng thái — chữ đậm hơn màu vạch để đạt WCAG >= 4.5:1 trên nền nhãn */
+  --status-pending-text: #8A5A00;     --status-pending-bg: #FFF4D6;
+  --status-confirmed-text: #1F5BA8;   --status-confirmed-bg: #E8F1FC;
+  --status-preparing-text: #B5481F;   --status-preparing-bg: #FDEDE5;
+  --status-ready-text: #0B7A55;       --status-ready-bg: #E3F6EE;
+  --status-delivering-text: #4A3AA7;  --status-delivering-bg: #EEEBFA;
+  --status-delivered-text: #006B00;   --status-delivered-bg: #E6F4E6;
+  --status-cancelled-text: #B32F2E;   --status-cancelled-bg: #FCEAEA;
+  --status-failed-text: #6A3FA0;      --status-failed-bg: #F3ECFA;
 
   /* Chữ — tiêu đề kiểu biển hiệu, chữ nhấn viết tay, nội dung Be Vietnam Pro */
   --font-body: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;

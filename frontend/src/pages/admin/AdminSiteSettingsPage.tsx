@@ -227,12 +227,17 @@ const SettingsForm = ({ initial }: SettingsFormProps) => {
         </div>
       )}
 
-      {SECTIONS.map((section) => (
-        <section className="card" key={section.id}>
+      {SECTIONS.map((section, index) => (
+        <section className="card asettings__section" key={section.id}>
           <div className="card__head">
-            <div>
-              <h2 className="card__title">{section.title}</h2>
-              <p className="asettings__section-desc">{section.description}</p>
+            <div className="asettings__section-head">
+              <span className="asettings__section-num" aria-hidden="true">
+                {index + 1}
+              </span>
+              <div>
+                <h2 className="card__title asettings__section-title">{section.title}</h2>
+                <p className="asettings__section-desc">{section.description}</p>
+              </div>
             </div>
           </div>
 

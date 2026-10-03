@@ -1,4 +1,5 @@
-/* ShipperOrdersPage — đơn được phân công cho tài xế: KPI, thẻ đơn, modal giao hàng */
+/* ShipperOrdersPage — đơn được phân công cho tài xế: KPI, thẻ đơn, modal giao hàng.
+   Dùng trên điện thoại khi đang chạy xe: chữ to, nút ≥ 48px, viền mực rõ, không hiệu ứng lặp. */
 @import './card.css';
 @import './field.css';
 @import './chips.css';
@@ -6,15 +7,24 @@
 .shipper__notice {
   align-items: center;
   gap: var(--space-3);
+  flex-wrap: wrap;
+  border: var(--line);
+  box-shadow: var(--shadow-pop-sm);
 }
 
-.shipper__notice > div { flex: 1; }
+.shipper__notice > div { flex: 1; min-width: 200px; }
 
+/* ------------------------------------------------------------------ KPI */
 .shipper__stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: var(--space-4);
   margin-bottom: var(--space-4);
+}
+
+/* Trong lưới thì bỏ khoảng cách dọc mặc định của .card + .card — không thì các ô lệch hàng */
+.shipper__stats > .card + .card {
+  margin-top: 0;
 }
 
 .shipper__kpi {
@@ -25,74 +35,91 @@
 }
 
 .shipper__kpi-icon {
+  flex: none;
   display: grid;
   place-items: center;
   width: 40px;
   height: 40px;
+  border: var(--line);
   border-radius: var(--radius-md);
-  background: var(--primary-50);
-  color: var(--primary-600);
+  background: var(--primary-200);
+  color: var(--ink);
 }
 
 .shipper__kpi strong {
   display: block;
-  font-size: var(--text-lg);
-  font-weight: 800;
-  color: var(--stone-900);
+  font-family: var(--font-sign);
+  font-size: var(--text-xl);
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
 .shipper__kpi em {
   font-style: normal;
   font-size: var(--text-xs);
-  color: var(--stone-500);
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 
+/* ------------------------------------------------------- Tab + tìm kiếm */
 .shipper__controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-3) var(--space-4);
   flex-wrap: wrap;
   padding: var(--space-3) var(--space-4);
 }
 
+.shipper__controls > :first-child { min-width: 0; max-width: 100%; }
+
 .shipper__search { flex: 0 1 280px; }
 
+/* ------------------------------------------------------------- Thẻ đơn */
 .shipper__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: var(--space-4);
 }
 
-.shipper__card {
+/* Phiếu giao hàng: kem, viền mực 2px, bóng cứng mỏng */
+.dash .shipper__card {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  border: var(--line);
+  background: var(--cream);
+  box-shadow: 3px 3px 0 var(--ink);
 }
 
-.shipper__card--active { border-color: var(--primary-300); }
+/* Đơn đang chạy — sọc ớt bên trái để nhìn lướt là thấy */
+.dash .shipper__card--active { border-left: 8px solid var(--chili-600); }
 
 .shipper__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
   flex-wrap: wrap;
   padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border);
-  background: var(--stone-50);
+  border-bottom: 2px dashed var(--stone-300);
+  background: var(--primary-100);
 }
 
 .shipper__ident {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .shipper__code {
-  font-weight: 800;
-  color: var(--stone-900);
+  font-family: var(--font-sign);
+  font-size: var(--text-xl);
+  line-height: 1.1;
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
@@ -104,7 +131,8 @@
 
 .shipper__time {
   font-size: var(--text-xs);
-  color: var(--stone-500);
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 
 .shipper__body {
@@ -115,25 +143,43 @@
   padding: var(--space-4);
 }
 
+/* Địa chỉ — chữ to nhất sau mã đơn */
+.shipper__address {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.shipper__address svg { flex: none; margin-top: 2px; color: var(--chili-600); }
+
 .shipper__contact {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
+  padding-bottom: var(--space-3);
+  border-bottom: 2px dashed var(--stone-200);
 }
 
 .shipper__recv {
   margin: 0;
-  font-weight: 700;
-  color: var(--stone-900);
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 
 .shipper__recv span {
   display: block;
-  font-weight: 500;
-  font-size: var(--text-sm);
-  color: var(--stone-500);
+  margin-top: 2px;
+  font-size: var(--text-lg);
+  font-weight: 800;
+  letter-spacing: .02em;
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
@@ -142,109 +188,126 @@
   gap: var(--space-2);
 }
 
+/* Nút gọi / chỉ đường — khối dày, dễ bấm khi đeo găng */
 .shipper__tel,
 .shipper__map {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: var(--line);
   border-radius: var(--radius-md);
-  font-size: var(--text-xs);
-  font-weight: 700;
+  box-shadow: var(--shadow-pop-sm);
+  font-size: var(--text-sm);
+  font-weight: 800;
   text-decoration: none;
+  color: var(--ink);
+  transition: transform .1s, box-shadow .1s, background .15s;
 }
 
-.shipper__tel {
-  background: var(--primary-50);
-  color: var(--primary-700);
-  border: 1px solid var(--primary-200);
+.shipper__tel { background: var(--herb-100); }
+.shipper__map { background: var(--primary-200); }
+
+.shipper__tel:hover { background: var(--herb-300); }
+.shipper__map:hover { background: var(--primary-300); }
+
+.shipper__tel:active,
+.shipper__map:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
 }
 
-.shipper__map {
-  background: var(--stone-100);
-  color: var(--stone-700);
-  border: 1px solid var(--border);
+.shipper__tel:focus-visible,
+.shipper__map:focus-visible,
+.shipper__items-toggle:focus-visible {
+  outline: 3px solid var(--chili-500);
+  outline-offset: 2px;
 }
 
-.shipper__tel:hover { background: var(--primary-100); }
-.shipper__map:hover { background: var(--stone-200); }
-
-.shipper__address,
 .shipper__note {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
   margin: 0;
-  font-size: var(--text-sm);
-  color: var(--stone-600);
-  line-height: 1.6;
-}
-
-.shipper__address svg,
-.shipper__note svg { flex: none; margin-top: 3px; color: var(--stone-400); }
-
-.shipper__note {
   padding: var(--space-3);
+  border: 2px dashed var(--primary-400);
   border-radius: var(--radius-md);
-  background: var(--warning-bg);
-  color: var(--warning);
+  background: var(--primary-50);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--ink);
 }
 
+.shipper__note svg { flex: none; margin-top: 3px; color: var(--primary-700); }
+
+/* Ô tiền: COD cần thu thì viền ớt, nổi hẳn lên */
 .shipper__money {
   display: grid;
   gap: 2px;
   padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--stone-300);
   border-radius: var(--radius-md);
   background: var(--stone-50);
-  border: 1px solid var(--border);
 }
 
 .shipper__money--due {
-  background: var(--warning-bg);
-  border-color: var(--warning);
+  border-color: var(--chili-600);
+  background: var(--chili-50);
+  box-shadow: 3px 3px 0 var(--chili-600);
 }
 
 .shipper__money-label {
   font-size: var(--text-xs);
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: .04em;
-  color: var(--stone-500);
+  color: var(--ink-soft);
 }
 
+.shipper__money--due .shipper__money-label { color: var(--chili-700); }
+
 .shipper__money strong {
-  font-size: var(--text-lg);
-  font-weight: 800;
-  color: var(--stone-900);
+  font-family: var(--font-sign);
+  font-size: var(--text-xl);
+  font-weight: 400;
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
+
+.shipper__money--due strong { font-size: var(--text-2xl); color: var(--chili-600); }
 
 .shipper__money em {
   font-style: normal;
   font-size: var(--text-xs);
-  color: var(--stone-500);
+  color: var(--ink-soft);
 }
 
 .shipper__items-toggle {
   align-self: flex-start;
+  min-height: 32px;
   border: 0;
   background: none;
   padding: 0;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: 700;
-  color: var(--primary-600);
+  color: var(--chili-600);
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-underline-offset: 4px;
   cursor: pointer;
 }
 
-.shipper__items-toggle:hover { text-decoration: underline; }
+.shipper__items-toggle:hover { color: var(--chili-700); }
 
 .shipper__items {
   list-style: none;
   margin: 0;
-  padding: var(--space-2) 0 0;
+  padding: var(--space-3) 0 0;
   display: grid;
   gap: var(--space-2);
-  border-top: 1px dashed var(--border);
+  border-top: 2px dashed var(--stone-300);
 }
 
 .shipper__items li {
@@ -257,13 +320,13 @@
 .shipper__item-qty {
   flex: none;
   font-weight: 800;
-  color: var(--primary-700);
+  color: var(--chili-600);
   font-variant-numeric: tabular-nums;
 }
 
 .shipper__item-body { flex: 1; display: grid; }
 
-.shipper__item-body strong { color: var(--stone-800); font-weight: 600; }
+.shipper__item-body strong { color: var(--ink); font-weight: 700; }
 
 .shipper__item-body em {
   font-style: normal;
@@ -274,7 +337,7 @@
 .shipper__item-price {
   flex: none;
   font-weight: 700;
-  color: var(--stone-700);
+  color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
 }
 
@@ -285,33 +348,56 @@
   gap: var(--space-2);
   margin: 0;
   padding: var(--space-3);
+  border: 2px solid currentColor;
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .shipper__done {
-  background: var(--success-bg);
-  color: var(--success-text);
+  background: var(--status-delivered-bg);
+  color: var(--status-delivered-text);
 }
 
 .shipper__failed {
-  background: var(--error-bg);
-  color: var(--error-text);
+  background: var(--status-failed-bg);
+  color: var(--status-failed-text);
 }
 
+/* Chân thẻ: hai nút hành động chia đôi, cao 48px */
 .shipper__foot {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: flex-end;
-  gap: var(--space-2);
+  gap: var(--space-3);
   flex-wrap: wrap;
   padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--border);
-  background: var(--stone-50);
+  border-top: 2px dashed var(--stone-300);
+  background: var(--primary-50);
 }
 
-/* Modal dùng chung */
+.shipper__foot .ui-btn {
+  min-height: 48px;
+  font-size: var(--text-base);
+}
+
+.shipper__foot .ui-btn:last-child { flex: 1 1 auto; }
+
+/* ------------------------------------------------------------ Trống đơn */
+/* Đĩa trống thay icon: bỏ vòng tròn, cho icon to vừa hình, đứng yên */
+.dash .shipper__empty .ui-empty__icon {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: none;
+}
+
+.shipper__empty .ill-plate__q,
+.shipper__empty .ill-plate__fork { animation: none; }
+
+/* ------------------------------------------------------------ Modal dùng chung */
 .shipper__modal {
   display: flex;
   flex-direction: column;
@@ -321,7 +407,7 @@
 .shipper__intro {
   margin: 0;
   font-size: var(--text-sm);
-  color: var(--stone-600);
+  color: var(--ink-soft);
   line-height: 1.6;
 }
 
@@ -330,6 +416,7 @@
   display: grid;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
+  border: 2px dashed var(--stone-300);
   border-radius: var(--radius-md);
   background: var(--stone-50);
 }
@@ -343,33 +430,38 @@
 .shipper__summary dd {
   margin: 2px 0 0;
   font-size: var(--text-sm);
-  color: var(--stone-800);
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .shipper__cash {
   display: grid;
   gap: 2px;
   padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--herb-600);
   border-radius: var(--radius-md);
-  background: var(--success-bg);
-  color: var(--success-text);
+  background: var(--herb-50);
+  color: var(--herb-700);
 }
 
 .shipper__cash--due {
-  background: var(--warning-bg);
-  color: var(--warning);
+  border-color: var(--chili-600);
+  background: var(--chili-50);
+  color: var(--chili-700);
+  box-shadow: 3px 3px 0 var(--chili-600);
 }
 
 .shipper__cash span {
   font-size: var(--text-xs);
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: .04em;
 }
 
 .shipper__cash strong {
-  font-size: var(--text-xl);
-  font-weight: 800;
+  font-family: var(--font-sign);
+  font-size: var(--text-2xl);
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 
@@ -397,12 +489,12 @@
 
 .shipper__timeline-dot {
   flex: none;
-  width: 9px;
-  height: 9px;
-  margin-top: 7px;
+  width: 11px;
+  height: 11px;
+  margin-top: 6px;
+  border: 2px solid var(--ink);
   border-radius: 50%;
-  background: var(--primary-500);
-  box-shadow: 0 0 0 3px var(--primary-100);
+  background: var(--primary-400);
 }
 
 .shipper__timeline-top {
@@ -419,7 +511,60 @@
 
 .shipper__timeline p {
   margin: var(--space-1) 0 0;
-  color: var(--stone-600);
+  color: var(--ink-soft);
 }
 
 .shipper__timeline-note { font-size: var(--text-xs); color: var(--stone-500); }
+
+/* ------------------------------------------------------------ Điện thoại */
+@media (max-width: 560px) {
+  .shipper__stats {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+  }
+
+  .shipper__kpi { padding: var(--space-3); gap: var(--space-2); }
+  .shipper__kpi-icon { width: 34px; height: 34px; }
+  .shipper__kpi strong { font-size: var(--text-lg); }
+
+  .shipper__controls { padding: var(--space-3); }
+  .shipper__search { flex: 1 1 100%; }
+
+  /* Mỗi đơn một thẻ rộng hết màn */
+  .shipper__grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  .shipper__head { padding: var(--space-3); }
+  .shipper__body { padding: var(--space-3); }
+  .shipper__address { font-size: var(--text-lg); }
+
+  /* Gọi khách + chỉ đường: hai nút chia đôi, cao 48px */
+  .shipper__contact-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .shipper__tel,
+  .shipper__map {
+    min-height: 48px;
+    font-size: var(--text-base);
+  }
+
+  .shipper__items-toggle { min-height: 44px; }
+
+  /* Nút chính lên trên, rộng hết thẻ; nút phụ ở dưới */
+  .shipper__foot {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .shipper__foot .ui-btn { width: 100%; }
+  .shipper__foot .ui-btn:last-child { order: -1; }
+
+  .shipper__notice .ui-btn { flex: 1; min-height: 44px; }
+}

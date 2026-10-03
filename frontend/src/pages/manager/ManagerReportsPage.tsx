@@ -6,6 +6,7 @@ import { formatCurrency } from '../../utils/formatters';
 import type { DashboardMetrics, PriceSavings, TopProduct } from '../../types/admin';
 import '../../styles/components/dashboard.css';
 import '../../styles/components/table.css';
+import { ShiftGreeting } from '../../components/admin/ShiftGreeting';
 
 /** MANAGER — chỉ số và món bán chạy của cơ sở mình (30 ngày gần nhất) */
 export const ManagerReportsPage = () => {
@@ -61,6 +62,7 @@ export const ManagerReportsPage = () => {
   return (
     <>
       <PageHeader title="Báo cáo cơ sở" subtitle="Số liệu của riêng cơ sở bạn quản lý." />
+      <ShiftGreeting />
       <div className="adash__kpis">
         {tiles.map((tile) => (
           <div key={tile.label} className="kpi">
