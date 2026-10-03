@@ -1,12 +1,15 @@
 import {
   BarChart3,
   Bike,
+  Briefcase,
   ChefHat,
   ClipboardList,
   Crown,
   FolderTree,
   LayoutDashboard,
   LineChart,
+  MessageSquare,
+  Newspaper,
   PackageCheck,
   Settings,
   Star,
@@ -19,12 +22,16 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { RoleName } from '../../types/auth';
 
+/** Mục menu có huy hiệu đếm số hồ sơ / phản hồi NEW trong phạm vi người dùng */
+export type NavBadge = 'applications' | 'feedbacks';
+
 export interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
   /** Khớp chính xác đường dẫn (dùng cho route gốc của phân hệ) */
   end?: boolean;
+  badge?: NavBadge;
 }
 
 export interface BrandConfig {
@@ -64,6 +71,8 @@ export const MANAGER_NAV: NavItem[] = [
   ...STAFF_NAV,
   { to: '/staff/reports', label: 'Báo cáo cơ sở', icon: BarChart3 },
   { to: '/staff/team', label: 'Nhân viên', icon: UsersRound },
+  { to: '/staff/applications', label: 'Hồ sơ ứng tuyển', icon: Briefcase, badge: 'applications' },
+  { to: '/staff/feedbacks', label: 'Phản hồi', icon: MessageSquare, badge: 'feedbacks' },
 ];
 
 export const MANAGER_BRAND: BrandConfig = {
@@ -104,6 +113,9 @@ export const ADMIN_NAV: NavItem[] = [
   { to: '/admin/categories', label: 'Danh mục món', icon: FolderTree },
   { to: '/admin/menu', label: 'Thực đơn', icon: UtensilsCrossed },
   { to: '/admin/promotions', label: 'Mã giảm giá', icon: Ticket },
+  { to: '/admin/news', label: 'Tin tức', icon: Newspaper },
+  { to: '/admin/jobs', label: 'Tuyển dụng', icon: Briefcase, badge: 'applications' },
+  { to: '/admin/feedbacks', label: 'Phản hồi', icon: MessageSquare, badge: 'feedbacks' },
   { to: '/admin/reports', label: 'Báo cáo', icon: LineChart },
   { to: '/admin/reviews', label: 'Đánh giá', icon: Star },
   { to: '/admin/users', label: 'Tài khoản', icon: Users },

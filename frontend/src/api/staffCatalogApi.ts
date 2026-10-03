@@ -129,6 +129,7 @@ export const staffCatalogApi = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 120_000, // ảnh tối đa 5MB — không bị cắt ở 15s mặc định
     });
     return res.data.data;
   },

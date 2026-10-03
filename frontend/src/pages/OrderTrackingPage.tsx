@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, Check, Info, Receipt, SearchX, Star, Truck, XCircle } from 'lucide-react';
+import { AlertTriangle, Check, Info, MessageSquare, Receipt, SearchX, Star, Truck, XCircle } from 'lucide-react';
 import { orderApi } from '../api/orderApi';
+import { useAuth } from '../context/useAuth';
 import { Badge, Button, EmptyState, Spinner, StatusBadge, useConfirm, useToast } from '../components/ui';
 import { ReviewFormModal } from '../components/review/ReviewFormModal';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
@@ -42,6 +43,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export const OrderTrackingPage = () => {
+  const { user } = useAuth();
   const { orderCode = '' } = useParams();
   const navigate = useNavigate();
   const confirm = useConfirm();
@@ -160,6 +162,12 @@ export const OrderTrackingPage = () => {
             <Button variant="secondary" icon={<XCircle size={17} />} loading={isCancelling} onClick={handleCancel}>
               Huỷ đơn
             </Button>
+          )}
+          {user?.role === 'CUSTOMER' && (
+            <Link className="ui-btn ui-btn--ghost ui-btn--md" to={`/contact?orderCode=${encodeURIComponent(order.orderCode)}`}>
+              <MessageSquare size={17} />
+              Phản hồi về đơn này
+            </Link>
           )}
           <Button icon={<Receipt size={17} />} onClick={() => navigate('/menu')}>
             Đặt món mới

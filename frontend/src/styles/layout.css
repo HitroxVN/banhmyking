@@ -702,6 +702,19 @@ img.dash__avatar {
   white-space: nowrap;
 }
 
+.dash__nav-badge {
+  margin-left: auto;
+  min-width: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 20px;
+  text-align: center;
+}
+
 .dash__user {
   display: flex;
   flex-direction: column;

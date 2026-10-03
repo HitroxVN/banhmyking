@@ -94,6 +94,14 @@ public class SecurityConfig {
                         // Staff chọn shipper qua /admin/orders/shippers/available)
                         // Admin & Staff orders: STAFF và ADMIN có quyền xem và cập nhật trạng thái/gán shipper
                         .requestMatchers(HttpMethod.GET, "/api/v1/stores").permitAll()
+                        // Tin tức / tuyển dụng / phản hồi (spec news-careers-feedback §6). Form công khai vẫn
+                        // nhận token nếu có (gắn đơn của chính mình); admin/feedbacks phải đứng trước /admin/**.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/news", "/api/v1/news/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/jobs", "/api/v1/jobs/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/jobs/*/applications").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/feedbacks").permitAll()
+                        .requestMatchers("/api/v1/job-applications/**").hasAnyRole("MANAGER", "ADMIN")
+                        .requestMatchers("/api/v1/admin/feedbacks/**").hasAnyRole("MANAGER", "ADMIN")
                         .requestMatchers("/api/v1/manager/**").hasAnyRole("MANAGER", "ADMIN")
                         .requestMatchers("/api/v1/admin/orders/**").hasAnyRole("STAFF", "MANAGER", "ADMIN")
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
