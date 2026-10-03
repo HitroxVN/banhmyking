@@ -5,7 +5,6 @@ import {
   CupSoda,
   ImagePlus,
   Plus,
-  Sandwich,
   Search,
   Star,
   Trash2,
@@ -28,6 +27,8 @@ import {
   useConfirm,
   useToast,
 } from '../../components/ui';
+import { MiniBanhMi } from '../../components/illustrations/BanhMiArt';
+import { EmptyPlate } from '../../components/illustrations/FoodDoodles';
 import { PriceTag } from '../../components/product/PriceTag';
 import { ComboContents } from '../../components/product/ComboContents';
 import { saleState, toDateTimeLocal } from '../../utils/pricing';
@@ -298,9 +299,9 @@ export const StaffMenuPage = () => {
         </section>
       ) : filteredProducts.length === 0 ? (
         <section className="card">
-          <div className="card__body">
+          <div className="card__body smenu__empty">
             <EmptyState
-              icon={<Sandwich size={30} />}
+              icon={<EmptyPlate size={120} />}
               title="Không tìm thấy món ăn nào"
               description='Thử đổi điều kiện tìm kiếm hoặc bấm "Thêm món mới" để tạo món cho thực đơn.'
             />
@@ -325,7 +326,7 @@ export const StaffMenuPage = () => {
                     <img src={product.imageUrl} alt={product.name} loading="lazy" />
                   ) : (
                     <span className="smenu__placeholder" aria-hidden="true">
-                      {isDrink ? <CupSoda size={40} /> : <Sandwich size={40} />}
+                      {isDrink ? <CupSoda size={40} /> : <MiniBanhMi size={96} />}
                     </span>
                   )}
                   <span className="smenu__cat">{product.categoryName || 'Món ăn'}</span>
@@ -361,6 +362,7 @@ export const StaffMenuPage = () => {
                   <Button
                     size="sm"
                     variant={isEnabled ? 'secondary' : 'danger'}
+                    className={`smenu__toggle smenu__toggle--${isEnabled ? 'on' : 'off'}`}
                     loading={busy}
                     onClick={() => void handleToggleAvailable(product)}
                   >
@@ -828,7 +830,7 @@ const ImageField = ({ imageUrl, onChange, onError }: ImageFieldProps) => {
         <div className="smenu__preview">
           {imgFailed ? (
             <span className="smenu__placeholder" aria-hidden="true">
-              <Sandwich size={28} />
+              <MiniBanhMi size={64} />
             </span>
           ) : (
             <img

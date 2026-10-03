@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { MapPinOff, Pencil, Plus, Store as StoreIcon, Trash2 } from 'lucide-react';
+import { MapPinOff, Pencil, Plus, Trash2 } from 'lucide-react';
 import { storeApi } from '../../api/storeApi';
 import { Badge, Button, EmptyState, Input, Modal, PageHeader, Skeleton, Textarea, useConfirm, useToast } from '../../components/ui';
 import { AddressMapPicker } from '../../components/address/AddressMapPicker';
+import { EmptyPlate } from '../../components/illustrations/FoodDoodles';
 import { storeStatus } from '../../components/store/storeLabels';
 import { formatCurrency } from '../../utils/formatters';
 import type { GeocodeResult, GeoPoint } from '../../utils/geocoding';
@@ -10,6 +11,7 @@ import type { Store, StorePayload } from '../../types/store';
 import '../../styles/components/table.css';
 import '../../styles/components/address-map.css';
 import '../../styles/components/stores.css';
+import '../../styles/components/admin-orders.css';
 
 const EMPTY_FORM: StorePayload = {
   code: '',
@@ -167,7 +169,11 @@ export const AdminStoresPage = () => {
       {isLoading ? (
         <Skeleton variant="row" />
       ) : stores.length === 0 ? (
-        <EmptyState icon={<StoreIcon size={30} />} title="Chưa có cơ sở" description="Bấm Thêm cơ sở để bắt đầu." />
+        <section className="card">
+          <div className="card__body">
+            <EmptyState icon={<EmptyPlate size={120} className="adm-plate" />} title="Chưa có cơ sở" description="Bấm Thêm cơ sở để bắt đầu." />
+          </div>
+        </section>
       ) : (
         <section className="card">
           <div className="table-wrap">
@@ -180,7 +186,7 @@ export const AdminStoresPage = () => {
                   <th>Giao hàng</th>
                   <th>Nhân sự</th>
                   <th>Trạng thái</th>
-                  <th />
+                  <th aria-label="Hành động" />
                 </tr>
               </thead>
               <tbody>
@@ -188,37 +194,38 @@ export const AdminStoresPage = () => {
                   const status = store.active ? storeStatus(store) : { label: 'Ngừng hoạt động', tone: 'danger' as const };
                   return (
                     <tr key={store.id}>
-                      <td>{store.code}</td>
                       <td>
-                        <strong>{store.name}</strong>
-                        <br />
-                        <small>{store.address}</small>
+                        <span className="ui-table__primary">{store.code}</span>
+                      </td>
+                      <td className="ui-table__clip">
+                        <span className="ui-table__primary">{store.name}</span>
+                        <span className="ui-table__meta">{store.address}</span>
                         {store.latitude == null && (
-                          <>
-                            <br />
+                          <span className="astores__pin">
                             <Badge tone="warning">Chưa ghim vị trí</Badge>
-                          </>
+                          </span>
                         )}
                       </td>
-                      <td>
+                      <td className="astores__num">
                         {store.openTime}–{store.closeTime}
                       </td>
-                      <td>
+                      <td className="astores__num">
                         {store.deliveryRadiusKm} km · freeship {store.freeShipRadiusKm} km
-                        <br />
-                        <small>Đơn từ {formatCurrency(store.minOrderAmount)}</small>
+                        <span className="ui-table__meta">Đơn từ {formatCurrency(store.minOrderAmount)}</span>
                       </td>
-                      <td>{store.staffCount}</td>
+                      <td className="astores__num">{store.staffCount}</td>
                       <td>
                         <Badge tone={status.tone}>{status.label}</Badge>
                       </td>
                       <td>
-                        <Button size="sm" variant="ghost" icon={<Pencil size={15} />} onClick={() => setEditing({ id: store.id, form: toForm(store) })}>
-                          Sửa
-                        </Button>
-                        <Button size="sm" variant="ghost" icon={<Trash2 size={15} />} onClick={() => void handleDelete(store)}>
-                          Xoá
-                        </Button>
+                        <div className="ui-table__actions">
+                          <Button size="sm" variant="secondary" icon={<Pencil size={15} />} onClick={() => setEditing({ id: store.id, form: toForm(store) })}>
+                            Sửa
+                          </Button>
+                          <Button size="sm" variant="ghost" icon={<Trash2 size={15} />} onClick={() => void handleDelete(store)}>
+                            Xoá
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );

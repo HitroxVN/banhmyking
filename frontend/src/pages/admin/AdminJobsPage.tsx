@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Briefcase, Lock, Pencil, Plus, Trash2, Unlock } from 'lucide-react';
+import { Lock, Pencil, Plus, Trash2, Unlock } from 'lucide-react';
 import { jobApi } from '../../api/jobApi';
 import { storeApi } from '../../api/storeApi';
 import { staffCatalogApi } from '../../api/staffCatalogApi';
@@ -18,6 +18,7 @@ import {
   useConfirm,
   useToast,
 } from '../../components/ui';
+import { EmptyPlate } from '../../components/illustrations/FoodDoodles';
 import { MarkdownEditor } from '../../components/content/MarkdownEditor';
 import { JobApplicationsPanel } from '../../components/careers/JobApplicationsPanel';
 import { EMPLOYMENT_TYPE_LABEL, JOB_STATUS_LABEL, deadlineText, storesText } from '../../utils/contentLabels';
@@ -25,6 +26,7 @@ import type { AdminJob, EmploymentType, JobPayload, JobStatus, StoreRef } from '
 import type { Store } from '../../types/store';
 import '../../styles/components/table.css';
 import '../../styles/components/content.css';
+import '../../styles/components/admin-orders.css';
 
 const PAGE_SIZE = 20;
 const MAX_IMAGE_MB = 5;
@@ -260,16 +262,24 @@ const JobPostingsPanel = () => {
       {isLoading ? (
         <Skeleton variant="row" count={4} />
       ) : loadError ? (
-        <EmptyState
-          icon={<Briefcase size={30} />}
-          title="Không tải được tin tuyển dụng"
-          description={loadError}
-          action={<Button onClick={reload}>Thử lại</Button>}
-        />
+        <section className="card">
+          <div className="card__body">
+            <EmptyState
+              icon={<EmptyPlate size={120} className="adm-plate" />}
+              title="Không tải được tin tuyển dụng"
+              description={loadError}
+              action={<Button onClick={reload}>Thử lại</Button>}
+            />
+          </div>
+        </section>
       ) : items.length === 0 ? (
-        <EmptyState icon={<Briefcase size={30} />} title="Chưa có tin tuyển dụng" description="Bấm Thêm tin tuyển dụng để bắt đầu." />
+        <section className="card">
+          <div className="card__body">
+            <EmptyState icon={<EmptyPlate size={120} className="adm-plate" />} title="Chưa có tin tuyển dụng" description="Bấm Thêm tin tuyển dụng để bắt đầu." />
+          </div>
+        </section>
       ) : (
-        <section className="card" aria-busy={isFetching} style={isFetching ? { opacity: 0.55, transition: 'opacity .15s' } : undefined}>
+        <section className={`card${isFetching ? ' adm-fetching' : ''}`} aria-busy={isFetching}>
           <div className="table-wrap">
             <table className="ui-table">
               <thead>
@@ -279,7 +289,7 @@ const JobPostingsPanel = () => {
                   <th>Cơ sở</th>
                   <th>Hạn nộp</th>
                   <th>Trạng thái</th>
-                  <th />
+                  <th aria-label="Hành động" />
                 </tr>
               </thead>
               <tbody>

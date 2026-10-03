@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { ExternalLink, Newspaper, Pencil, Pin, Plus, Trash2, Upload } from 'lucide-react';
+import { ExternalLink, Pencil, Pin, Plus, Trash2, Upload } from 'lucide-react';
 import { newsApi } from '../../api/newsApi';
 import { staffCatalogApi } from '../../api/staffCatalogApi';
 import {
@@ -18,6 +18,7 @@ import {
   useConfirm,
   useToast,
 } from '../../components/ui';
+import { EmptyPlate } from '../../components/illustrations/FoodDoodles';
 import { MarkdownEditor } from '../../components/content/MarkdownEditor';
 import { NEWS_STATE_LABEL, NEWS_STATE_TONE } from '../../utils/contentLabels';
 import { formatDateTime } from '../../utils/formatters';
@@ -25,6 +26,7 @@ import { toDateTimeLocal } from '../../utils/pricing';
 import type { AdminNews, NewsDisplayState, NewsPayload, NewsStatus } from '../../types/content';
 import '../../styles/components/table.css';
 import '../../styles/components/content.css';
+import '../../styles/components/admin-orders.css';
 
 const PAGE_SIZE = 20;
 const MAX_IMAGE_MB = 5;
@@ -246,16 +248,24 @@ export const AdminNewsPage = () => {
       {isLoading ? (
         <Skeleton variant="row" count={4} />
       ) : loadError ? (
-        <EmptyState
-          icon={<Newspaper size={30} />}
-          title="Không tải được danh sách bài viết"
-          description={loadError}
-          action={<Button onClick={reload}>Thử lại</Button>}
-        />
+        <section className="card">
+          <div className="card__body">
+            <EmptyState
+              icon={<EmptyPlate size={120} className="adm-plate" />}
+              title="Không tải được danh sách bài viết"
+              description={loadError}
+              action={<Button onClick={reload}>Thử lại</Button>}
+            />
+          </div>
+        </section>
       ) : items.length === 0 ? (
-        <EmptyState icon={<Newspaper size={30} />} title="Chưa có bài viết" description="Bấm Viết bài mới để bắt đầu." />
+        <section className="card">
+          <div className="card__body">
+            <EmptyState icon={<EmptyPlate size={120} className="adm-plate" />} title="Chưa có bài viết" description="Bấm Viết bài mới để bắt đầu." />
+          </div>
+        </section>
       ) : (
-        <section className="card" aria-busy={isFetching} style={isFetching ? { opacity: 0.55, transition: 'opacity .15s' } : undefined}>
+        <section className={`card${isFetching ? ' adm-fetching' : ''}`} aria-busy={isFetching}>
           <div className="table-wrap">
             <table className="ui-table">
               <thead>
@@ -264,7 +274,7 @@ export const AdminNewsPage = () => {
                   <th>Trạng thái</th>
                   <th>Thời điểm đăng</th>
                   <th>Người soạn</th>
-                  <th />
+                  <th aria-label="Hành động" />
                 </tr>
               </thead>
               <tbody>
@@ -279,7 +289,7 @@ export const AdminNewsPage = () => {
                     <td>
                       <Badge tone={NEWS_STATE_TONE[news.displayState]}>{NEWS_STATE_LABEL[news.displayState]}</Badge>
                     </td>
-                    <td>{news.publishedAt ? formatDateTime(news.publishedAt) : '—'}</td>
+                    <td className="adm-num">{news.publishedAt ? formatDateTime(news.publishedAt) : '—'}</td>
                     <td>{news.authorName ?? '—'}</td>
                     <td>
                       <div className="ui-table__actions">

@@ -1,6 +1,8 @@
 /* AdminCategoriesPage — danh mục món */
 @import './card.css';
 @import './table.css';
+/* Đĩa trống, phân trang đáy thẻ… dùng chung */
+@import './admin-orders.css';
 
 .acat__form {
   display: grid;
@@ -8,7 +10,7 @@
 }
 
 .acat__desc {
-  color: var(--stone-500);
+  color: var(--stone-600);
   font-size: var(--text-sm);
   line-height: 1.6;
   display: -webkit-box;
@@ -17,7 +19,9 @@
   overflow: hidden;
 }
 
+/* Thứ tự hiển thị: số đậm, thẳng cột */
 .acat__order {
   font-variant-numeric: tabular-nums;
-  color: var(--stone-600);
+  font-weight: 700;
+  color: var(--ink);
 }

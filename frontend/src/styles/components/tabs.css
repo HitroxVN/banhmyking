@@ -3,6 +3,8 @@
   display: flex;
   gap: var(--space-1);
   overflow-x: auto;
+  /* overflow-x: auto kéo theo cuộn dọc; gạch chân tab đang chọn lòi 1px sẽ hiện thanh cuộn thừa */
+  overflow-y: hidden;
   border-bottom: 1px solid var(--border);
 }
 

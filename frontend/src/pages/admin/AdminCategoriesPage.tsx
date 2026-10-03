@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { FolderTree, Pencil, Plus, Trash2, XCircle } from 'lucide-react';
+import { Pencil, Plus, Trash2, XCircle } from 'lucide-react';
 import {
   Button,
   EmptyState,
@@ -11,6 +11,7 @@ import {
   useConfirm,
   useToast,
 } from '../../components/ui';
+import { EmptyPlate } from '../../components/illustrations/FoodDoodles';
 import { staffCatalogApi } from '../../api/staffCatalogApi';
 import type { CategoryPayload } from '../../api/staffCatalogApi';
 import type { CategoryItem } from '../../types/staff';
@@ -198,7 +199,7 @@ export const AdminCategoriesPage = () => {
         ) : categories.length === 0 ? (
           <div className="card__body">
             <EmptyState
-              icon={<FolderTree size={30} />}
+              icon={<EmptyPlate size={120} className="adm-plate" />}
               title="Chưa có danh mục nào"
               description="Thêm danh mục đầu tiên để nhóm các món trong thực đơn."
             />

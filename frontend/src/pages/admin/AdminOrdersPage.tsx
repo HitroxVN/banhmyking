@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Bike, Package, RotateCcw, XCircle } from 'lucide-react';
+import { Bike, RotateCcw, XCircle } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -16,6 +16,7 @@ import { AssignShipperModal } from '../../components/order/AssignShipperModal';
 import { CancelOrderModal } from '../../components/order/CancelOrderModal';
 import { RefundOrderModal } from '../../components/order/RefundOrderModal';
 import { StoreScopeSelect } from '../../components/store/StoreScopeSelect';
+import { EmptyPlate } from '../../components/illustrations/FoodDoodles';
 import { staffOrderApi } from '../../api/staffOrderApi';
 import type { OrderResponse, OrderStatus } from '../../types/order';
 import { ORDER_NEXT_STATUSES, isFinalStatus } from '../../types/order';
@@ -189,14 +190,14 @@ export const AdminOrdersPage = () => {
         ) : orders.length === 0 ? (
           <div className="card__body">
             <EmptyState
-              icon={<Package size={30} />}
+              icon={<EmptyPlate size={120} className="adm-plate" />}
               title="Không có đơn hàng nào"
               description="Thử đổi bộ lọc trạng thái hoặc khoảng ngày để xem thêm."
             />
           </div>
         ) : (
           <div className="table-wrap">
-            <table className="ui-table">
+            <table className="ui-table aorders__table">
               <thead>
                 <tr>
                   <th>Mã đơn</th>

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Download, FileText, Inbox, Phone } from 'lucide-react';
+import { Download, FileText, Phone } from 'lucide-react';
 import { jobApi } from '../../api/jobApi';
 import { Badge, Button, ChipGroup, EmptyState, Pagination, Select, Skeleton, Textarea, useToast } from '../ui';
+import { EmptyPlate } from '../illustrations/FoodDoodles';
 import { StoreScopeSelect } from '../store/StoreScopeSelect';
 import { APPLICATION_STATUS_LABEL, APPLICATION_STATUS_TONE } from '../../utils/contentLabels';
 import { formatDateTime } from '../../utils/formatters';
@@ -9,6 +10,7 @@ import { notifyInboxChanged } from '../../utils/inboxEvents';
 import type { ApplicationStatus, JobApplication } from '../../types/content';
 import '../../styles/components/table.css';
 import '../../styles/components/content.css';
+import '../../styles/components/admin-orders.css';
 
 const PAGE_SIZE = 20;
 const STATUSES: ApplicationStatus[] = ['NEW', 'CONTACTED', 'HIRED', 'REJECTED'];
@@ -175,17 +177,25 @@ export const JobApplicationsPanel = ({ isAdmin }: JobApplicationsPanelProps) => 
       {isLoading ? (
         <Skeleton variant="row" count={4} />
       ) : loadError ? (
-        <EmptyState
-          icon={<Inbox size={30} />}
-          title="Không tải được hồ sơ ứng tuyển"
-          description={loadError}
-          action={<Button onClick={reload}>Thử lại</Button>}
-        />
+        <section className="card">
+          <div className="card__body">
+            <EmptyState
+              icon={<EmptyPlate size={120} className="adm-plate" />}
+              title="Không tải được hồ sơ ứng tuyển"
+              description={loadError}
+              action={<Button onClick={reload}>Thử lại</Button>}
+            />
+          </div>
+        </section>
       ) : items.length === 0 ? (
-        <EmptyState icon={<Inbox size={30} />} title="Chưa có hồ sơ" description="Hồ sơ ứng viên nộp qua trang Tuyển dụng sẽ hiện ở đây." />
+        <section className="card">
+          <div className="card__body">
+            <EmptyState icon={<EmptyPlate size={120} className="adm-plate" />} title="Chưa có hồ sơ" description="Hồ sơ ứng viên nộp qua trang Tuyển dụng sẽ hiện ở đây." />
+          </div>
+        </section>
       ) : (
         <div className={`inbox${selected ? '' : ' inbox--single'}`}>
-          <section className="card" aria-busy={isFetching} style={isFetching ? { opacity: 0.55, transition: 'opacity .15s' } : undefined}>
+          <section className={`card${isFetching ? ' adm-fetching' : ''}`} aria-busy={isFetching}>
             <div className="table-wrap">
               <table className="ui-table">
                 <thead>
@@ -202,7 +212,7 @@ export const JobApplicationsPanel = ({ isAdmin }: JobApplicationsPanelProps) => 
                   {items.map((application) => (
                     <tr
                       key={application.id}
-                      className={`inbox__row${selected?.id === application.id ? ' inbox__row--active' : ''}`}
+                      className={`inbox__row${application.status === 'NEW' ? ' inbox__row--new' : ''}${selected?.id === application.id ? ' inbox__row--active' : ''}`}
                       tabIndex={0}
                       onClick={() => select(application)}
                       onKeyDown={(event) => {
@@ -210,18 +220,21 @@ export const JobApplicationsPanel = ({ isAdmin }: JobApplicationsPanelProps) => 
                       }}
                     >
                       <td>
-                        <span className="ui-table__primary">{application.fullName}</span>
+                        <span className="ui-table__primary">
+                          {application.fullName}
+                          {application.status === 'NEW' && <span className="adm-new">Mới</span>}
+                        </span>
                         <span className="ui-table__meta">{application.phone}</span>
                       </td>
                       <td>{application.jobTitle}</td>
                       <td>{application.storeName}</td>
-                      <td>{formatDateTime(application.createdAt)}</td>
+                      <td className="adm-num">{formatDateTime(application.createdAt)}</td>
                       <td>
                         <Badge tone={APPLICATION_STATUS_TONE[application.status]}>
                           {APPLICATION_STATUS_LABEL[application.status]}
                         </Badge>
                       </td>
-                      <td>{application.hasCv ? <FileText size={16} aria-label="Có CV" /> : '—'}</td>
+                      <td>{application.hasCv ? <FileText size={16} className="adm-cv" aria-label="Có CV" /> : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
