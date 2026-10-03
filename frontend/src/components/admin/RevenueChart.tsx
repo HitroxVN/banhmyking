@@ -87,13 +87,6 @@ export const RevenueChart = ({ data, days, onDaysChange, isLoading = false }: Re
                 role="img"
                 aria-label={`Biểu đồ doanh thu ${days} ngày gần nhất`}
               >
-                <defs>
-                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" className="chart__grad-top" />
-                    <stop offset="100%" className="chart__grad-bottom" />
-                  </linearGradient>
-                </defs>
-
                 {/* Lưới ngang + nhãn trục tung */}
                 {ySteps.map((fraction) => {
                   const yVal = baseline - fraction * chartHeight;
@@ -113,7 +106,7 @@ export const RevenueChart = ({ data, days, onDaysChange, isLoading = false }: Re
                   );
                 })}
 
-                <path d={areaPath} fill="url(#revenueGradient)" />
+                <path className="chart__area" d={areaPath} />
                 <path className="chart__line" d={linePath} />
 
                 {/* Cột số đơn thành công */}

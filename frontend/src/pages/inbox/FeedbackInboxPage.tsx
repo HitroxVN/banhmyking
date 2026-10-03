@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Eye, MessageSquare } from 'lucide-react';
+import { Eye } from 'lucide-react';
 import { feedbackApi } from '../../api/feedbackApi';
 import { orderApi } from '../../api/orderApi';
 import { useAuth } from '../../context/useAuth';
@@ -15,6 +15,7 @@ import {
   Textarea,
   useToast,
 } from '../../components/ui';
+import { EmptyPlate } from '../../components/illustrations/FoodDoodles';
 import { StoreScopeSelect } from '../../components/store/StoreScopeSelect';
 import { FEEDBACK_STATUS_LABEL, FEEDBACK_STATUS_TONE, FEEDBACK_TYPE_LABEL } from '../../utils/contentLabels';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
@@ -24,6 +25,7 @@ import type { Feedback, FeedbackStatus, FeedbackType } from '../../types/content
 import type { OrderResponse } from '../../types/order';
 import '../../styles/components/table.css';
 import '../../styles/components/content.css';
+import '../../styles/components/admin-orders.css';
 
 const PAGE_SIZE = 20;
 const TYPES: FeedbackType[] = ['SUGGESTION', 'COMPLAINT', 'PARTNERSHIP', 'OTHER'];
@@ -183,17 +185,25 @@ export const FeedbackInboxPage = () => {
       {isLoading ? (
         <Skeleton variant="row" count={4} />
       ) : loadError ? (
-        <EmptyState
-          icon={<MessageSquare size={30} />}
-          title="Không tải được phản hồi"
-          description={loadError}
-          action={<Button onClick={reload}>Thử lại</Button>}
-        />
+        <section className="card">
+          <div className="card__body">
+            <EmptyState
+              icon={<EmptyPlate size={120} className="adm-plate" />}
+              title="Không tải được phản hồi"
+              description={loadError}
+              action={<Button onClick={reload}>Thử lại</Button>}
+            />
+          </div>
+        </section>
       ) : items.length === 0 ? (
-        <EmptyState icon={<MessageSquare size={30} />} title="Chưa có phản hồi" description="Phản hồi khách gửi từ trang Liên hệ sẽ hiện ở đây." />
+        <section className="card">
+          <div className="card__body">
+            <EmptyState icon={<EmptyPlate size={120} className="adm-plate" />} title="Chưa có phản hồi" description="Phản hồi khách gửi từ trang Liên hệ sẽ hiện ở đây." />
+          </div>
+        </section>
       ) : (
         <div className={`inbox${selected ? '' : ' inbox--single'}`}>
-          <section className="card" aria-busy={isFetching} style={isFetching ? { opacity: 0.55, transition: 'opacity .15s' } : undefined}>
+          <section className={`card${isFetching ? ' adm-fetching' : ''}`} aria-busy={isFetching}>
             <div className="table-wrap">
               <table className="ui-table">
                 <thead>
@@ -209,7 +219,7 @@ export const FeedbackInboxPage = () => {
                   {items.map((feedback) => (
                     <tr
                       key={feedback.id}
-                      className={`inbox__row${selected?.id === feedback.id ? ' inbox__row--active' : ''}`}
+                      className={`inbox__row${feedback.status === 'NEW' ? ' inbox__row--new' : ''}${selected?.id === feedback.id ? ' inbox__row--active' : ''}`}
                       tabIndex={0}
                       onClick={() => select(feedback)}
                       onKeyDown={(event) => {
@@ -217,7 +227,10 @@ export const FeedbackInboxPage = () => {
                       }}
                     >
                       <td>
-                        <span className="ui-table__primary">{feedback.subject}</span>
+                        <span className="ui-table__primary">
+                          {feedback.subject}
+                          {feedback.status === 'NEW' && <span className="adm-new">Mới</span>}
+                        </span>
                         <span className="ui-table__meta">
                           {feedback.fullName}
                           {feedback.orderCode ? ` · đơn ${feedback.orderCode}` : ''}
@@ -225,7 +238,7 @@ export const FeedbackInboxPage = () => {
                       </td>
                       <td>{FEEDBACK_TYPE_LABEL[feedback.type]}</td>
                       <td>{feedback.storeName ?? 'Toàn chuỗi'}</td>
-                      <td>{formatDateTime(feedback.createdAt)}</td>
+                      <td className="adm-num">{formatDateTime(feedback.createdAt)}</td>
                       <td>
                         <Badge tone={FEEDBACK_STATUS_TONE[feedback.status]}>{FEEDBACK_STATUS_LABEL[feedback.status]}</Badge>
                       </td>

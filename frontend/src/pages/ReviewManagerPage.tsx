@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { MessageSquare, Trash2, XCircle } from 'lucide-react';
+import { Trash2, XCircle } from 'lucide-react';
 import { Button, EmptyState, PageHeader, Pagination, Select, Skeleton, useConfirm, useToast } from '../components/ui';
+import { EmptyPlate } from '../components/illustrations/FoodDoodles';
 import { RatingStars } from '../components/review/RatingStars';
 import { reviewApi } from '../api/reviewApi';
 import { staffCatalogApi } from '../api/staffCatalogApi';
@@ -161,9 +162,9 @@ export const ReviewManagerPage = () => {
             <Skeleton variant="row" count={5} />
           </div>
         ) : reviews.length === 0 ? (
-          <div className="card__body">
+          <div className="card__body rmgr__empty">
             <EmptyState
-              icon={<MessageSquare size={30} />}
+              icon={<EmptyPlate size={120} />}
               title={hasFilter ? 'Không có đánh giá nào khớp bộ lọc' : 'Chưa có đánh giá nào'}
               description={
                 hasFilter

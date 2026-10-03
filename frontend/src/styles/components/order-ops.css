@@ -1,13 +1,15 @@
-/* Modal nghiệp vụ đơn hàng (gán tài xế, huỷ đơn) — dùng chung Staff & Admin */
+/* Modal nghiệp vụ đơn hàng (gán tài xế, huỷ, hoàn tiền, chuyển cơ sở) — dùng chung Staff & Admin.
+   Modal render ngoài .dash nên không phụ thuộc backhouse.css: tự dùng bảng màu giấy/mực, viền 2px. */
 @import './card.css';
 
+/* Tóm tắt đơn như cuống phiếu: nền giấy, viền nét đứt */
 .ops-sum {
   display: grid;
   gap: var(--space-1);
   padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--border);
+  border: 2px dashed var(--stone-300);
   border-radius: var(--radius-md);
-  background: var(--bg-subtle);
+  background: var(--paper);
 }
 
 .ops-sum__row {
@@ -19,18 +21,18 @@
 }
 
 .ops-sum__label {
-  color: var(--stone-500);
+  color: var(--stone-600);
   flex: none;
 }
 
 .ops-sum__value {
-  color: var(--stone-800);
+  color: var(--ink);
   font-weight: 600;
   text-align: right;
 }
 
 .ops-sum__total {
-  color: var(--primary-700);
+  color: var(--chili-600);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
@@ -45,8 +47,9 @@
   gap: var(--space-2);
   margin-top: var(--space-4);
   padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--primary-300);
   border-radius: var(--radius-md);
-  background: var(--warning-bg);
+  background: var(--primary-50);
   color: var(--primary-900);
   font-size: var(--text-sm);
   line-height: 1.6;
@@ -62,29 +65,39 @@
   margin-top: var(--space-2);
 }
 
+/* Thẻ chọn tài xế: viền đá, chọn rồi thì viền mực + bóng cứng mỏng */
 .ops-shipper {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   width: 100%;
+  min-height: 44px;
   padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--border);
+  border: 2px solid var(--stone-300);
   border-radius: var(--radius-md);
-  background: var(--surface);
+  background: var(--cream);
+  color: var(--ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color .15s, background .15s;
+  transition: border-color .15s, background .15s, box-shadow .15s;
 }
 
 .ops-shipper:hover:not(:disabled) {
-  border-color: var(--primary-300);
+  border-color: var(--ink);
   background: var(--primary-50);
 }
 
-.ops-shipper--on {
-  border-color: var(--primary-500);
-  background: var(--primary-50);
+.ops-shipper:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.ops-shipper--on,
+.ops-shipper--on:hover:not(:disabled) {
+  border-color: var(--ink);
+  background: var(--primary-100);
+  box-shadow: var(--shadow-pop-sm);
 }
 
 .ops-shipper:disabled {
@@ -97,9 +110,10 @@
   place-items: center;
   width: 36px;
   height: 36px;
+  border: 2px solid var(--ink);
   border-radius: var(--radius-full);
-  background: var(--primary-100);
-  color: var(--primary-800);
+  background: var(--primary-200);
+  color: var(--ink);
   flex: none;
 }
 
@@ -107,12 +121,12 @@
   display: block;
   font-size: var(--text-sm);
   font-weight: 700;
-  color: var(--stone-800);
+  color: var(--ink);
 }
 
 .ops-shipper__meta {
   font-size: var(--text-xs);
-  color: var(--stone-500);
+  color: var(--stone-600);
 }
 
 .ops-shipper__badge {
@@ -125,7 +139,7 @@
   margin-bottom: var(--space-2);
   font-size: var(--text-sm);
   font-weight: 700;
-  color: var(--stone-800);
+  color: var(--ink);
 }
 
 .ops-state {
@@ -137,7 +151,7 @@
 .ops-empty {
   margin: var(--space-3) 0 0;
   font-size: var(--text-sm);
-  color: var(--stone-500);
+  color: var(--stone-600);
 }
 
 .ops-danger-note {
@@ -145,9 +159,10 @@
   align-items: flex-start;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--chili-200);
   border-radius: var(--radius-md);
-  background: var(--danger-bg);
-  color: var(--danger);
+  background: var(--chili-50);
+  color: var(--chili-700);
   font-size: var(--text-sm);
   line-height: 1.6;
 }

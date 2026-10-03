@@ -1,0 +1,64 @@
+/* Dải chào đầu ca — giấy kem, mép phải gạch bông, ổ bánh mì nhỏ */
+.shift-hi {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-lg);
+  background: var(--cream);
+  box-shadow: 3px 3px 0 var(--primary-300);
+  overflow: hidden;
+}
+
+/* Khối gạch bông bên phải làm nền cho ổ bánh */
+.shift-hi::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 150px;
+  border-left: 2px solid var(--ink);
+  background-color: var(--primary-200);
+  background-image: var(--pattern-tile);
+}
+
+.shift-hi__copy {
+  min-width: 0;
+}
+
+.shift-hi__hello {
+  margin: 0;
+  font-family: var(--font-script);
+  font-size: 26px;
+  line-height: 1.2;
+  color: var(--chili-600);
+}
+
+.shift-hi__note {
+  margin: 2px 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+
+.shift-hi__art {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 118px;
+  flex-shrink: 0;
+  margin-right: 4px;
+  filter: drop-shadow(2px 2px 0 var(--ink));
+}
+
+@media (max-width: 560px) {
+  .shift-hi::after,
+  .shift-hi__art {
+    display: none;
+  }
+}

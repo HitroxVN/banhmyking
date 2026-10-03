@@ -1,32 +1,38 @@
-/* ProfilePage — form hồ sơ, đổi mật khẩu, sổ địa chỉ */
+/* ProfilePage — form hồ sơ, đổi mật khẩu, sổ địa chỉ.
+   Ảnh đại diện như huy hiệu dán, địa chỉ là thẻ giấy; mặc định thì thành nhãn vàng. */
 .profile__avatar {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  flex-wrap: wrap;
+  gap: var(--space-5);
   margin-bottom: var(--space-5);
   padding-bottom: var(--space-5);
-  border-bottom: 1px solid var(--stone-200);
+  border-bottom: 2px dashed var(--stone-300);
 }
 
 .profile__avatar-img {
-  width: 84px;
-  height: 84px;
+  width: 92px;
+  height: 92px;
   flex-shrink: 0;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--stone-200);
-  background: var(--stone-100);
+  border: 3px solid var(--ink);
+  background: var(--primary-100);
+  box-shadow: var(--shadow-pop);
+  transform: rotate(-4deg);
 }
 
-/* Mặc định khi chưa có ảnh: chữ cái đầu của tên */
+/* Mặc định khi chưa có ảnh: chữ cái đầu của tên trên nền gạch bông */
 .profile__avatar-fallback {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--text-2xl);
-  font-weight: 700;
-  color: var(--primary-700);
-  background: var(--primary-50);
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  color: var(--ink);
+  background-color: var(--primary-300);
+  background-image: var(--pattern-tile);
+  background-size: 40px;
 }
 
 .profile__avatar-actions {
@@ -69,6 +75,7 @@
   gap: var(--space-3);
 }
 
+/* Thẻ địa chỉ: viền mảnh cho danh sách dày, mặc định mới viền mực + bóng cứng */
 .addr-card {
   display: flex;
   align-items: flex-start;
@@ -76,14 +83,20 @@
   flex-wrap: wrap;
   gap: var(--space-3);
   padding: var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
+  border: 2px solid var(--stone-300);
+  border-radius: 14px;
+  background: var(--cream);
+  transition: border-color .15s;
+}
+
+.addr-card:hover {
+  border-color: var(--ink);
 }
 
 .addr-card--default {
-  border-color: var(--primary-300);
-  background: var(--primary-50);
+  border-color: var(--ink);
+  background: var(--primary-100);
+  box-shadow: var(--shadow-pop-sm);
 }
 
 .addr-card__name {
@@ -93,18 +106,20 @@
   gap: var(--space-2);
   margin: 0 0 4px;
   font-size: var(--text-base);
-  font-weight: 700;
-  color: var(--stone-900);
+  font-weight: 800;
+  color: var(--ink);
 }
 
 .addr-card__text {
   margin: 0;
   font-size: var(--text-sm);
-  color: var(--stone-600);
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
 }
 
 .addr-card__actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }

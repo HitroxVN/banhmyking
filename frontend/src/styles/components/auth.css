@@ -1,140 +1,230 @@
-/* Auth — trang đăng nhập / đăng ký */
+/* ==========================================================================
+   Auth — trang đăng nhập / đăng ký / quên & đặt lại mật khẩu / xác thực email / 404.
+   Đứng ngoài layout khách nên tự dựng nền: giấy gói bánh lát gạch bông, thẻ form
+   là tờ phiếu gọi món (viền mực, bóng cứng, đường cắt nét đứt), nút đỏ ớt lún khi bấm.
+   Không gradient, không kính mờ.
+   ========================================================================== */
 @import './field.css';
 
-/* Page Layout Containers */
+/* ------------------------------------------------------------- Khung trang */
 .auth-page-wrapper {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem 1rem;
+  padding: 2rem 1rem 3rem;
   position: relative;
   z-index: 1;
+  overflow-x: clip;
+  background-color: var(--paper);
+  background-image: var(--pattern-tile);
+  background-size: 56px 56px;
+  font-family: var(--font-body);
 }
 
 .auth-container {
+  position: relative;
   width: 100%;
   max-width: 480px;
 }
 
-/* Brand Header */
-.brand-header {
-  text-align: center;
-  margin-bottom: 2rem;
+/* ------------------------------------------------- Rau / ớt trôi quanh thẻ */
+.auth-doodles {
+  display: none;
 }
 
+@media (min-width: 760px) {
+  .auth-doodles {
+    display: block;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+}
+
+.auth-doodle {
+  position: absolute;
+  display: block;
+  animation: auth-float 4.2s ease-in-out infinite;
+}
+
+.auth-doodle--leaf { top: 120px; left: -96px; --tilt: -14deg; }
+.auth-doodle--chili { top: 250px; right: -84px; --tilt: 10deg; animation-delay: .8s; }
+.auth-doodle--cucumber { bottom: 90px; left: -78px; --tilt: 6deg; animation-delay: 1.6s; }
+.auth-doodle--banhmi { bottom: -10px; right: -120px; --tilt: -8deg; animation-delay: 2.2s; }
+
+/* Lắc lư nhẹ như rau rơi trên quầy — tự tắt khi người dùng giảm chuyển động */
+@keyframes auth-float {
+  0%, 100% { transform: translateY(0) rotate(var(--tilt, 0deg)); }
+  50% { transform: translateY(-8px) rotate(calc(var(--tilt, 0deg) * -1)); }
+}
+
+/* ------------------------------------------------------------ Biển hiệu */
+.brand-header {
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+
+/* Logo: tấm biển đỏ ớt dán nghiêng, như .cshop__logo-badge nhưng to hơn */
 .brand-logo-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-grid;
+  place-items: center;
   width: 72px;
   height: 72px;
-  background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-700) 100%);
-  color: white;
-  font-size: 2.25rem;
-  border-radius: 20px;
-  box-shadow: 0 10px 25px -5px rgba(217, 119, 6, 0.4);
-  margin-bottom: 1rem;
-  transform: rotate(-3deg);
-  transition: var(--transition-smooth);
+  margin-bottom: .9rem;
+  border: var(--line);
+  border-radius: 18px;
+  background: var(--chili-600);
+  color: var(--primary-100);
+  box-shadow: var(--shadow-pop);
+  transform: rotate(-6deg);
+  transition: transform .3s var(--ease-bounce);
 }
 
 .brand-logo-badge:hover {
-  transform: rotate(0deg) scale(1.05);
+  transform: rotate(6deg) scale(1.06);
 }
 
 .brand-title {
-  font-size: 1.85rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--primary-950);
-  margin-bottom: 0.25rem;
+  margin: 0 0 .6rem;
+  font-family: var(--font-sign);
+  font-size: 2.1rem;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: .02em;
+  color: var(--chili-600);
+  text-shadow: 2px 2px 0 var(--primary-300);
+  overflow-wrap: anywhere;
 }
 
+/* Câu khẩu hiệu viết tay trên nhãn dán giấy kem */
 .brand-tagline {
-  color: var(--stone-500);
-  font-size: 0.95rem;
-  font-weight: 500;
+  display: inline-block;
+  margin: 0;
+  padding: .2rem .85rem .3rem;
+  border: var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--cream);
+  box-shadow: var(--shadow-pop-sm);
+  font-family: var(--font-script);
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+  transform: rotate(-2deg);
 }
 
-/* Auth Card (Glassmorphism) */
+/* -------------------------------------------------------- Phiếu gọi món */
 .auth-card {
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--card-radius);
-  box-shadow: var(--glass-shadow);
-  padding: 2.5rem 2rem;
-  transition: var(--transition-smooth);
+  position: relative;
+  padding: 2.5rem 2rem 2rem;
+  border: var(--line);
+  border-radius: 18px;
+  background: var(--cream);
+  box-shadow: var(--shadow-pop-lg);
+  animation: ui-pop-in .35s var(--ease-bounce) both;
 }
 
-/* Form Nav Tabs (Đăng nhập / Đăng ký) */
+/* Miếng băng dính vàng giữ tờ phiếu trên quầy */
+.auth-card::before {
+  content: '';
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  width: 96px;
+  height: 24px;
+  margin-left: -48px;
+  border: var(--line);
+  border-radius: 3px;
+  background: var(--primary-200);
+  transform: rotate(-3deg);
+}
+
+/* ------------------------------------------- Tab Đăng nhập / Đăng ký */
 .auth-nav-tabs {
   display: flex;
-  background: var(--stone-100);
-  border-radius: 14px;
-  padding: 4px;
-  margin-bottom: 2rem;
-  border: 1px solid var(--stone-200);
+  gap: 6px;
+  margin-bottom: 1.75rem;
+  padding: 5px;
+  border: var(--line);
+  border-radius: var(--radius-full);
+  background: var(--paper-deep);
 }
 
 .auth-tab-btn {
   flex: 1;
-  border: none;
+  padding: .6rem .5rem;
+  border: 2px solid transparent;
+  border-radius: var(--radius-full);
   background: transparent;
-  padding: 0.65rem 0.5rem;
-  font-family: inherit;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--stone-500);
-  border-radius: 10px;
-  cursor: pointer;
-  transition: var(--transition-smooth);
-  text-decoration: none;
+  font-family: var(--font-sign);
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--ink-soft);
   text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform .15s var(--ease-bounce), background .15s, color .15s;
 }
 
-.auth-tab-btn.active {
-  background: white;
-  color: var(--primary-700);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+.auth-tab-btn:hover {
+  color: var(--ink);
+  background: var(--primary-100);
 }
 
+/* Tab đang chọn: nhãn dán vàng ép lên, nghiêng nhẹ */
+.auth-tab-btn.active,
+.auth-tab-btn.active:hover {
+  border-color: var(--ink);
+  background: var(--primary-300);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop-sm);
+  transform: rotate(-1.5deg);
+}
+
+.auth-tab-btn:focus-visible {
+  outline: 3px solid var(--chili-500);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------- Tiêu đề thẻ */
 .auth-card-title {
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: var(--stone-900);
-  margin-bottom: 0.5rem;
+  margin: 0 0 .4rem;
+  font-family: var(--font-sign);
+  font-size: 1.45rem;
+  font-weight: 400;
+  line-height: 1.25;
+  color: var(--ink);
 }
 
 /* Icon lucide nằm trong tiêu đề — hạ xuống cho thẳng chân chữ */
 .auth-card-title svg {
-  vertical-align: -0.2em;
-  color: var(--primary-500);
+  vertical-align: -0.15em;
+  color: var(--chili-600);
 }
 
+/* Đường xé nét đứt như cuống phiếu */
 .auth-card-subtitle {
-  font-size: 0.875rem;
-  color: var(--stone-500);
-  margin-bottom: 1.75rem;
+  margin: 0 0 1.5rem;
+  padding-bottom: 1.1rem;
+  border-bottom: 2px dashed var(--stone-300);
+  font-size: .9rem;
+  color: var(--ink-soft);
 }
 
-/* Form Controls */
+/* ---------------------------------------------------------------- Ô nhập */
 .form-group {
   margin-bottom: 1.25rem;
 }
 
 .form-label {
   display: block;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--stone-700);
-  margin-bottom: 0.45rem;
+  margin-bottom: .45rem;
+  font-size: .875rem;
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .form-label .required-star {
-  color: var(--error-text);
   margin-left: 2px;
 }
 
@@ -146,216 +236,321 @@
 
 .form-input {
   width: 100%;
-  padding: 0.8rem 1rem;
-  padding-left: 2.75rem;
-  font-family: inherit;
-  font-size: 0.95rem;
-  color: var(--stone-900);
-  background-color: white;
-  border: 1.5px solid var(--stone-200);
-  border-radius: 12px;
+  padding: .8rem 1rem .8rem 2.75rem;
+  border: 2px solid var(--stone-400);
+  border-radius: var(--radius-md);
   outline: none;
-  transition: var(--transition-smooth);
+  background-color: #fff;
+  font-family: inherit;
+  font-size: .95rem;
+  color: var(--ink);
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+
+.form-input::placeholder {
+  color: var(--stone-400);
 }
 
 .form-input.no-icon {
   padding-left: 1rem;
 }
 
+.form-input:hover:not(:disabled):not(:focus) {
+  border-color: var(--stone-500);
+}
+
+/* Focus: viền mực + bóng cứng, ô "nhô" lên như nhãn được dán */
 .form-input:focus {
-  border-color: var(--primary-600);
-  box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.12);
+  border-color: var(--ink);
+  box-shadow: var(--shadow-pop-sm);
+  transform: translate(-1px, -1px);
+}
+
+.form-input:disabled {
+  background-color: var(--stone-100);
+  cursor: not-allowed;
 }
 
 .form-input.input-error {
-  border-color: var(--error-text);
-  background-color: #FFFDFD;
+  border-color: var(--danger);
+  background-color: var(--chili-50);
 }
 
 .form-input.input-error:focus {
-  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.12);
+  box-shadow: 2px 2px 0 var(--danger);
 }
 
 .input-prefix-icon {
   position: absolute;
-  left: 0.95rem;
-  color: var(--stone-400);
+  left: .95rem;
   display: flex;
   align-items: center;
+  color: var(--stone-500);
   pointer-events: none;
-  transition: var(--transition-smooth);
+  transition: color .15s;
 }
 
 .form-input:focus ~ .input-prefix-icon {
-  color: var(--primary-600);
+  color: var(--chili-600);
 }
 
 .input-suffix-btn {
   position: absolute;
-  right: 0.75rem;
-  background: none;
-  border: none;
-  color: var(--stone-400);
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: 6px;
+  right: .6rem;
   display: flex;
   align-items: center;
-  transition: var(--transition-smooth);
+  padding: .3rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--stone-500);
+  cursor: pointer;
+  transition: color .15s, background .15s;
 }
 
 .input-suffix-btn:hover {
-  color: var(--stone-700);
-  background: var(--stone-100);
+  color: var(--ink);
+  background: var(--primary-100);
+}
+
+.input-suffix-btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
 }
 
 .field-error-text {
   display: block;
-  font-size: 0.8rem;
-  color: var(--error-text);
-  margin-top: 0.35rem;
-  font-weight: 500;
-  animation: fadeIn 0.2s ease-in;
+  margin-top: .35rem;
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--danger);
+  animation: ui-fade-in .2s ease-in;
 }
 
-/* Password Strength Indicator */
+/* --------------------------------------------------- Thanh độ mạnh mật khẩu */
 .password-strength-container {
-  margin-top: 0.5rem;
+  margin-top: .55rem;
 }
 
 .password-strength-bars {
   display: flex;
-  gap: 4px;
-  height: 4px;
-  margin-bottom: 0.35rem;
+  gap: 5px;
+  height: 9px;
+  margin-bottom: .35rem;
 }
 
 .strength-bar {
   flex: 1;
-  background-color: var(--stone-200);
-  border-radius: 2px;
-  transition: var(--transition-smooth);
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius-full);
+  background-color: var(--stone-100);
+  transition: background-color .2s;
 }
 
-.strength-bar.weak {
-  background-color: var(--error-text);
-}
-
-.strength-bar.medium {
-  background-color: var(--primary-500);
-}
-
-.strength-bar.strong {
-  background-color: var(--success-text);
-}
+.strength-bar.weak { background-color: var(--chili-500); }
+.strength-bar.medium { background-color: var(--primary-400); }
+.strength-bar.strong { background-color: var(--herb-500); }
 
 .strength-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--stone-500);
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--ink-soft);
 }
 
-/* Form Helper Row (Remember me, Forgot password) */
+/* -------------------------------------- Ghi nhớ đăng nhập / Quên mật khẩu */
 .form-helper-row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: .5rem 1rem;
   margin-bottom: 1.5rem;
-  font-size: 0.875rem;
+  font-size: .875rem;
+}
+
+.auth-page-wrapper .ui-check {
+  color: var(--ink-soft);
+}
+
+.auth-page-wrapper .ui-check input {
+  accent-color: var(--chili-600);
 }
 
 .link-text {
-  color: var(--primary-600);
-  text-decoration: none;
-  font-weight: 600;
-  transition: var(--transition-smooth);
+  font-weight: 700;
+  color: var(--chili-700);
+  text-decoration: underline;
+  text-decoration-color: var(--primary-300);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  transition: color .15s, text-decoration-color .15s;
 }
 
 .link-text:hover {
-  color: var(--primary-700);
-  text-decoration: underline;
+  color: var(--chili-600);
+  text-decoration-color: var(--chili-600);
+}
+
+.link-text:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 .helper-note {
   font-size: var(--text-xs);
-  color: var(--stone-500);
+  color: var(--ink-soft);
 }
 
-/* Primary Button */
+/* ---------------------------------------------------- Nút chính đỏ ớt */
 .auth-submit {
+  box-sizing: border-box;
   width: 100%;
-  padding: 0.9rem 1.5rem;
-  font-family: inherit;
-  font-size: 1rem;
-  font-weight: 700;
-  color: white;
-  background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%);
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.35);
+  min-height: 52px;
+  padding: .85rem 1.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  transition: var(--transition-smooth);
+  gap: .5rem;
+  border: var(--line);
+  border-radius: var(--radius-full);
+  background: var(--chili-600);
+  box-shadow: var(--shadow-pop);
+  font-family: var(--font-sign);
+  font-size: 1.05rem;
+  font-weight: 400;
+  letter-spacing: .01em;
+  color: #fff;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform .12s, box-shadow .12s, background .15s;
 }
 
 .auth-submit:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(217, 119, 6, 0.45);
+  background: var(--chili-500);
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 var(--ink);
 }
 
+/* Bấm xuống: nút lún vào chỗ bóng */
 .auth-submit:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+.auth-submit:focus-visible {
+  outline: 3px solid var(--primary-400);
+  outline-offset: 3px;
 }
 
 .auth-submit:disabled {
-  opacity: 0.7;
+  background: var(--chili-400);
+  box-shadow: var(--shadow-pop-sm);
+  opacity: .75;
   cursor: not-allowed;
   transform: none;
 }
 
-/* Footer Switch Form Prompt */
+/* --------------------------------------------------- Dòng chuyển trang */
 .auth-switch-prompt {
-  text-align: center;
   margin-top: 1.5rem;
-  font-size: 0.9rem;
-  color: var(--stone-500);
+  padding-top: 1.1rem;
+  border-top: 2px dashed var(--stone-300);
+  text-align: center;
+  font-size: .9rem;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
 }
 
-/* Loading Spinners & Animation */
+/* ------------------------------------------------------------ Spinner */
 .spinner-mini {
   display: inline-block;
   width: 18px;
   height: 18px;
-  border: 2.5px solid rgba(255, 255, 255, 0.3);
+  border: 2.5px solid rgba(255, 255, 255, .35);
+  border-top-color: #fff;
   border-radius: 50%;
-  border-top-color: white;
-  animation: spin 0.7s linear infinite;
-}
-
-/* Responsive adjustments */
-@media (max-width: 480px) {
-  .auth-card {
-    padding: 2rem 1.25rem;
-  }
-  .brand-title {
-    font-size: 1.6rem;
-  }
+  animation: ui-spin .7s linear infinite;
 }
 
 .required-star {
-  color: var(--error-text);
+  color: var(--danger);
   font-weight: 700;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+/* ------------------------------------------------------------- Trang 404 */
+.notfound-card {
+  text-align: center;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.notfound-card .auth-card-subtitle {
+  margin-bottom: .9rem;
+}
+
+.notfound-art {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: -.5rem 0 1.25rem;
+}
+
+/* Số 404 to như chữ sơn trên thùng xe bánh mì */
+.notfound-code {
+  font-family: var(--font-sign);
+  font-size: 4.25rem;
+  line-height: 1;
+  letter-spacing: .04em;
+  color: var(--primary-400);
+  -webkit-text-stroke: 2px var(--ink);
+  text-shadow: 4px 4px 0 var(--ink);
+  margin-bottom: -.4rem;
+}
+
+/* Nhãn dán đỏ "Ối! Lạc đường rồi" chéo góc đĩa */
+.notfound-sticker {
+  position: absolute;
+  right: 4%;
+  bottom: 14px;
+  padding: .2rem .7rem .3rem;
+  border: var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--chili-600);
+  box-shadow: var(--shadow-pop-sm);
+  font-family: var(--font-script);
+  font-size: 1.15rem;
+  color: #fff;
+  white-space: nowrap;
+  transform: rotate(8deg);
+}
+
+.notfound-quip {
+  margin: 0 0 1.4rem;
+  font-family: var(--font-script);
+  font-size: 1.1rem;
+  color: var(--herb-700);
+}
+
+/* ------------------------------------------------------------- Màn hẹp */
+@media (max-width: 480px) {
+  .auth-page-wrapper {
+    padding: 1.5rem .75rem 2.5rem;
+  }
+  .auth-card {
+    padding: 2.25rem 1.15rem 1.5rem;
+    box-shadow: var(--shadow-pop);
+  }
+  .brand-title {
+    font-size: 1.7rem;
+  }
+  .auth-tab-btn {
+    font-size: .95rem;
+  }
+  .notfound-code {
+    font-size: 3.4rem;
+  }
+  .notfound-sticker {
+    right: 0;
+    font-size: 1rem;
+  }
 }

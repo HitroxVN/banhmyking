@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Lock, Pencil, Plus, Search, ShieldCheck, Unlock, UserPlus, XCircle } from 'lucide-react';
+import { Lock, Pencil, Plus, Search, ShieldCheck, Unlock, XCircle } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -14,6 +14,7 @@ import {
   useToast,
 } from '../../components/ui';
 import type { BadgeTone } from '../../components/ui';
+import { EmptyPlate } from '../../components/illustrations/FoodDoodles';
 import { adminUserApi } from '../../api/adminUserApi';
 import type { AdminCreateUserPayload, AdminUpdateUserPayload, AdminUser } from '../../types/admin';
 import type { RoleName } from '../../types/auth';
@@ -259,7 +260,7 @@ export const AdminUsersPage = () => {
         ) : users.length === 0 ? (
           <div className="card__body">
             <EmptyState
-              icon={<UserPlus size={30} />}
+              icon={<EmptyPlate size={120} className="adm-plate" />}
               title="Không tìm thấy tài khoản nào"
               description="Thử đổi từ khoá tìm kiếm hoặc bộ lọc vai trò / trạng thái."
             />

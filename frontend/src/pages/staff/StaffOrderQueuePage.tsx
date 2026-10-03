@@ -29,6 +29,7 @@ import { AssignShipperModal } from '../../components/order/AssignShipperModal';
 import { CancelOrderModal } from '../../components/order/CancelOrderModal';
 import { TransferStoreModal } from '../../components/order/TransferStoreModal';
 import { RefundOrderModal } from '../../components/order/RefundOrderModal';
+import { EmptyPlate } from '../../components/illustrations/FoodDoodles';
 import { staffOrderApi } from '../../api/staffOrderApi';
 import { useAuth } from '../../context/useAuth';
 import { useStoreScope } from '../../context/useStoreScope';
@@ -260,193 +261,200 @@ export const StaffOrderQueuePage = () => {
         </section>
       ) : filteredOrders.length === 0 ? (
         <section className="card">
-          <div className="card__body">
+          <div className="card__body squeue__empty">
             <EmptyState
-              icon={<ChefHat size={30} />}
+              icon={<EmptyPlate size={120} />}
               title="Không có đơn nào trong danh sách"
-              description="Đơn mới sẽ tự động hiện tại đây theo thời gian thực."
+              description="Bếp đang rảnh tay — đơn mới sẽ tự động hiện tại đây theo thời gian thực."
             />
           </div>
         </section>
       ) : (
-        <div className="squeue__list">
-          {filteredOrders.map((order) => {
-            const minutes = elapsedMinutes(order.createdAt);
-            const urgent = minutes >= URGENT_AFTER_MINUTES && !isFinalStatus(order.status);
-            const busy = busyOrderCode === order.orderCode;
-            const waiting = !isFinalStatus(order.status);
+        <div className="squeue__board">
+          <div className="squeue__rail" aria-hidden="true" />
+          <div className="squeue__list">
+            {filteredOrders.map((order) => {
+              const minutes = elapsedMinutes(order.createdAt);
+              const urgent = minutes >= URGENT_AFTER_MINUTES && !isFinalStatus(order.status);
+              const busy = busyOrderCode === order.orderCode;
+              const waiting = !isFinalStatus(order.status);
 
-            return (
-              <article key={order.id} className={`card squeue__card${urgent ? ' squeue__card--urgent' : ''}`}>
-                <header className="squeue__head">
-                  <div className="squeue__ident">
-                    <span className="squeue__code">{order.orderCode}</span>
-                    <StatusBadge status={order.status} />
-                    {waiting && (
-                      <span className={`squeue__timer${urgent ? ' squeue__timer--urgent' : ''}`}>
-                        <Clock size={14} />
-                        Chờ {minutes} phút
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="squeue__meta">
-                    <span>{formatDateTime(order.createdAt)}</span>
-                    <Badge tone={order.paymentStatus === 'PAID' ? 'success' : 'warning'}>
-                      {order.paymentStatus === 'PAID' ? 'Đã thanh toán' : 'Thu khi giao'} ·{' '}
-                      {PAYMENT_METHOD_LABEL[order.paymentMethod] ?? order.paymentMethod}
-                    </Badge>
-                  </div>
-                </header>
-
-                <div className="squeue__body">
-                  <div className="squeue__info">
-                    <p className="squeue__row">
-                      <Phone size={15} />
-                      <span>
-                        <strong>{order.receiverName}</strong> · {order.receiverPhone}
-                      </span>
-                    </p>
-                    <p className="squeue__row">
-                      <MapPin size={15} />
-                      <span>{order.shippingAddress}</span>
-                    </p>
-                    {order.note && (
-                      <p className="squeue__row squeue__row--note">
-                        <StickyNote size={15} />
-                        <span>“{order.note}”</span>
-                      </p>
-                    )}
-                    {order.shipperName && (
-                      <p className="squeue__row">
-                        <Bike size={15} />
-                        <span>
-                          Tài xế: <strong>{order.shipperName}</strong>
-                          {order.shipperPhone ? ` · ${order.shipperPhone}` : ''}
+              return (
+                <article
+                  key={order.id}
+                  data-status={order.status}
+                  className={`card squeue__card${urgent ? ' squeue__card--urgent' : ''}`}
+                >
+                  <header className="squeue__head">
+                    <div className="squeue__ident">
+                      <span className="squeue__code">{order.orderCode}</span>
+                      <StatusBadge status={order.status} />
+                      {waiting && (
+                        <span className={`squeue__timer${urgent ? ' squeue__timer--urgent' : ''}`}>
+                          <Clock size={14} />
+                          Chờ {minutes} phút
                         </span>
-                      </p>
-                    )}
-                    {order.cancelReason && (
-                      <p className="squeue__row squeue__row--cancel">
-                        <XCircle size={15} />
-                        <span>Lý do huỷ: {order.cancelReason}</span>
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="squeue__items">
-                    {order.items.map((item) => (
-                      <div key={item.id} className="squeue__item">
-                        <span className="squeue__item-qty">{item.quantity}×</span>
-                        <span className="squeue__item-body">
-                          <strong>{item.productName}</strong>
-                          {orderComponentsText(item) && <em>{orderComponentsText(item)}</em>}
-                          {item.options && item.options.length > 0 && (
-                            <em>
-                              {item.options
-                                .map((option) => `+ ${option.optionName}`)
-                                .join(' · ')}
-                            </em>
-                          )}
-                        </span>
-                        <span className="squeue__item-price">{formatCurrency(item.lineTotal)}</span>
-                      </div>
-                    ))}
-
-                    <dl className="squeue__cost">
-                      <div>
-                        <dt>Tạm tính</dt>
-                        <dd>{formatCurrency(order.subtotal)}</dd>
-                      </div>
-                      <div>
-                        <dt>Phí giao</dt>
-                        <dd>{formatCurrency(order.shippingFee)}</dd>
-                      </div>
-                      {order.discountAmount > 0 && (
-                        <div>
-                          <dt>Giảm giá{order.promotionCode ? ` (${order.promotionCode})` : ''}</dt>
-                          <dd>-{formatCurrency(order.discountAmount)}</dd>
-                        </div>
                       )}
-                      <div className="squeue__cost-total">
-                        <dt>Tổng cộng</dt>
-                        <dd>{formatCurrency(order.total)}</dd>
-                      </div>
-                    </dl>
+                    </div>
+
+                    <div className="squeue__meta">
+                      <span>{formatDateTime(order.createdAt)}</span>
+                      <Badge tone={order.paymentStatus === 'PAID' ? 'success' : 'warning'}>
+                        {order.paymentStatus === 'PAID' ? 'Đã thanh toán' : 'Thu khi giao'} ·{' '}
+                        {PAYMENT_METHOD_LABEL[order.paymentMethod] ?? order.paymentMethod}
+                      </Badge>
+                    </div>
+                  </header>
+
+                  <div className="squeue__body">
+                    <div className="squeue__info">
+                      <p className="squeue__row">
+                        <Phone size={15} />
+                        <span>
+                          <strong>{order.receiverName}</strong> · {order.receiverPhone}
+                        </span>
+                      </p>
+                      <p className="squeue__row">
+                        <MapPin size={15} />
+                        <span>{order.shippingAddress}</span>
+                      </p>
+                      {order.note && (
+                        <p className="squeue__row squeue__row--note">
+                          <StickyNote size={15} />
+                          <span>“{order.note}”</span>
+                        </p>
+                      )}
+                      {order.shipperName && (
+                        <p className="squeue__row">
+                          <Bike size={15} />
+                          <span>
+                            Tài xế: <strong>{order.shipperName}</strong>
+                            {order.shipperPhone ? ` · ${order.shipperPhone}` : ''}
+                          </span>
+                        </p>
+                      )}
+                      {order.cancelReason && (
+                        <p className="squeue__row squeue__row--cancel">
+                          <XCircle size={15} />
+                          <span>Lý do huỷ: {order.cancelReason}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="squeue__items">
+                      {order.items.map((item) => (
+                        <div key={item.id} className="squeue__item">
+                          <span className="squeue__item-qty">{item.quantity}×</span>
+                          <span className="squeue__item-body">
+                            <strong>{item.productName}</strong>
+                            {orderComponentsText(item) && <em>{orderComponentsText(item)}</em>}
+                            {item.options && item.options.length > 0 && (
+                              <em>
+                                {item.options
+                                  .map((option) => `+ ${option.optionName}`)
+                                  .join(' · ')}
+                              </em>
+                            )}
+                          </span>
+                          <span className="squeue__item-price">{formatCurrency(item.lineTotal)}</span>
+                        </div>
+                      ))}
+
+                      <dl className="squeue__cost">
+                        <div>
+                          <dt>Tạm tính</dt>
+                          <dd>{formatCurrency(order.subtotal)}</dd>
+                        </div>
+                        <div>
+                          <dt>Phí giao</dt>
+                          <dd>{formatCurrency(order.shippingFee)}</dd>
+                        </div>
+                        {order.discountAmount > 0 && (
+                          <div>
+                            <dt>Giảm giá{order.promotionCode ? ` (${order.promotionCode})` : ''}</dt>
+                            <dd>-{formatCurrency(order.discountAmount)}</dd>
+                          </div>
+                        )}
+                        <div className="squeue__cost-total">
+                          <dt>Tổng cộng</dt>
+                          <dd>{formatCurrency(order.total)}</dd>
+                        </div>
+                      </dl>
+                    </div>
                   </div>
-                </div>
 
-                <footer className="squeue__foot">
-                  <p className="squeue__prompt">{promptFor(order)}</p>
+                  <footer className="squeue__foot">
+                    <p className="squeue__prompt">{promptFor(order)}</p>
 
-                  <div className="squeue__actions">
-                    {(order.status === 'PENDING' || order.status === 'CONFIRMED') && (
-                      <Button
-                        variant="primary"
-                        icon={<ChefHat size={17} />}
-                        loading={busy}
-                        onClick={() => void handleStartPreparing(order)}
-                      >
-                        Nhận đơn & bắt đầu làm
-                      </Button>
-                    )}
+                    <div className="squeue__actions">
+                      {(order.status === 'PENDING' || order.status === 'CONFIRMED') && (
+                        <Button
+                          variant="primary"
+                          icon={<ChefHat size={17} />}
+                          loading={busy}
+                          onClick={() => void handleStartPreparing(order)}
+                        >
+                          Nhận đơn & bắt đầu làm
+                        </Button>
+                      )}
 
-                    {order.status === 'PREPARING' && (
-                      <Button
-                        variant="success"
-                        icon={<PackageCheck size={17} />}
-                        loading={busy}
-                        onClick={() => void handleMarkReady(order)}
-                      >
-                        Bánh đã làm xong
-                      </Button>
-                    )}
+                      {order.status === 'PREPARING' && (
+                        <Button
+                          variant="success"
+                          icon={<PackageCheck size={17} />}
+                          loading={busy}
+                          onClick={() => void handleMarkReady(order)}
+                        >
+                          Bánh đã làm xong
+                        </Button>
+                      )}
 
-                    {order.status === 'READY_FOR_PICKUP' && (
-                      <Button
-                        variant="primary"
-                        icon={<Bike size={17} />}
-                        onClick={() => setAssigningOrder(order)}
-                      >
-                        {order.shipperName ? 'Đổi tài xế khác' : 'Gán tài xế đang rảnh'}
-                      </Button>
-                    )}
+                      {order.status === 'READY_FOR_PICKUP' && (
+                        <Button
+                          variant="primary"
+                          icon={<Bike size={17} />}
+                          onClick={() => setAssigningOrder(order)}
+                        >
+                          {order.shipperName ? 'Đổi tài xế khác' : 'Gán tài xế đang rảnh'}
+                        </Button>
+                      )}
 
-                    {canTransfer && order.status === 'PENDING' && (
-                      <Button
-                        variant="ghost"
-                        icon={<ArrowRightLeft size={17} />}
-                        disabled={busy}
-                        onClick={() => setTransferringOrder(order)}
-                      >
-                        Chuyển cơ sở
-                      </Button>
-                    )}
+                      {canTransfer && order.status === 'PENDING' && (
+                        <Button
+                          variant="ghost"
+                          icon={<ArrowRightLeft size={17} />}
+                          disabled={busy}
+                          onClick={() => setTransferringOrder(order)}
+                        >
+                          Chuyển cơ sở
+                        </Button>
+                      )}
 
-                    {order.paymentStatus === 'PAID' && (
-                      <Button
-                        variant="ghost"
-                        icon={<RotateCcw size={17} />}
-                        onClick={() => setRefundingOrder(order)}
-                      >
-                        Hoàn tiền
-                      </Button>
-                    )}
+                      {order.paymentStatus === 'PAID' && (
+                        <Button
+                          variant="ghost"
+                          icon={<RotateCcw size={17} />}
+                          onClick={() => setRefundingOrder(order)}
+                        >
+                          Hoàn tiền
+                        </Button>
+                      )}
 
-                    {!isFinalStatus(order.status) && (
-                      <Button
-                        variant="ghost"
-                        disabled={busy}
-                        onClick={() => setCancellingOrder(order)}
-                      >
-                        Huỷ đơn
-                      </Button>
-                    )}
-                  </div>
-                </footer>
-              </article>
-            );
-          })}
+                      {!isFinalStatus(order.status) && (
+                        <Button
+                          variant="ghost"
+                          disabled={busy}
+                          onClick={() => setCancellingOrder(order)}
+                        >
+                          Huỷ đơn
+                        </Button>
+                      )}
+                    </div>
+                  </footer>
+                </article>
+              );
+            })}
+          </div>
         </div>
       )}
 

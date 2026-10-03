@@ -86,7 +86,9 @@ export const StoresPage = () => {
         </Button>
       </div>
 
-      <StoresMap stores={stores} />
+      <div className="stores__map">
+        <StoresMap stores={stores} />
+      </div>
 
       <ul className="stores__list">
         {sorted.map((store) => {
@@ -99,7 +101,9 @@ export const StoresPage = () => {
             <li key={store.id} className="card stores__item">
               <div className="stores__head">
                 <h2 className="stores__name">{store.name}</h2>
-                <Badge tone={status.tone}>{status.label}</Badge>
+                <span className={`stores__status stores__status--${status.tone}`}>
+                  <Badge tone={status.tone}>{status.label}</Badge>
+                </span>
               </div>
               <p className="stores__line">
                 <MapPin size={15} /> {store.address}

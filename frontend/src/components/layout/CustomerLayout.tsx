@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Bike,
+  Flame,
   Home,
   LogOut,
   Mail,
@@ -22,6 +23,7 @@ import { useCart } from '../../context/useCart';
 import { useSiteSettings } from '../../context/useSiteSettings';
 import { useConfirm } from '../ui';
 import { formatCurrency } from '../../utils/formatters';
+import { MiniBanhMi } from '../illustrations/BanhMiArt';
 
 /** Các bước thanh toán đã có giỏ hàng riêng trong trang nên không cần pill nổi */
 const FLOAT_CART_HIDDEN_ON = ['/cart', '/checkout', '/payment'];
@@ -40,6 +42,27 @@ export const CustomerLayout = () => {
   const [keyword, setKeyword] = useState(urlKeyword);
   const [menuOpen, setMenuOpen] = useState(false);
   const userRef = useRef<HTMLDivElement>(null);
+
+  // Giỏ nảy nhẹ mỗi khi số món tăng (thêm nhanh, thêm từ trang chi tiết, đặt lại đơn cũ...)
+  const [cartBump, setCartBump] = useState(false);
+  const prevQuantity = useRef(totalQuantity);
+  useEffect(() => {
+    const grew = totalQuantity > prevQuantity.current;
+    prevQuantity.current = totalQuantity;
+    if (!grew) return;
+    setCartBump(true);
+    const timer = window.setTimeout(() => setCartBump(false), 650);
+    return () => window.clearTimeout(timer);
+  }, [totalQuantity]);
+
+  // Nội dung băng chữ chạy: hai thông báo admin cấu hình + các cam kết cố định của lò
+  const marqueeItems = [
+    settings.announcementPrimary && { icon: Timer, text: settings.announcementPrimary },
+    settings.announcementSecondary && { icon: Bike, text: settings.announcementSecondary },
+    { icon: Flame, text: 'Nướng theo từng đơn, vỏ giòn rụm' },
+    { icon: ShieldCheck, text: 'Tiền mặt hoặc VietQR' },
+    { icon: Sandwich, text: 'Nhân đầy ụ, rau tươi mỗi sáng' },
+  ].filter((item): item is { icon: typeof Timer; text: string } => Boolean(item));
 
   // URL là nguồn sự thật: back/forward hoặc bấm logo thì ô tìm kiếm đi theo
   useEffect(() => {
@@ -100,6 +123,9 @@ export const CustomerLayout = () => {
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `cshop__link${isActive ? ' cshop__link--active' : ''}`;
 
+  // Trang chủ đã có dải CTA "Đói bụng rồi?" ngay phía trên — không lặp bảng hiệu ở footer
+  const showFootSign = pathname !== '/';
+
   const showFloatCart =
     isAuthenticated &&
     totalQuantity > 0 &&
@@ -107,20 +133,19 @@ export const CustomerLayout = () => {
 
   return (
     <div className="cshop">
-      <div className="cshop__strip">
-        <div className="cshop__strip-inner">
-          {settings.announcementPrimary && (
-            <span className="cshop__strip-item">
-              <Timer size={14} />
-              {settings.announcementPrimary}
-            </span>
-          )}
-          {settings.announcementSecondary && (
-            <span className="cshop__strip-item cshop__strip-item--end">
-              <Bike size={14} />
-              {settings.announcementSecondary}
-            </span>
-          )}
+      {/* Băng chữ chạy kiểu biển quảng cáo xe bánh mì — lặp hai lần để vòng chạy liền mạch */}
+      <div className="cshop__strip" role="region" aria-label="Thông báo">
+        <div className="cshop__marquee">
+          {[0, 1].map((copy) => (
+            <ul className="cshop__marquee-track" key={copy} aria-hidden={copy === 1 ? 'true' : undefined}>
+              {marqueeItems.map(({ icon: Icon, text }, index) => (
+                <li className="cshop__strip-item" key={index}>
+                  <Icon size={14} />
+                  {text}
+                </li>
+              ))}
+            </ul>
+          ))}
         </div>
       </div>
 
@@ -178,7 +203,8 @@ export const CustomerLayout = () => {
             {isAuthenticated && (
               <Link
                 to="/cart"
-                className="cshop__cart-pill"
+                className={`cshop__cart-pill${cartBump ? ' cshop__cart-pill--bump' : ''}`}
+                data-cart-target="nav"
                 aria-label={`Giỏ hàng, ${totalQuantity} món, tạm tính ${formatCurrency(subtotal)}`}
               >
                 <span className="cshop__cart-pill-icon">
@@ -263,11 +289,29 @@ export const CustomerLayout = () => {
         </div>
       </nav>
 
+      {/* Mái che sọc đỏ–kem mép lượn như xe bánh mì — chỉ để trang trí */}
+      <div className="cshop__awning" aria-hidden="true" />
+
       <main className="cshop__main">
         <Outlet />
       </main>
 
-      <footer className="cshop__footer">
+      <footer className={`cshop__footer${showFootSign ? '' : ' cshop__footer--plain'}`}>
+        {showFootSign && (
+          <div className="cshop__foot-sign">
+            <p className="cshop__foot-shout">
+              Đói rồi hả? <span>Ghé {settings.siteName} nha!</span>
+            </p>
+            <Link className="ui-btn ui-btn--primary ui-btn--lg" to="/menu">
+              <Sandwich size={18} />
+              Đặt bánh liền
+            </Link>
+            <span className="cshop__foot-doodle" aria-hidden="true">
+              <MiniBanhMi size={80} />
+            </span>
+          </div>
+        )}
+
         <div className="cshop__foot-inner cshop__foot-inner--with-contact">
           <div className="cshop__foot-brand">
             <Link to="/" className="cshop__logo">
@@ -352,7 +396,11 @@ export const CustomerLayout = () => {
       </footer>
 
       {showFloatCart && (
-        <Link to="/cart" className="cshop__float-cart">
+        <Link
+          to="/cart"
+          className={`cshop__float-cart${cartBump ? ' cshop__float-cart--bump' : ''}`}
+          data-cart-target="float"
+        >
           <span className="cshop__float-cart-icon">
             <ShoppingCart size={20} />
             <span className="cshop__float-cart-badge">{totalQuantity}</span>

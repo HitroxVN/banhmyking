@@ -102,13 +102,13 @@ export const JobDetailPage = () => {
       </div>
 
       <div className="job-detail">
-        <article className="card">
+        <article className="card job-detail__desc">
           <div className="card__body">
             <MarkdownView source={job.description} />
           </div>
         </article>
 
-        <aside className="card">
+        <aside className="card job-detail__aside">
           <div className="card__body">
             <dl className="job-detail__facts">
               <div>
@@ -138,9 +138,14 @@ export const JobDetailPage = () => {
         </aside>
       </div>
 
-      <section className="card" id="apply">
+      <section className="card job-apply" id="apply">
         <div className="card__head">
-          <h2 className="card__title">Ứng tuyển vị trí này</h2>
+          <h2 className="card__title">
+            <span className="job-apply__kicker" aria-hidden="true">
+              Vào đội nhé!
+            </span>
+            Ứng tuyển vị trí này
+          </h2>
         </div>
         <div className="card__body">
           {job.acceptingApplications ? (

@@ -13,6 +13,7 @@ import type { OrderItemResponse, OrderResponse, OrderStatus, OrderStatusHistoryI
 import { PriceTag } from '../components/product/PriceTag';
 import { ComboContents } from '../components/product/ComboContents';
 import { orderUnitCompareAt } from '../utils/pricing';
+import { MiniBanhMi } from '../components/illustrations/BanhMiArt';
 import '../styles/components/order.css';
 import '../styles/components/tracking.css';
 
@@ -270,8 +271,8 @@ export const OrderTrackingPage = () => {
                     {item.productImageUrl ? (
                       <img className="cart-row__img" src={item.productImageUrl} alt={item.productName} />
                     ) : (
-                      <span className="pcard__placeholder" aria-hidden="true">
-                        <Receipt size={26} />
+                      <span className="cart-row__placeholder" aria-hidden="true">
+                        <MiniBanhMi size={56} />
                       </span>
                     )}
                   </div>
@@ -344,7 +345,7 @@ export const OrderTrackingPage = () => {
         </div>
 
         <aside>
-          <section className="card">
+          <section className="card receipt">
             <div className="card__head">
               <h2 className="card__title">Thanh toán</h2>
               {order.paymentStatus && (

@@ -184,7 +184,7 @@ export const PaymentPage = () => {
       </div>
 
       {showReceipt ? (
-        <section className="card">
+        <section className="card receipt pay__receipt">
           <div className="card__head">
             <div className="pay__receipt-head">
               <span className="pay__receipt-icon">

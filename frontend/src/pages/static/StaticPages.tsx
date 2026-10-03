@@ -4,6 +4,8 @@ import { Mail, MapPin, Phone, Sandwich } from 'lucide-react';
 import { useSiteSettings } from '../../context/useSiteSettings';
 import { EmptyState } from '../../components/ui';
 import { FeedbackForm } from '../../components/feedback/FeedbackForm';
+import { BanhMiArt } from '../../components/illustrations/BanhMiArt';
+import { ChiliDoodle, CucumberDoodle, LeafDoodle } from '../../components/illustrations/FoodDoodles';
 import '../../styles/components/static-pages.css';
 
 /**
@@ -12,15 +14,41 @@ import '../../styles/components/static-pages.css';
  * <p>Nội dung nằm ngay trong file này chứ không tách mỗi trang một file: đây là văn bản
  * marketing/điều khoản, sửa cùng nhau và không có logic gì để tách.
  */
-const StaticPage = ({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) => (
+const StaticPage = ({
+  title,
+  subtitle,
+  kicker,
+  art,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  /** Dòng chữ viết tay nhỏ phía trên tiêu đề — chỉ để trang trí */
+  kicker: string;
+  /** Hình minh hoạ bên phải tiêu đề; mặc định là cụm rau / ớt / dưa leo */
+  art?: ReactNode;
+  children: ReactNode;
+}) => (
   <div className="static">
-    <div className="page-bar">
-      <div>
+    <div className="page-bar static__hero">
+      <div className="static__hero-copy">
         <p className="page-bar__crumb">
           <Link to="/">Trang chủ</Link> / {title}
         </p>
+        <p className="static__kicker" aria-hidden="true">
+          {kicker}
+        </p>
         <h1 className="page-bar__title">{title}</h1>
         <p className="static__sub">{subtitle}</p>
+      </div>
+      <div className="static__hero-art" aria-hidden="true">
+        {art ?? (
+          <span className="static__doodles">
+            <LeafDoodle size={44} className="static__doodle static__doodle--leaf" />
+            <ChiliDoodle size={36} className="static__doodle static__doodle--chili" />
+            <CucumberDoodle size={40} className="static__doodle static__doodle--cuke" />
+          </span>
+        )}
       </div>
     </div>
 
@@ -29,7 +57,12 @@ const StaticPage = ({ title, subtitle, children }: { title: string; subtitle: st
 );
 
 export const AboutPage = () => (
-  <StaticPage title="Giới thiệu" subtitle="Lò bánh mì nướng theo từng đơn, giao nóng trong nội thành.">
+  <StaticPage
+    title="Giới thiệu"
+    subtitle="Lò bánh mì nướng theo từng đơn, giao nóng trong nội thành."
+    kicker="Chuyện lò bánh"
+    art={<BanhMiArt className="static__banhmi" />}
+  >
     <p>
       Bánh Mỳ King bắt đầu từ một chiếc lò nhỏ: bánh chỉ vào lò sau khi có đơn, nhân kẹp tại chỗ và đóng gói
       giữ giòn trên đường giao. Chúng tôi không làm sẵn hàng loạt để bánh nguội trên kệ.
@@ -61,7 +94,7 @@ export const ContactPage = () => {
   const hasContact = Boolean(settings.contactPhone || settings.contactEmail || settings.contactAddress);
 
   return (
-    <StaticPage title="Liên hệ" subtitle="Gọi điện khi cần gấp, hoặc gửi phản hồi để cửa hàng xử lý.">
+    <StaticPage title="Liên hệ" subtitle="Gọi điện khi cần gấp, hoặc gửi phản hồi để cửa hàng xử lý." kicker="Ghé xe hỏi nhé">
       {hasContact ? (
         <div className="static__contact">
           {settings.contactPhone && (
@@ -120,28 +153,50 @@ export const ContactPage = () => {
 };
 
 export const FaqPage = () => (
-  <StaticPage title="Câu hỏi thường gặp" subtitle="Những thắc mắc hay gặp khi đặt bánh.">
+  <StaticPage title="Câu hỏi thường gặp" subtitle="Những thắc mắc hay gặp khi đặt bánh." kicker="Hỏi nhanh đáp gọn">
     <div className="static__qa">
-      <h3>Tôi có cần tài khoản để xem thực đơn không?</h3>
-      <p>Không. Thực đơn, giá và đánh giá của khách đều xem được khi chưa đăng nhập. Chỉ lúc chốt đơn mới cần đăng nhập.</p>
-
-      <h3>Phí giao hàng tính thế nào?</h3>
-      <p>Phí tính theo khoảng cách từ cửa hàng tới địa chỉ nhận, trừ khi đơn đủ ngưỡng miễn phí giao. Số tiền cụ thể hiện ở bước thanh toán trước khi bạn xác nhận.</p>
-
-      <h3>Tôi trả tiền bằng cách nào?</h3>
-      <p>Tiền mặt khi nhận hàng, hoặc chuyển khoản qua mã VietQR hiện ngay trên trang thanh toán. Đơn chuyển khoản chỉ vào bếp sau khi cửa hàng ghi nhận thanh toán.</p>
-
-      <h3>Huỷ đơn được không?</h3>
-      <p>Đơn đang chờ xử lý thì huỷ được ngay trong mục Đơn của tôi. Khi bếp đã bắt đầu làm, bạn cần gọi cửa hàng — nếu đơn không thể giao, cửa hàng sẽ liên hệ để huỷ và xử lý lại tiền.</p>
-
-      <h3>Món tôi muốn đang hết hàng?</h3>
-      <p>Món quản tồn sẽ tự khoá nút thêm vào giỏ và hiện số lượng còn lại. Tồn kho cập nhật theo từng đơn nên bạn thử lại sau ít phút.</p>
-
-      <h3>Mã giảm giá nằm ở đâu?</h3>
-      <p>Trong mục <Link to="/promotions">Ưu đãi của tôi</Link>: mã còn dùng được và mã đã dùng kèm đơn tương ứng. Nếu ví trống, mã sẽ hiện khi cửa hàng phát hành thêm.</p>
-
-      <h3>Tôi chưa nhận được email xác thực?</h3>
-      <p>Kiểm tra hộp thư rác trước, rồi dùng nút gửi lại link ngay trên trang đăng nhập khi hệ thống báo tài khoản chưa xác thực.</p>
+      <details className="static__faq" open>
+        <summary className="static__faq-q">
+          <h3>Tôi có cần tài khoản để xem thực đơn không?</h3>
+        </summary>
+        <p>Không. Thực đơn, giá và đánh giá của khách đều xem được khi chưa đăng nhập. Chỉ lúc chốt đơn mới cần đăng nhập.</p>
+      </details>
+      <details className="static__faq">
+        <summary className="static__faq-q">
+          <h3>Phí giao hàng tính thế nào?</h3>
+        </summary>
+        <p>Phí tính theo khoảng cách từ cửa hàng tới địa chỉ nhận, trừ khi đơn đủ ngưỡng miễn phí giao. Số tiền cụ thể hiện ở bước thanh toán trước khi bạn xác nhận.</p>
+      </details>
+      <details className="static__faq">
+        <summary className="static__faq-q">
+          <h3>Tôi trả tiền bằng cách nào?</h3>
+        </summary>
+        <p>Tiền mặt khi nhận hàng, hoặc chuyển khoản qua mã VietQR hiện ngay trên trang thanh toán. Đơn chuyển khoản chỉ vào bếp sau khi cửa hàng ghi nhận thanh toán.</p>
+      </details>
+      <details className="static__faq">
+        <summary className="static__faq-q">
+          <h3>Huỷ đơn được không?</h3>
+        </summary>
+        <p>Đơn đang chờ xử lý thì huỷ được ngay trong mục Đơn của tôi. Khi bếp đã bắt đầu làm, bạn cần gọi cửa hàng — nếu đơn không thể giao, cửa hàng sẽ liên hệ để huỷ và xử lý lại tiền.</p>
+      </details>
+      <details className="static__faq">
+        <summary className="static__faq-q">
+          <h3>Món tôi muốn đang hết hàng?</h3>
+        </summary>
+        <p>Món quản tồn sẽ tự khoá nút thêm vào giỏ và hiện số lượng còn lại. Tồn kho cập nhật theo từng đơn nên bạn thử lại sau ít phút.</p>
+      </details>
+      <details className="static__faq">
+        <summary className="static__faq-q">
+          <h3>Mã giảm giá nằm ở đâu?</h3>
+        </summary>
+        <p>Trong mục <Link to="/promotions">Ưu đãi của tôi</Link>: mã còn dùng được và mã đã dùng kèm đơn tương ứng. Nếu ví trống, mã sẽ hiện khi cửa hàng phát hành thêm.</p>
+      </details>
+      <details className="static__faq">
+        <summary className="static__faq-q">
+          <h3>Tôi chưa nhận được email xác thực?</h3>
+        </summary>
+        <p>Kiểm tra hộp thư rác trước, rồi dùng nút gửi lại link ngay trên trang đăng nhập khi hệ thống báo tài khoản chưa xác thực.</p>
+      </details>
     </div>
   </StaticPage>
 );
@@ -149,6 +204,7 @@ export const FaqPage = () => (
 export const TermsPage = () => (
   <StaticPage
     title="Điều khoản sử dụng"
+    kicker="Nói trước cho rõ"
     subtitle="Áp dụng khi bạn đặt hàng trên website này. Đây là dự án đặt món quy mô nhỏ, không phải văn bản pháp lý đã qua thẩm định."
   >
     <h2>Đặt hàng</h2>
@@ -185,6 +241,7 @@ export const TermsPage = () => (
 export const PrivacyPage = () => (
   <StaticPage
     title="Chính sách bảo mật"
+    kicker="Giữ kín cho bạn"
     subtitle="Chúng tôi chỉ lưu những gì cần để giao được đơn hàng của bạn."
   >
     <h2>Thu thập những gì</h2>

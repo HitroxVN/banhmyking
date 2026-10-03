@@ -92,19 +92,24 @@ export const JobsPage = () => {
         <div className="job-list">
           {state.jobs.map((job) => (
             <Link key={job.id} to={`/tuyen-dung/${job.slug}`} className="job-card">
+              <span className="job-card__hiring" aria-hidden="true">
+                Đang tuyển
+              </span>
               <h2 className="job-card__title">{job.title}</h2>
               <div className="job-card__facts">
-                <span>
+                <span className="job-card__type">
                   <Badge tone="info">{EMPLOYMENT_TYPE_LABEL[job.employmentType]}</Badge>
                 </span>
-                <span>
+                <span className="job-card__sticker job-card__sticker--salary">
                   <Wallet size={15} />
                   {job.salaryText || 'Thoả thuận'}
                 </span>
-                <span>
+                <span className="job-card__sticker job-card__sticker--place">
                   <MapPin size={15} />
                   {storesText(job.chainWide, job.stores)}
                 </span>
+              </div>
+              <div className="job-card__foot">
                 <span>
                   <CalendarClock size={15} />
                   Hạn nộp: {deadlineText(job.deadline)}

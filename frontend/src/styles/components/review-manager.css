@@ -2,12 +2,15 @@
 @import './card.css';
 @import './table.css';
 
+/* Thanh lọc nằm trên nền giấy, gạch đứt ngăn với bảng */
 .rmgr__filters {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) 0 var(--space-4);
+  border-bottom: 2px dashed var(--stone-300);
 }
 
 .rmgr__filters .ui-field {
@@ -19,18 +22,34 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  color: var(--stone-600);
+  color: var(--stone-700);
   line-height: 1.6;
 }
 
 .rmgr__date {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-  color: var(--stone-500);
+  color: var(--stone-600);
 }
 
 .rmgr__pager {
   display: flex;
   justify-content: flex-end;
   padding: var(--space-4) var(--space-5);
+  border-top: 2px dashed var(--stone-200);
+}
+
+/* Danh sách trống: đĩa trống thay cho icon tròn */
+.rmgr__empty .ui-empty__icon,
+.dash .rmgr__empty .ui-empty__icon {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: none;
+}
+
+@media (max-width: 560px) {
+  .rmgr__filters .ui-field { flex: 1 1 100%; }
 }

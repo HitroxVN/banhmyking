@@ -40,7 +40,8 @@ export const OrderStatusBreakdown = ({ stats, totalOrders, successRate }: OrderS
       </div>
 
       <div className="brk__bar" role="img" aria-label={`Phân bố ${totalOrders} đơn theo trạng thái`}>
-        {stats.map((item) => (
+        {/* Trạng thái 0 đơn không vẽ đoạn — nếu không khe 2px giữa các đoạn sẽ cộng dồn thành vệt trống */}
+        {stats.filter((item) => item.percentage > 0).map((item) => (
           <div
             key={item.status}
             className="brk__seg"

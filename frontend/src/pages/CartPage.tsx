@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Info, Receipt, Sandwich, ShoppingBag, Trash2 } from 'lucide-react';
+import { Info, Receipt, ShoppingBag, Trash2 } from 'lucide-react';
 import { useCart } from '../context/useCart';
 import { Button, EmptyState, QuantityStepper, Spinner, useConfirm, useToast } from '../components/ui';
 import { formatCurrency } from '../utils/formatters';
@@ -7,6 +7,8 @@ import type { CartItem } from '../types/cart';
 import { PriceTag } from '../components/product/PriceTag';
 import { ComboContents } from '../components/product/ComboContents';
 import { cartUnitCompareAt } from '../utils/pricing';
+import { MiniBanhMi } from '../components/illustrations/BanhMiArt';
+import { EmptyPlate } from '../components/illustrations/FoodDoodles';
 import '../styles/components/order.css';
 
 export const CartPage = () => {
@@ -102,12 +104,14 @@ export const CartPage = () => {
       )}
 
       {isEmpty ? (
-        <EmptyState
-          icon={<ShoppingBag size={30} />}
-          title="Giỏ hàng đang trống"
-          description="Thêm vài chiếc bánh mì nóng giòn rồi quay lại đây nhé."
-          action={<Button onClick={() => navigate('/menu')}>Xem thực đơn</Button>}
-        />
+        <div className="order-empty">
+          <EmptyState
+            icon={<EmptyPlate size={140} />}
+            title="Giỏ hàng đang trống"
+            description="Thêm vài chiếc bánh mì nóng giòn rồi quay lại đây nhé."
+            action={<Button onClick={() => navigate('/menu')}>Xem thực đơn</Button>}
+          />
+        </div>
       ) : (
         <div className="order-grid">
           <section className="card">
@@ -124,8 +128,8 @@ export const CartPage = () => {
                     {item.productImageUrl ? (
                       <img className="cart-row__img" src={item.productImageUrl} alt={item.productName} />
                     ) : (
-                      <span className="pcard__placeholder" aria-hidden="true">
-                        <Sandwich size={26} />
+                      <span className="cart-row__placeholder" aria-hidden="true">
+                        <MiniBanhMi size={56} />
                       </span>
                     )}
                   </div>
@@ -175,7 +179,7 @@ export const CartPage = () => {
             </div>
           </section>
 
-          <aside className="card">
+          <aside className="card receipt">
             <div className="card__head">
               <h2 className="card__title">
                 <Receipt size={19} />

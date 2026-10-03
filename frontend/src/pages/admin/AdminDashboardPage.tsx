@@ -9,6 +9,7 @@ import { adminDashboardApi } from '../../api/adminDashboardApi';
 import type { DashboardMetrics, DailyRevenue, OrderStatusStat } from '../../types/admin';
 import { formatCurrency } from '../../utils/formatters';
 import '../../styles/components/dashboard.css';
+import { ShiftGreeting } from '../../components/admin/ShiftGreeting';
 
 export const AdminDashboardPage = () => {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
@@ -93,6 +94,7 @@ export const AdminDashboardPage = () => {
         isRefreshing={isRefreshing}
         actions={<StoreScopeSelect value={storeId} onChange={handleStoreChange} />}
       />
+      <ShiftGreeting />
 
       {errorMsg && (
         <div className="alert-banner alert-error page-alert" role="alert">

@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   History,
   MapPin,
-  Package,
   PackageCheck,
   Phone,
   Search,
@@ -26,6 +25,7 @@ import {
   Textarea,
   useToast,
 } from '../../components/ui';
+import { EmptyPlate } from '../../components/illustrations/FoodDoodles';
 import { shipperOrderApi, type OrderStatusHistoryItem } from '../../api/shipperOrderApi';
 import { isFinalStatus, type OrderResponse } from '../../types/order';
 import { PAYMENT_METHOD_LABEL } from '../../utils/payment';
@@ -316,12 +316,12 @@ export const ShipperOrdersPage = () => {
           </div>
         </section>
       ) : filteredOrders.length === 0 ? (
-        <section className="card">
+        <section className="card shipper__empty">
           <div className="card__body">
             <EmptyState
-              icon={<Package size={30} />}
+              icon={<EmptyPlate size={132} />}
               title="Chưa có đơn nào ở mục này"
-              description="Đơn được quán phân công sẽ tự hiện tại đây theo thời gian thực."
+              description="Nghỉ tay chút nhé! Đơn được quán phân công sẽ tự hiện tại đây theo thời gian thực."
               action={<Button onClick={reload}>Tải lại dữ liệu</Button>}
             />
           </div>
@@ -438,6 +438,11 @@ const OrderCard = ({
       </header>
 
       <div className="shipper__body">
+        <p className="shipper__address">
+          <MapPin size={18} />
+          <span>{order.shippingAddress}</span>
+        </p>
+
         <div className="shipper__contact">
           <p className="shipper__recv">
             {order.receiverName}
@@ -445,7 +450,7 @@ const OrderCard = ({
           </p>
           <div className="shipper__contact-actions">
             <a className="shipper__tel" href={`tel:${order.receiverPhone}`}>
-              <Phone size={15} /> Gọi ngay
+              <Phone size={18} /> Gọi ngay
             </a>
             <a
               className="shipper__map"
@@ -458,15 +463,10 @@ const OrderCard = ({
               target="_blank"
               rel="noopener noreferrer"
             >
-              <MapPin size={15} /> Chỉ đường
+              <MapPin size={18} /> Chỉ đường
             </a>
           </div>
         </div>
-
-        <p className="shipper__address">
-          <MapPin size={15} />
-          <span>{order.shippingAddress}</span>
-        </p>
 
         {order.note && (
           <p className="shipper__note">
@@ -528,7 +528,7 @@ const OrderCard = ({
         <footer className="shipper__foot">
           {isReady && (
             <>
-              <Button variant="ghost" disabled={busy} onClick={onReject}>
+              <Button variant="secondary" disabled={busy} onClick={onReject}>
                 Từ chối đơn
               </Button>
               <Button variant="primary" icon={<Bike size={17} />} loading={busy} onClick={onAccept}>
@@ -539,7 +539,7 @@ const OrderCard = ({
 
           {isDelivering && (
             <>
-              <Button variant="ghost" onClick={onFail}>
+              <Button variant="secondary" icon={<XCircle size={17} />} onClick={onFail}>
                 Báo giao thất bại
               </Button>
               <Button variant="success" icon={<CheckCircle2 size={17} />} onClick={onDeliver}>

@@ -109,3 +109,76 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   Khu khách (.cshop) — ô tìm, danh sách gợi ý, khung bản đồ viền mực bóng cứng.
+   File còn dùng ở trang quản trị cơ sở nên chỉ đổi kiểu trong .cshop.
+   ========================================================================== */
+.cshop .addr-map__input {
+  height: 40px;
+  border: 2px solid var(--stone-400);
+  border-radius: var(--radius-md);
+  background: var(--cream);
+  color: var(--ink);
+}
+
+.cshop .addr-map__input:focus {
+  outline: none;
+  border-color: var(--ink);
+  box-shadow: var(--shadow-pop-sm);
+}
+
+.cshop .addr-map__results {
+  border: var(--line);
+  border-radius: var(--radius-md);
+  background: var(--cream);
+  box-shadow: var(--shadow-pop-sm);
+}
+
+.cshop .addr-map__results button {
+  color: var(--ink);
+}
+
+.cshop .addr-map__results button:hover,
+.cshop .addr-map__results button:focus-visible {
+  background: var(--primary-100);
+}
+
+.cshop .addr-map__results svg {
+  color: var(--chili-600);
+}
+
+.cshop .addr-map__canvas {
+  border: var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow-pop-sm);
+}
+
+.cshop .addr-map__hint {
+  color: var(--ink-soft);
+}
+
+.cshop .addr-map__hint--warn {
+  color: var(--warning);
+  font-weight: 700;
+}
+
+/* Bong bóng ghim trên bản đồ: tờ giấy kem viền mực */
+.cshop .leaflet-popup-content-wrapper {
+  border: var(--line);
+  border-radius: 12px;
+  background: var(--cream);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop-sm);
+}
+
+.cshop .leaflet-popup-tip {
+  background: var(--cream);
+  box-shadow: none;
+}
+
+.cshop .leaflet-popup-content strong {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 15px;
+}

@@ -131,3 +131,177 @@
   font-size: var(--text-sm);
   color: var(--danger);
 }
+
+/* ==========================================================================
+   Khu khách (.cshop) — mỗi cơ sở như một tấm biển quán nhỏ có mái hiên sọc.
+   stores.css còn được trang quản trị cơ sở nạp, nên mọi luật dưới đây gắn .cshop.
+   ========================================================================== */
+.cshop .stores {
+  gap: var(--space-6);
+}
+
+.cshop .stores__sub {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+/* Bản đồ đóng khung viền mực, bóng cứng */
+.cshop .stores__map {
+  overflow: hidden;
+  border: var(--line);
+  border-radius: 18px;
+  background: var(--paper-deep);
+  box-shadow: var(--shadow-pop);
+}
+
+.cshop .stores__map .addr-map__canvas {
+  border: 0;
+  border-radius: 0;
+}
+
+.cshop .stores__list {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: var(--space-6);
+  padding: 4px;
+}
+
+.cshop .stores__item.card + .stores__item.card {
+  margin-top: 0;
+}
+
+.cshop .stores__item {
+  position: relative;
+  gap: 8px;
+  padding: 36px 18px 18px;
+  overflow: hidden;
+  transition: transform .2s var(--ease-bounce), box-shadow .2s;
+}
+
+.cshop .stores__item:hover {
+  transform: translate(-2px, -3px);
+  box-shadow: var(--shadow-pop-lg);
+}
+
+/* Mái hiên sọc đỏ ớt / kem, mép dưới lượn sóng (SVG lặp, không gradient) */
+.cshop .stores__item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 18px;
+  border-bottom: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='18' viewBox='0 0 40 18'%3E%3Cpath d='M0 0H20V10A10 6 0 0 1 0 10Z' fill='%23B83A24'/%3E%3Cpath d='M20 0H40V10A10 6 0 0 1 20 10Z' fill='%23FFFDF7'/%3E%3Cpath d='M0 10A10 6 0 0 0 20 10A10 6 0 0 0 40 10' fill='none' stroke='%232B1D14' stroke-width='2'/%3E%3C/svg%3E") repeat-x 0 0 / 40px 18px;
+}
+
+.cshop .stores__head {
+  align-items: center;
+  padding-bottom: 10px;
+  border-bottom: 2px dashed var(--stone-300);
+}
+
+/* Tên cơ sở viết bằng chữ biển hiệu */
+.cshop .stores__name {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+/* Trạng thái mở / đóng: nhãn dán viền mực, nghiêng */
+.cshop .stores__status {
+  flex-shrink: 0;
+  transform: rotate(4deg);
+}
+
+.cshop .stores__status .ui-badge {
+  height: 26px;
+  border: 2px solid var(--ink);
+  font-weight: 800;
+  box-shadow: var(--shadow-pop-sm);
+}
+
+.cshop .stores__status--success .ui-badge {
+  background: var(--herb-100);
+  color: var(--herb-700);
+}
+
+.cshop .stores__status--warning .ui-badge {
+  background: var(--primary-200);
+  color: var(--primary-900);
+}
+
+.cshop .stores__status--neutral .ui-badge {
+  background: var(--stone-200);
+  color: var(--stone-700);
+  transform: rotate(-8deg);
+}
+
+.cshop .stores__line {
+  color: var(--ink-soft);
+}
+
+.cshop .stores__line svg {
+  color: var(--chili-600);
+}
+
+.cshop a.stores__line:hover {
+  color: var(--chili-600);
+}
+
+.cshop .stores__km {
+  color: var(--herb-700);
+  font-weight: 700;
+}
+
+.cshop .stores__dir {
+  margin-top: 8px;
+  border-color: var(--ink);
+  background: var(--primary-200);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop-sm);
+}
+
+.cshop .stores__dir:hover {
+  background: var(--primary-300);
+}
+
+/* Thẻ "Giao từ cơ sở" ở thanh toán — viền mực, nền phẳng */
+.cshop .ck-store {
+  border: var(--line);
+  border-radius: 14px;
+  background: var(--primary-50);
+}
+
+.cshop .ck-store__name {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.cshop .ck-store__option {
+  border: 2px solid var(--stone-300);
+  border-radius: 10px;
+  background: var(--cream);
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.cshop .ck-store__option:hover:not(.ck-store__option--off) {
+  border-color: var(--ink);
+}
+
+.cshop .ck-store__option:has(input:checked) {
+  border-color: var(--ink);
+  background: var(--primary-100);
+  box-shadow: var(--shadow-pop-sm);
+}
+
+.cshop .ck-store__option input {
+  accent-color: var(--chili-600);
+}
+
+@media (max-width: 480px) {
+  .cshop .stores__head {
+    flex-wrap: wrap;
+  }
+}

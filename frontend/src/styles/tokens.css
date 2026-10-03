@@ -2,69 +2,111 @@
    Design tokens — Bánh Mỳ King
    Nguồn duy nhất cho màu / chữ / bo góc / đổ bóng.
    Tên biến --primary-*, --stone-*, --error-*, --glass-* là chuẩn của dự án.
+
+   Chủ đề "xe bánh mì Sài Gòn": nền giấy gói bánh, chữ nâu than, vàng vỏ bánh nướng,
+   đỏ ớt, xanh rau mùi. Không dùng gradient mượt — khối màu phẳng, viền đậm, bóng cứng.
    ========================================================================== */
 :root {
-  /* Brand — vàng bánh mì nướng / cam mật ong */
-  --primary-50: #FFFBEB;
-  --primary-100: #FEF3C7;
-  --primary-200: #FDE68A;
-  --primary-300: #FCD34D;
-  --primary-400: #FBBF24;
-  --primary-500: #F59E0B;
-  --primary-600: #D97706;
-  --primary-700: #B45309;
-  --primary-800: #92400E;
-  --primary-900: #78350F;
-  --primary-950: #451A03;
+  /* Brand — vàng vỏ bánh nướng (giữ tên --primary-* để mọi trang cũ tự ăn theo) */
+  --primary-50: #FFF8EA;
+  --primary-100: #FDEBC8;
+  --primary-200: #F9D79A;
+  --primary-300: #F2BE62;
+  --primary-400: #EBA93F;
+  --primary-500: #E0922A;
+  --primary-600: #C7741B;
+  --primary-700: #A25816;
+  --primary-800: #7F4416;
+  --primary-900: #643715;
+  --primary-950: #3A1C08;
+
+  /* Đỏ ớt — nút hành động chính và giá ở khu khách */
+  --chili-50: #FDF0EC;
+  --chili-100: #FADCD3;
+  --chili-200: #F3B4A3;
+  --chili-400: #E06A4D;
+  --chili-500: #D24E33;
+  --chili-600: #B83A24;
+  --chili-700: #962E1C;
+  --chili-800: #74241A;
+
+  /* Xanh rau mùi / dưa leo — điểm nhấn tươi */
+  --herb-50: #EEF6EA;
+  --herb-100: #D8EBCF;
+  --herb-300: #8DBF77;
+  --herb-500: #4C8C3F;
+  --herb-600: #3F7D3A;
+  --herb-700: #2F5F2B;
+
+  /* Mực nâu than (chữ, viền, bóng cứng) và giấy gói bánh (nền) */
+  --ink: #2B1D14;
+  --ink-soft: #5A4535;
+  --paper: #FBF3E4;
+  --paper-deep: #F4E6CC;
+  --cream: #FFFDF7;
 
   /* Neutral — stone ấm */
-  --stone-50: #FAFAF9;
-  --stone-100: #F5F5F4;
-  --stone-200: #E7E5E4;
-  --stone-300: #D6D3D1;
-  --stone-400: #A8A29E;
-  --stone-500: #78716C;
-  --stone-600: #57534E;
-  --stone-700: #44403C;
-  --stone-800: #292524;
-  --stone-900: #1C1917;
+  --stone-50: #FAF8F4;
+  --stone-100: #F4F0E9;
+  --stone-200: #E8E1D6;
+  --stone-300: #D5CBBD;
+  --stone-400: #A99C8C;
+  --stone-500: #7C6E60;
+  --stone-600: #5C5045;
+  --stone-700: #45392F;
+  --stone-800: #2E241D;
+  --stone-900: #1E1712;
 
   /* Ngữ nghĩa */
-  --success: #059669;
-  --success-bg: #ECFDF5;
-  --danger: #DC2626;
-  --danger-bg: #FEF2F2;
-  --warning: #D97706;
-  --warning-bg: #FFFBEB;
+  --success: #3F7D3A;
+  --success-bg: #EEF6EA;
+  --danger: #C2381F;
+  --danger-bg: #FDF0EC;
+  --warning: #C7741B;
+  --warning-bg: #FFF8EA;
   --info: #2563EB;
   --info-bg: #EFF6FF;
 
   /* Ngữ nghĩa */
-  --error-bg: #FEF2F2;
-  --error-border: #FCA5A5;
-  --error-text: #DC2626;
-  --success-border: #86EFAC;
-  --success-text: #16A34A;
+  --error-bg: #FDF0EC;
+  --error-border: #F3B4A3;
+  --error-text: #C2381F;
+  --success-border: #8DBF77;
+  --success-text: #3F7D3A;
 
   /* Nền */
-  --bg-page: #FAF8F5;
-  --surface: #FFFFFF;
-  --border: #E7E5E4;
-  --bg-subtle: #F8FAFC;
+  --bg-page: #FBF3E4;
+  --surface: #FFFDF7;
+  --border: #E8DCC6;
+  --bg-subtle: #F8F4EC;
 
-  /* Trạng thái đơn hàng */
-  --status-pending: #D97706;
-  --status-confirmed: #2563EB;
-  --status-preparing: #7C3AED;
-  --status-ready: #059669;
-  --status-delivering: #0891B2;
-  --status-delivered: #15803D;
-  --status-cancelled: #DC2626;
-  --status-failed: #B91C1C;
+  /* Trạng thái đơn hàng — màu vạch/chấm trên biểu đồ. Bộ 8 màu theo đúng thứ tự luồng đơn đã chạy
+     validate_palette (skill dataviz) trên nền kem: qua mọi ngưỡng bắt buộc; luôn đi kèm nhãn chữ. */
+  --status-pending: #D18F00;
+  --status-confirmed: #2A78D6;
+  --status-preparing: #EB6834;
+  --status-ready: #1BAF7A;
+  --status-delivering: #4A3AA7;
+  --status-delivered: #008300;
+  --status-cancelled: #E34948;
+  --status-failed: #7D4FB8;
 
-  /* Chữ */
+  /* Chữ + nền nhãn trạng thái — chữ đậm hơn màu vạch để đạt WCAG >= 4.5:1 trên nền nhãn */
+  --status-pending-text: #8A5A00;     --status-pending-bg: #FFF4D6;
+  --status-confirmed-text: #1F5BA8;   --status-confirmed-bg: #E8F1FC;
+  --status-preparing-text: #B5481F;   --status-preparing-bg: #FDEDE5;
+  --status-ready-text: #0B7A55;       --status-ready-bg: #E3F6EE;
+  --status-delivering-text: #4A3AA7;  --status-delivering-bg: #EEEBFA;
+  --status-delivered-text: #006B00;   --status-delivered-bg: #E6F4E6;
+  --status-cancelled-text: #B32F2E;   --status-cancelled-bg: #FCEAEA;
+  --status-failed-text: #6A3FA0;      --status-failed-bg: #F3ECFA;
+
+  /* Chữ — tiêu đề kiểu biển hiệu, chữ nhấn viết tay, nội dung Be Vietnam Pro */
   --font-body: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Baloo 2', 'Be Vietnam Pro', system-ui, cursive;
+  /* Mặc định (khu vận hành, popup) giữ Baloo 2; khu khách đổi sang --font-sign trong street.css */
+  --font-display: 'Baloo 2', 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-sign: 'Paytone One', 'Baloo 2', 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-script: 'Lobster', 'Baloo 2', cursive;
 
   --text-xs: 12px;
   --text-sm: 14px;
@@ -81,14 +123,26 @@
   --radius-full: 999px;
   --card-radius: 24px; /* tên cũ */
 
-  --shadow-sm: 0 1px 2px rgba(28, 25, 23, .06), 0 1px 3px rgba(28, 25, 23, .08);
-  --shadow-md: 0 4px 12px -2px rgba(28, 25, 23, .12), 0 2px 6px -2px rgba(28, 25, 23, .08);
-  --shadow-lg: 0 12px 32px -8px rgba(120, 53, 15, .24);
+  --shadow-sm: 0 1px 2px rgba(43, 29, 20, .06), 0 1px 3px rgba(43, 29, 20, .08);
+  --shadow-md: 0 4px 12px -2px rgba(43, 29, 20, .12), 0 2px 6px -2px rgba(43, 29, 20, .08);
+  --shadow-lg: 0 12px 32px -8px rgba(100, 55, 21, .24);
+
+  /* Bóng cứng lệch kiểu nhãn dán — dấu hiệu thị giác chính của khu khách */
+  --line: 2px solid var(--ink);
+  --shadow-pop-sm: 2px 2px 0 var(--ink);
+  --shadow-pop: 4px 4px 0 var(--ink);
+  --shadow-pop-lg: 7px 7px 0 var(--ink);
 
   /* Glassmorphism — tên cũ */
-  --glass-bg: rgba(255, 255, 255, 0.88);
-  --glass-border: rgba(217, 119, 6, 0.22);
-  --glass-shadow: 0 20px 45px -15px rgba(120, 53, 15, 0.15), 0 0 0 1px rgba(217, 119, 6, 0.08);
+  --glass-bg: rgba(255, 253, 247, 0.92);
+  --glass-border: rgba(43, 29, 20, 0.16);
+  --glass-shadow: 0 20px 45px -15px rgba(100, 55, 21, 0.15), 0 0 0 1px rgba(43, 29, 20, 0.06);
+
+  /* Họa tiết gạch bông (SVG lặp) — dùng cho hero, footer, trang đăng nhập */
+  --pattern-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cg fill='none' stroke='%23E0922A' stroke-width='1.6' opacity='.55'%3E%3Cpath d='M28 6 L36 20 L28 28 L20 20 Z'/%3E%3Cpath d='M28 50 L36 36 L28 28 L20 36 Z'/%3E%3Cpath d='M6 28 L20 20 L28 28 L20 36 Z'/%3E%3Cpath d='M50 28 L36 20 L28 28 L36 36 Z'/%3E%3Ccircle cx='28' cy='28' r='3'/%3E%3Cpath d='M0 0 Q8 8 0 16 M56 0 Q48 8 56 16 M0 56 Q8 48 0 40 M56 56 Q48 48 56 40'/%3E%3C/g%3E%3C/svg%3E");
+  --pattern-tile-dark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cg fill='none' stroke='%23F2BE62' stroke-width='1.6' opacity='.22'%3E%3Cpath d='M28 6 L36 20 L28 28 L20 20 Z'/%3E%3Cpath d='M28 50 L36 36 L28 28 L20 36 Z'/%3E%3Cpath d='M6 28 L20 20 L28 28 L20 36 Z'/%3E%3Cpath d='M50 28 L36 20 L28 28 L36 36 Z'/%3E%3Ccircle cx='28' cy='28' r='3'/%3E%3Cpath d='M0 0 Q8 8 0 16 M56 0 Q48 8 56 16 M0 56 Q8 48 0 40 M56 56 Q48 48 56 40'/%3E%3C/g%3E%3C/svg%3E");
+  /* Vân giấy rất nhẹ cho nền trang */
+  --pattern-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .17 0 0 0 0 .11 0 0 0 0 .08 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 
   /* Khoảng cách (bội số 4) */
   --space-1: 4px;
@@ -101,6 +155,7 @@
   --space-12: 48px;
 
   --transition-smooth: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-bounce: cubic-bezier(.34, 1.56, .64, 1);
 }
 
 /* Keyframe dùng chung cho mọi component (spinner, toast, modal) */
@@ -122,4 +177,26 @@
 @keyframes ui-shimmer {
   from { background-position: 200% 0; }
   to { background-position: -200% 0; }
+}
+@keyframes ui-wobble {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-6deg); }
+  75% { transform: rotate(6deg); }
+}
+@keyframes ui-bounce {
+  0%, 100% { transform: scale(1); }
+  35% { transform: scale(1.22); }
+  65% { transform: scale(.94); }
+}
+
+/* Ai bật "giảm chuyển động" thì tắt hết hoạt ảnh trang trí */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

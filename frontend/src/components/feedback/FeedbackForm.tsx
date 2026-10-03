@@ -174,8 +174,8 @@ const FeedbackFormBody = () => {
   };
 
   return (
-    <section ref={sectionRef} id="feedback">
-      <h2>
+    <section ref={sectionRef} id="feedback" className="cf-card">
+      <h2 className="cf-card__title">
         <MessageSquare size={20} /> Gửi phản hồi cho cửa hàng
       </h2>
 

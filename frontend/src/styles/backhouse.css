@@ -1,0 +1,290 @@
+/* ==========================================================================
+   Backhouse — phong cách "bếp sau lò bánh" cho component dùng chung,
+   CHỈ áp trong khu vận hành (.dash: admin / staff / manager / shipper).
+
+   Cùng bản sắc với street.css của khu khách nhưng tiết chế cho người dùng cả ca:
+   viền 2px, bóng cứng mỏng (2–3px), không nghiêng, không nảy; bảng và form gọn.
+   Tiêu đề trang dùng chữ biển hiệu, còn tiêu đề thẻ giữ Baloo 2 cho dễ đọc.
+   Popup (Modal) render ra ngoài .dash nên giữ kiểu mặc định.
+   ========================================================================== */
+
+.dash {
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ Button */
+.dash .ui-btn {
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  box-shadow: var(--shadow-pop-sm);
+  transition: transform .1s, box-shadow .1s, background .15s, color .15s;
+}
+
+.dash .ui-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.dash .ui-btn--primary {
+  background: var(--chili-600);
+  color: #fff;
+}
+.dash .ui-btn--primary:hover:not(:disabled) {
+  background: var(--chili-500);
+}
+
+.dash .ui-btn--secondary {
+  background: var(--cream);
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.dash .ui-btn--secondary:hover:not(:disabled) {
+  background: var(--primary-100);
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.dash .ui-btn--ghost {
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--ink-soft);
+}
+.dash .ui-btn--ghost:hover:not(:disabled) {
+  background: var(--primary-100);
+  color: var(--ink);
+}
+
+.dash .ui-btn--success {
+  background: var(--herb-600);
+}
+.dash .ui-btn--success:hover:not(:disabled) {
+  background: var(--herb-500);
+}
+
+.dash .ui-btn:disabled {
+  box-shadow: none;
+}
+
+/* Nút trong sidebar nằm trên nền mực — viền kem cho nổi */
+.dash__sidebar .ui-btn {
+  border-color: var(--cream);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, .4);
+}
+
+/* ------------------------------------------------------- Tiêu đề đầu trang */
+.dash .page-head {
+  border-bottom: 2px dashed var(--stone-300);
+}
+
+.dash .page-head__title {
+  font-family: var(--font-sign);
+  font-size: clamp(1.45rem, 2.4vw, 1.85rem);
+  line-height: 1.15;
+  color: var(--ink);
+}
+
+/* Gạch lượn đỏ dưới tiêu đề — như nét bút lông trên bảng menu */
+.dash .page-head__title::after {
+  content: '';
+  display: block;
+  width: 84px;
+  height: 9px;
+  margin-top: 6px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='9' viewBox='0 0 84 9'%3E%3Cpath d='M2 5 Q12 1 22 5 T42 5 T62 5 T82 4' fill='none' stroke='%23B83A24' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat;
+}
+
+.dash .page-head__subtitle {
+  color: var(--ink-soft);
+}
+
+.dash .page-head__pulse,
+.dash .page-head__refresh {
+  border: 2px solid var(--stone-300);
+  background: var(--cream);
+  color: var(--ink-soft);
+}
+
+.dash .page-head__refresh:hover:not(:disabled) {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.dash .page-head__pulse-dot {
+  background: var(--herb-600);
+}
+
+.dash .page-bar__title {
+  font-family: var(--font-sign);
+  color: var(--ink);
+}
+
+/* -------------------------------------------------------------------- Card */
+.dash .card {
+  border: 2px solid var(--stone-300);
+  border-radius: var(--radius-lg);
+  background: var(--cream);
+  box-shadow: 3px 3px 0 var(--stone-300);
+}
+
+.dash .card__head {
+  border-bottom: 2px dashed var(--stone-200);
+}
+
+.dash .card__foot {
+  border-top: 2px dashed var(--stone-200);
+}
+
+.dash .card__title {
+  color: var(--ink);
+}
+
+.dash .card__title svg {
+  color: var(--chili-600);
+}
+
+/* ------------------------------------------------------------- Input field */
+.dash .ui-field__input {
+  border: 2px solid var(--stone-300);
+  background: var(--cream);
+  color: var(--ink);
+}
+
+.dash .ui-field__input:hover {
+  border-color: var(--stone-400);
+}
+
+.dash .ui-field__input:focus {
+  border-color: var(--ink);
+  box-shadow: var(--shadow-pop-sm);
+}
+
+.dash .ui-field__input--invalid {
+  border-color: var(--danger);
+}
+
+.dash .ui-field__label {
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------- Table */
+.dash .ui-table th {
+  background: var(--primary-100);
+  color: var(--ink-soft);
+  border-bottom: 2px solid var(--ink);
+}
+
+.dash .ui-table td {
+  border-bottom: 1px dashed var(--stone-300);
+  color: var(--stone-700);
+}
+
+/* Dòng xen kẽ rất nhạt cho mắt bám hàng khi bảng dài */
+.dash .ui-table tbody tr:nth-child(even) {
+  background: rgba(244, 230, 204, .35);
+}
+
+.dash .ui-table tbody tr:hover {
+  background: var(--primary-50);
+}
+
+.dash .ui-table__primary {
+  color: var(--ink);
+}
+
+.dash .ui-table__amount {
+  color: var(--chili-600);
+}
+
+.dash .table-wrap {
+  border-radius: var(--radius-md);
+}
+
+/* ------------------------------------------------------------- Chips/tabs */
+.dash .ui-chip {
+  border: 2px solid var(--stone-300);
+  background: var(--cream);
+  color: var(--ink-soft);
+}
+
+.dash .ui-chip:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.dash .ui-chip--active,
+.dash .ui-chip--active:hover {
+  background: var(--primary-300);
+  border-color: var(--ink);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop-sm);
+}
+
+.dash .ui-chips {
+  padding: 2px 3px var(--space-2) 2px;
+}
+
+.dash .ui-tabs__tab--active {
+  color: var(--chili-600);
+}
+
+.dash .ui-tabs__tab--active::after {
+  background: var(--chili-600);
+}
+
+.dash .ui-tabs__tab--active .ui-tabs__count {
+  color: var(--ink);
+  background: var(--primary-200);
+}
+
+/* ----------------------------------------------------------------- Pager */
+.dash .ui-pager__btn {
+  border: 2px solid var(--stone-300);
+  background: var(--cream);
+  color: var(--ink-soft);
+}
+
+.dash .ui-pager__btn--active {
+  background: var(--primary-300);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------- Empty state */
+/* Icon trống nằm trong "đĩa" kem viền mực, vành nét đứt — không lắc như khu khách */
+.dash .ui-empty__icon {
+  width: 76px;
+  height: 76px;
+  border: 2px solid var(--ink);
+  background: var(--cream);
+  color: var(--chili-600);
+  outline: 2px dashed var(--stone-300);
+  outline-offset: -10px;
+}
+
+.dash .ui-empty__title {
+  font-family: var(--font-sign);
+  color: var(--ink);
+}
+
+/* ---------------------------------------------------------------- Stepper */
+.dash .ui-stepper {
+  border: 2px solid var(--stone-300);
+  background: var(--cream);
+}
+
+.dash .ui-stepper__btn {
+  border: 2px solid var(--ink);
+  background: var(--primary-200);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+/* ------------------------------------------------------------ Badge/nhãn */
+.dash .ui-badge {
+  border: 1.5px solid currentColor;
+}
+
+.dash .ui-status {
+  border: 1.5px solid currentColor;
+}

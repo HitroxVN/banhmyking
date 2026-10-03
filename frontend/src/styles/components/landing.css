@@ -1,43 +1,89 @@
 /* LandingPage — dùng lại hero / dải nổi bật / cam kết của menu.css, chỉ thêm dải CTA cuối */
 @import './menu.css';
 
+/* Dải CTA như tấm bảng đen phấn trước quán: nền mực, chữ vàng, viền nét đứt */
 .land-cta {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-5);
-  margin: var(--space-8) 0 var(--space-4);
-  padding: var(--space-6);
-  border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, var(--primary-50), var(--surface));
-  border: 1px solid var(--primary-200);
+  margin: var(--space-12) 0 var(--space-4);
+  padding: var(--space-8);
+  border: var(--line);
+  border-radius: 22px;
+  background: var(--chili-600);
+  color: var(--cream);
+  box-shadow: var(--shadow-pop-lg);
+}
+
+.land-cta::before {
+  content: '';
+  position: absolute;
+  inset: 10px;
+  border: 2px dashed rgba(255, 253, 247, .45);
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+.land-cta__copy {
+  position: relative;
+}
+
+.land-cta__kicker {
+  margin: 0;
+  font-family: var(--font-script);
+  font-size: var(--text-xl);
+  color: var(--primary-200);
+  transform: rotate(-3deg);
+  transform-origin: left;
 }
 
 .land-cta__title {
   margin: 0 0 var(--space-2);
-  font-size: var(--text-2xl);
-  font-weight: 800;
-  color: var(--stone-900);
+  font-size: clamp(1.8rem, 3.4vw, 2.4rem);
+  color: #fff;
 }
 
 .land-cta__desc {
   margin: 0;
   max-width: 46ch;
-  font-size: var(--text-sm);
-  color: var(--stone-600);
+  font-size: var(--text-base);
+  color: var(--chili-50);
   line-height: 1.6;
 }
 
 .land-cta__actions {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
 }
 
+/* Trên nền đỏ: nút chính đổi sang vàng cho nổi, nút phụ giữ nền kem */
+.land-cta .ui-btn--primary {
+  background: var(--primary-300);
+  color: var(--ink);
+}
+
+.land-cta .ui-btn--primary:hover:not(:disabled) {
+  background: var(--primary-200);
+}
+
+.land-cta .ui-btn--ghost {
+  border-color: var(--cream);
+  color: var(--cream);
+}
+
+.land-cta .ui-btn--ghost:hover:not(:disabled) {
+  background: var(--chili-700);
+  color: #fff;
+}
+
 @media (max-width: 720px) {
   .land-cta {
-    padding: var(--space-5);
+    padding: var(--space-6) var(--space-5);
   }
 
   .land-cta__actions .ui-btn {
