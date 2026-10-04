@@ -124,3 +124,20 @@ select.ui-field__input {
   accent-color: var(--primary-600);
   cursor: pointer;
 }
+
+/* TimeField24 — hai ô chọn giờ : phút kiểu 24h đứng cạnh nhau */
+.ui-time {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ui-time .ui-field__wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.ui-time__sep {
+  font-weight: 800;
+  color: var(--stone-500);
+}

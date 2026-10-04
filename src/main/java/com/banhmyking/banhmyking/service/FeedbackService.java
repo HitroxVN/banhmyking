@@ -12,6 +12,8 @@ import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.enums.FeedbackStatus;
 import com.banhmyking.banhmyking.enums.FeedbackType;
 import com.banhmyking.banhmyking.enums.RoleName;
+import com.banhmyking.banhmyking.event.InboxChangedEvent;
+import com.banhmyking.banhmyking.event.InboxType;
 import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.NotFoundMessages;
@@ -28,6 +30,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +61,8 @@ public class FeedbackService {
     private final SiteSettingService siteSettingService;
     private final EmailService emailService;
     private final Clock clock;
+    /** Báo huy hiệu hộp thư của admin/manager cập nhật ngay (realtime) */
+    private final ApplicationEventPublisher eventPublisher;
 
     // ------------------------------------------------------------------ gửi phản hồi (công khai)
 
@@ -117,6 +122,7 @@ public class FeedbackService {
         feedback.setContent(content);
         feedback.setClientIp(clientIp);
         feedbackRepository.save(feedback);
+        eventPublisher.publishEvent(new InboxChangedEvent(InboxType.FEEDBACK, store == null ? null : store.getId()));
         rateLimiter.record(clientIp);
 
         FeedbackNotice notice = FeedbackNotice.from(feedback);
@@ -151,6 +157,9 @@ public class FeedbackService {
                 feedback.setHandledBy(actor);
                 feedback.setHandledAt(LocalDateTime.now(clock));
             }
+            // Số "mới" trên huy hiệu của người khác vừa đổi
+            eventPublisher.publishEvent(new InboxChangedEvent(InboxType.FEEDBACK,
+                    feedback.getStore() == null ? null : feedback.getStore().getId()));
         }
         if (request.resolutionNote() != null) {
             feedback.setResolutionNote(ContactFields.optionalText(request.resolutionNote(), 2000,

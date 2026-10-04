@@ -8,7 +8,7 @@ import { ReviewFormModal } from '../components/review/ReviewFormModal';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
 import { PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL, PAYMENT_STATUS_TONE } from '../utils/payment';
 import { ORDER_STATUS_LABEL } from '../utils/orderStatus';
-import { usePolling } from '../hooks/usePolling';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import type { OrderItemResponse, OrderResponse, OrderStatus, OrderStatusHistoryItem } from '../types/order';
 import { PriceTag } from '../components/product/PriceTag';
 import { ComboContents } from '../components/product/ComboContents';
@@ -30,8 +30,6 @@ const STEP_LABELS: Partial<Record<OrderStatus, string>> = {
 };
 
 const TERMINAL: OrderStatus[] = ['DELIVERED', 'CANCELLED', 'FAILED'];
-/** Chu kỳ tự cập nhật trạng thái đơn (ms) */
-const POLL_MS = 5000;
 /** Lỗi tải ngầm liên tiếp bao nhiêu lần thì báo cho khách biết trạng thái có thể đã cũ */
 const STALE_AFTER_FAILURES = 3;
 const CUSTOMER_CANCELABLE: OrderStatus[] = ['PENDING', 'CONFIRMED'];
@@ -98,9 +96,12 @@ export const OrderTrackingPage = () => {
     load();
   }, [load]);
 
-  // Đơn chưa kết thúc thì tự làm mới (5s + ngay khi quay lại tab / có tín hiệu từ tab staff)
+  // Đơn chưa kết thúc thì tự cập nhật: tức thì qua realtime, dự phòng 30s khi mất luồng
   const isFinished = order != null && TERMINAL.includes(order.status);
-  usePolling(() => load(true), { intervalMs: POLL_MS, enabled: order != null && !isFinished });
+  useLiveRefresh(() => load(true), {
+    enabled: order != null && !isFinished,
+    matchOrder: (signal) => signal.orderCode === orderCode,
+  });
 
   const handleCancel = async () => {
     if (!order) return;

@@ -12,6 +12,8 @@ import com.banhmyking.banhmyking.entity.Store;
 import com.banhmyking.banhmyking.entity.User;
 import com.banhmyking.banhmyking.enums.ApplicationStatus;
 import com.banhmyking.banhmyking.enums.RoleName;
+import com.banhmyking.banhmyking.event.InboxChangedEvent;
+import com.banhmyking.banhmyking.event.InboxType;
 import com.banhmyking.banhmyking.exception.BusinessException;
 import com.banhmyking.banhmyking.exception.ErrorCode;
 import com.banhmyking.banhmyking.exception.NotFoundMessages;
@@ -28,6 +30,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +58,8 @@ public class JobApplicationService {
     private final SubmissionRateLimiter rateLimiter;
     private final EmailService emailService;
     private final Clock clock;
+    /** Báo huy hiệu hộp thư của admin/manager cập nhật ngay (realtime) */
+    private final ApplicationEventPublisher eventPublisher;
 
     // ------------------------------------------------------------------ nộp hồ sơ (công khai)
 
@@ -119,6 +124,7 @@ public class JobApplicationService {
             }
             throw ex;
         }
+        eventPublisher.publishEvent(new InboxChangedEvent(InboxType.JOB_APPLICATION, store.getId()));
         rateLimiter.record(clientIp);
 
         if (email != null) {
@@ -193,6 +199,8 @@ public class JobApplicationService {
                 app.setHandledBy(actor);
                 app.setHandledAt(LocalDateTime.now(clock));
             }
+            eventPublisher.publishEvent(new InboxChangedEvent(InboxType.JOB_APPLICATION,
+                    app.getStore() == null ? null : app.getStore().getId()));
         }
         if (request.internalNote() != null) {
             app.setInternalNote(ContactFields.optionalText(request.internalNote(), 2000,

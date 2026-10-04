@@ -53,6 +53,9 @@ import static org.mockito.Mockito.when;
 class OrderOwnershipTest {
 
     @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
+    @Mock
     private OrderRepository orderRepository;
 
     @Mock
@@ -101,7 +104,7 @@ class OrderOwnershipTest {
     void setUp() {
         internalPaymentService = new PaymentServiceImpl(
                 paymentRepository, orderRepository, userRepository, orderStatusHistoryRepository, inventoryService,
-                storeAccessGuard);
+                storeAccessGuard, eventPublisher);
 
         Store store = new Store();
         store.setId(1L);

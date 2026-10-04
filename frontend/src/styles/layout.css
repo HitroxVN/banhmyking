@@ -1074,3 +1074,39 @@ img.dash__avatar {
   font-weight: 700;
   font-size: var(--text-sm);
 }
+
+/* Nút bật/tắt âm báo đơn mới — ngay dưới logo, hiện cả trên điện thoại */
+.dash__sound-row {
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.dash__sound {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 2px solid rgba(255, 253, 247, .25);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--stone-300);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dash__sound:hover {
+  border-color: var(--primary-300);
+  color: var(--cream);
+}
+
+.dash__sound--on {
+  border-color: var(--primary-300);
+  color: var(--primary-200);
+}
+
+@media (max-width: 900px) {
+  .dash__sound-row {
+    padding: var(--space-2) var(--space-4) 0;
+  }
+}

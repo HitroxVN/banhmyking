@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { MapPinOff, Pencil, Plus, Trash2 } from 'lucide-react';
 import { storeApi } from '../../api/storeApi';
-import { Badge, Button, EmptyState, Input, Modal, PageHeader, Skeleton, Textarea, useConfirm, useToast } from '../../components/ui';
+import { Badge, Button, EmptyState, Input, Modal, PageHeader, Skeleton, Textarea, TimeField24, useConfirm, useToast } from '../../components/ui';
 import { AddressMapPicker } from '../../components/address/AddressMapPicker';
 import { EmptyPlate } from '../../components/illustrations/FoodDoodles';
 import { storeStatus } from '../../components/store/storeLabels';
@@ -273,8 +273,9 @@ export const AdminStoresPage = () => {
               </label>
             </div>
             <div className="addr-fields__row">
-              <Input label="Giờ mở cửa" type="time" value={form.openTime} onChange={(e) => setField('openTime', e.target.value)} />
-              <Input label="Giờ đóng cửa" type="time" value={form.closeTime} onChange={(e) => setField('closeTime', e.target.value)} />
+              {/* Kiểu 24h — ô type="time" của trình duyệt hiện SA/CH theo ngôn ngữ máy, khó chỉnh */}
+              <TimeField24 label="Giờ mở cửa" value={form.openTime} onChange={(value) => setField('openTime', value)} />
+              <TimeField24 label="Giờ đóng cửa" value={form.closeTime} onChange={(value) => setField('closeTime', value)} />
             </div>
             <div className="addr-fields__row">
               <Input label="Bán kính giao (km)" type="number" min={0.5} max={100} step={0.5} value={form.deliveryRadiusKm} onChange={(e) => setField('deliveryRadiusKm', Number(e.target.value))} />

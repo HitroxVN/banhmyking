@@ -157,19 +157,3 @@
   border-radius: var(--radius-lg);
   background: var(--cream);
 }
-
-.asettings__store {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.asettings__store-pin {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: var(--text-sm);
-  color: var(--stone-600);
-}

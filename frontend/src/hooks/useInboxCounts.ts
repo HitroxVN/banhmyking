@@ -2,10 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { feedbackApi } from '../api/feedbackApi';
 import { jobApi } from '../api/jobApi';
 import { INBOX_CHANGED_EVENT } from '../utils/inboxEvents';
-import { usePolling } from './usePolling';
+import { useLiveRefresh } from './useLiveRefresh';
 import type { NavBadge } from '../components/layout/navItems';
 
-const POLL_MS = 60_000;
+const FALLBACK_MS = 60_000;
 
 export type InboxCounts = Record<NavBadge, number>;
 
@@ -41,7 +41,8 @@ export const useInboxCounts = (enabled: boolean): InboxCounts => {
     };
   }, [enabled, refresh]);
 
-  usePolling(refresh, { intervalMs: POLL_MS, enabled });
+  // Có phản hồi / hồ sơ mới → huy hiệu cập nhật ngay; mất luồng thì hỏi lại mỗi 60s như trước
+  useLiveRefresh(refresh, { inbox: true, enabled, fallbackMs: FALLBACK_MS });
 
   return counts;
 };

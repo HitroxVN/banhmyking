@@ -1,5 +1,9 @@
 package com.banhmyking.banhmyking.service;
 
+import com.banhmyking.banhmyking.event.OrderChangeKind;
+import com.banhmyking.banhmyking.event.OrderChangedEvent;
+import static org.mockito.Mockito.times;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.banhmyking.banhmyking.dto.order.CancelOrderRequest;
 import com.banhmyking.banhmyking.dto.order.OrderResponse;
 import com.banhmyking.banhmyking.dto.order.OrderStatusHistoryResponse;
@@ -52,6 +56,9 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceStateMachineTest {
+
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Mock
     private OrderRepository orderRepository;
@@ -173,6 +180,9 @@ class OrderServiceStateMachineTest {
         assertThat(savedHistory.getToStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(savedHistory.getChangedBy().getId()).isEqualTo(2L);
         assertThat(savedHistory.getNote()).isEqualTo("Đổi ý không ăn nữa");
+        ArgumentCaptor<OrderChangedEvent> event = ArgumentCaptor.forClass(OrderChangedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(event.capture());
+        assertEquals(OrderStatus.CANCELLED, event.getValue().toStatus());
     }
 
     @Test
@@ -227,6 +237,11 @@ class OrderServiceStateMachineTest {
         assertThat(history.getToStatus()).isEqualTo(OrderStatus.CONFIRMED);
         assertThat(history.getChangedBy().getId()).isEqualTo(4L);
         assertThat(history.getNote()).isEqualTo("Nhân viên xác nhận đơn");
+        ArgumentCaptor<OrderChangedEvent> event = ArgumentCaptor.forClass(OrderChangedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(event.capture());
+        assertEquals(OrderChangeKind.STATUS_CHANGED, event.getValue().kind());
+        assertEquals(OrderStatus.PENDING, event.getValue().fromStatus());
+        assertEquals(OrderStatus.CONFIRMED, event.getValue().toStatus());
     }
 
     @Test
@@ -391,6 +406,32 @@ class OrderServiceStateMachineTest {
         assertThat(testOrder.getShipper().getId()).isEqualTo(3L);
     }
 
+    @Test
+    @DisplayName("READY_FOR_PICKUP -> DELIVERING đổi sang shipper khác: sự kiện mang previousShipperId của shipper cũ")
+    void updateOrderStatus_toDelivering_replacingShipper_eventCarriesPreviousShipper() {
+        User oldShipper = new User();
+        oldShipper.setId(7L);
+        oldShipper.setFullName("Shipper cũ");
+        oldShipper.setRole(RoleName.SHIPPER);
+        oldShipper.setStore(shipper.getStore());
+        testOrder.setStatus(OrderStatus.READY_FOR_PICKUP);
+        testOrder.setShipper(oldShipper);
+        shipper.setId(3L);
+
+        when(userRepository.findById(4L)).thenReturn(Optional.of(staff));
+        when(userRepository.findById(3L)).thenReturn(Optional.of(shipper));
+        when(orderRepository.findByOrderCode("BMK-20260909-ABCDE")).thenReturn(Optional.of(testOrder));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        orderService.updateOrderStatus(4L, "BMK-20260909-ABCDE", UpdateOrderStatusRequest.builder()
+                .newStatus(OrderStatus.DELIVERING).shipperId(3L).build());
+
+        ArgumentCaptor<OrderChangedEvent> event = ArgumentCaptor.forClass(OrderChangedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(event.capture());
+        assertEquals(7L, event.getValue().previousShipperId());
+        assertEquals(3L, event.getValue().shipperId());
+    }
+
     // ─── Khép kín dòng tiền & trả lượt khuyến mãi khi huỷ đơn ────────────────
 
     @Test
@@ -477,6 +518,9 @@ class OrderServiceStateMachineTest {
         assertThat(testOrder.getCancelReason()).contains("quá hạn thanh toán");
         verify(promotionService).releaseForOrder(testOrder);
         verify(orderStatusHistoryRepository).save(any(OrderStatusHistory.class));
+        ArgumentCaptor<OrderChangedEvent> event = ArgumentCaptor.forClass(OrderChangedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(event.capture());
+        assertEquals(OrderStatus.CANCELLED, event.getValue().toStatus());
     }
 
     /** Shipper khác (id 7) — fixture cho test ownership. */

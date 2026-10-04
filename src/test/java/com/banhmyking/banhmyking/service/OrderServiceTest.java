@@ -1,5 +1,10 @@
 package com.banhmyking.banhmyking.service;
 
+import com.banhmyking.banhmyking.event.OrderChangeKind;
+import com.banhmyking.banhmyking.event.OrderChangedEvent;
+import org.mockito.ArgumentCaptor;
+import static org.mockito.Mockito.times;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.banhmyking.banhmyking.dto.order.CreateOrderRequest;
 import com.banhmyking.banhmyking.dto.order.OrderItemComponentResponse;
 import com.banhmyking.banhmyking.dto.order.OrderResponse;
@@ -68,6 +73,9 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
+
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Mock
     private OrderRepository orderRepository;
@@ -248,6 +256,9 @@ class OrderServiceTest {
         verify(orderRepository).save(any(Order.class));
         verify(paymentService).createPendingPayment(any(Order.class), eq(PaymentMethod.COD),
                 eq(BigDecimal.valueOf(95000)));
+        ArgumentCaptor<OrderChangedEvent> event = ArgumentCaptor.forClass(OrderChangedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(event.capture());
+        assertEquals(OrderChangeKind.CREATED, event.getValue().kind());
     }
 
     @Test

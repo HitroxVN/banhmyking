@@ -23,6 +23,7 @@ import { ORDER_NEXT_STATUSES, isFinalStatus } from '../../types/order';
 import { ORDER_STATUS_LABEL, ORDER_STATUS_OPTIONS } from '../../utils/orderStatus';
 import { PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL, PAYMENT_STATUS_TONE } from '../../utils/payment';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { broadcastOrderChange } from '../../utils/orderSyncChannel';
 import '../../styles/components/admin-orders.css';
 
@@ -79,6 +80,13 @@ export const AdminOrdersPage = () => {
     setIsLoading(true);
     void load();
   }, [load]);
+
+  // Đơn đổi ở bếp / shipper / khách → bảng tự cập nhật, không cần bấm "Làm mới"
+  useLiveRefresh(() => load(), {
+    // previousStoreId: đơn vừa chuyển đi khỏi cơ sở này thì hàng đợi cũng phải tải lại
+    matchOrder: (signal) =>
+      storeId == null || signal.storeId === storeId || signal.previousStoreId === storeId,
+  });
 
   const reload = () => {
     setIsLoading(true);

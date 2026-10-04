@@ -1,5 +1,13 @@
 package com.banhmyking.banhmyking.service;
 
+import com.banhmyking.banhmyking.event.OrderChangeKind;
+import com.banhmyking.banhmyking.event.OrderChangedEvent;
+import org.mockito.ArgumentCaptor;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import com.banhmyking.banhmyking.dto.order.RejectOrderRequest;
 import com.banhmyking.banhmyking.dto.common.PageResponse;
 import com.banhmyking.banhmyking.dto.order.AssignShipperRequest;
 import com.banhmyking.banhmyking.dto.order.ConfirmDeliveryRequest;
@@ -47,6 +55,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceApisTest {
+
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Mock
     private OrderRepository orderRepository;
@@ -233,6 +244,11 @@ class OrderServiceApisTest {
         assertEquals(4L, response.getShipperId());
         assertEquals("Tài xế Hoàng", response.getShipperName());
         verify(orderStatusHistoryRepository, times(1)).save(any(OrderStatusHistory.class));
+        ArgumentCaptor<OrderChangedEvent> event = ArgumentCaptor.forClass(OrderChangedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(event.capture());
+        assertEquals(OrderChangeKind.SHIPPER_ASSIGNED, event.getValue().kind());
+        assertEquals(4L, event.getValue().shipperId());
+        assertNull(event.getValue().previousShipperId());
     }
 
     @Test
@@ -331,6 +347,25 @@ class OrderServiceApisTest {
     // ─── 6. Shipper: Xác nhận giao hàng ─────────────────────────────────────
 
     @Test
+    @DisplayName("rejectAssignedOrder - gỡ shipper, ghi 1 dòng lịch sử và báo cả shipper vừa bị gỡ")
+    void rejectAssignedOrder_publishesEventForPreviousShipper() {
+        sampleOrder.setShipper(shipper);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(shipper));
+        when(orderRepository.findByOrderCode("BMK-20260909-TEST1")).thenReturn(Optional.of(sampleOrder));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+
+        orderService.rejectAssignedOrder(4L, "BMK-20260909-TEST1",
+                RejectOrderRequest.builder().reason("Xe hỏng").build());
+
+        verify(orderStatusHistoryRepository, times(1)).save(any(OrderStatusHistory.class));
+        ArgumentCaptor<OrderChangedEvent> event = ArgumentCaptor.forClass(OrderChangedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(event.capture());
+        assertEquals(OrderChangeKind.SHIPPER_ASSIGNED, event.getValue().kind());
+        assertNull(event.getValue().shipperId());
+        assertEquals(4L, event.getValue().previousShipperId());
+    }
+
+    @Test
     @DisplayName("confirmDelivery - Shipper được gán xác nhận giao hàng thành công, tự cập nhật COD PAID")
     void confirmDelivery_whenAssignedShipper_shouldTransitionToDelivered() {
         sampleOrder.setStatus(OrderStatus.DELIVERING);
@@ -351,6 +386,9 @@ class OrderServiceApisTest {
         assertNotNull(response.getDeliveredAt());
         assertEquals(PaymentStatus.PAID, response.getPaymentStatus());
         verify(orderStatusHistoryRepository, times(1)).save(any(OrderStatusHistory.class));
+        ArgumentCaptor<OrderChangedEvent> event = ArgumentCaptor.forClass(OrderChangedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(event.capture());
+        assertEquals(OrderStatus.DELIVERED, event.getValue().toStatus());
     }
 
     @Test
